@@ -16,7 +16,7 @@ const appearance = {
   },
 };
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 
 // Starts Clerk from the backend's runtime config, so deploy's live keys need no rebuild.
 // Must render inside <BrowserRouter> (see step 3) so Clerk navigates without reloading.
@@ -42,7 +42,7 @@ export default function ClerkAuthProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
-  if (unavailable) return <p style={{ padding: 24 }}>Sign-in is unavailable right now. Refresh the page to try again.</p>;
+  if (unavailable) return <p role="alert" style={{ padding: 24 }}>O acesso está temporariamente indisponível. Tente novamente em instantes.</p>;
   if (!config) return null;
   return (
     <ClerkProvider

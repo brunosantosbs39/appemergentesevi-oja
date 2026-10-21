@@ -13,7 +13,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) return toast.error("A imagem deve ter até 8 MB");
+    if (file.size > 4 * 1024 * 1024) return toast.error("A imagem deve ter até 4 MB");
     setBusy(true);
     try {
       const fd = new FormData();

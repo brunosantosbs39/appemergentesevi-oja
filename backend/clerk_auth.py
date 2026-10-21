@@ -32,7 +32,7 @@ _http.mount("https://", HTTPAdapter(pool_maxsize=40, max_retries=_retry))  # mat
 
 
 def _publishable_key() -> str:
-    return os.environ.get("CLERK_PUBLISHABLE_KEY", "")
+    return os.environ.get("CLERK_PUBLISHABLE_KEY") or os.environ.get("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "")
 
 
 def _secret_key() -> str:
@@ -41,7 +41,7 @@ def _secret_key() -> str:
 
 def _is_production() -> bool:
     # Only production instances are served through the /api/__clerk proxy.
-    return _publishable_key().startswith("pk_live_")
+    return _publishable_key().startswith("pk_live_") and os.environ.get("CLERK_USE_PROXY", "false").lower() == "true"
 
 
 def _client_ip(request: Request) -> str:

@@ -28,8 +28,11 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
 
-client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-db = client[os.environ["DB_NAME"]]
+mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
+if not mongo_url:
+    raise RuntimeError("Configure MONGO_URL or MONGODB_URI before starting the API")
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=10000)
+db = client[os.environ.get("DB_NAME", "servicoja")]
 
 app = FastAPI(title="ServiçoJá API")
 api = APIRouter(prefix="/api")
@@ -42,7 +45,7 @@ STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em
                  "concluido": "Concluído", "cancelado": "Cancelado"}
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
             "image/heic": "heic", "image/heif": "heif"}
-MAX_UPLOAD = 8 * 1024 * 1024
+MAX_UPLOAD = 4 * 1024 * 1024
 PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "headline": 1, "bio": 1, "categories": 1,
           "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1}
 # who may move a request to each status, and from which statuses
@@ -188,11 +191,11 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
 @api.post("/upload")
 async def upload(file: UploadFile = File(...), me: dict = Depends(current_member)):
     ctype = (file.content_type or "").lower()
-    if not ctype.startswith("image/"):
+    if ctype not in MIME_EXT:
         raise HTTPException(400, "Envie apenas imagens")
-    data = await file.read()
+    data = await file.read(MAX_UPLOAD + 1)
     if len(data) > MAX_UPLOAD:
-        raise HTTPException(400, "A imagem deve ter até 8 MB")
+        raise HTTPException(400, "A imagem deve ter até 4 MB")
     path = f"{APP_NAME}/uploads/{me['user_id']}/{new_id()}.{MIME_EXT.get(ctype, 'jpg')}"
     result = await run_in_threadpool(put_object, path, data, ctype)
     await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
@@ -594,7 +597,7 @@ app.include_router(clerk_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=[origin.strip() for origin in os.environ.get("CORS_ORIGINS", "").split(",") if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -612,7 +615,8 @@ async def startup():
     await db.comments.create_index([("post_id", 1), ("created_at", 1)])
     await db.reviews.create_index("to_id")
     await db.files.create_index("storage_path")
-    await seed_demo(db)
+    if os.environ.get("SEED_DEMO", "false").lower() == "true":
+        await seed_demo(db)
     try:
         await run_in_threadpool(init_storage)
         logger.info("Storage initialized")
