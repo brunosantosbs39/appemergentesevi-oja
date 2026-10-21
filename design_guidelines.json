@@ -1,0 +1,250 @@
+{
+  "project_name": "ServiçoJá - Plataforma de Mão de Obra Qualificada e Feed Social",
+  "archetype": "The Performance Pro & Tactical Craft Marketplace",
+  "theme_strategy": {
+    "default_mode": "light",
+    "toggle_supported": true,
+    "vibe": "Energetic, trustworthy, modern, tactile Brazilian freelance marketplace with Instagram-style discovery and Uber-style instant dispatch"
+  },
+  "typography": {
+    "font_imports": [
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    ],
+    "headings": {
+      "family": "'Plus Jakarta Sans', sans-serif",
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-bold tracking-tight",
+      "h4": "text-lg sm:text-xl font-semibold tracking-tight"
+    },
+    "body": {
+      "family": "'Inter', sans-serif",
+      "size": "text-sm sm:text-base leading-relaxed"
+    },
+    "mono_labels": {
+      "family": "'JetBrains Mono', monospace",
+      "size": "text-xs uppercase tracking-widest font-medium"
+    }
+  },
+  "color_palette": {
+    "primary": {
+      "main": "#059669",
+      "foreground": "#FFFFFF",
+      "hover": "#047857",
+      "light": "#D1FAE5",
+      "dark": "#064E3B",
+      "label": "Emerald Work Green (Confiança, Aceito, Ação)"
+    },
+    "secondary": {
+      "main": "#0F172A",
+      "foreground": "#F8FAFC",
+      "hover": "#1E293B",
+      "label": "Deep Slate Obsidian (Estrutura, Elegância)"
+    },
+    "accent": {
+      "main": "#F59E0B",
+      "foreground": "#000000",
+      "hover": "#D97706",
+      "light": "#FEF3C7",
+      "label": "Amber Gold (Avaliações, Alerta Uber, Destaque)"
+    },
+    "status_colors": {
+      "pendente": "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+      "aceito": "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
+      "em_andamento": "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+      "concluido": "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800",
+      "cancelado": "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
+    },
+    "neutrals": {
+      "light_bg": "#F8FAFC",
+      "light_card": "#FFFFFF",
+      "light_border": "#E2E8F0",
+      "dark_bg": "#0B0F17",
+      "dark_card": "#111827",
+      "dark_border": "#1F2937"
+    }
+  },
+  "spacing_and_layout": {
+    "mobile_first": true,
+    "bottom_navigation_height": "h-16 pb-safe",
+    "desktop_sidebar_width": "w-64 lg:w-72",
+    "container_padding": "p-4 sm:p-6 lg:p-8",
+    "card_padding": "p-4 sm:p-5",
+    "grid_gap": "gap-4 sm:gap-6",
+    "border_radius": "rounded-2xl"
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60",
+    "card_hover": "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-emerald-500/40",
+    "map_container": "rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative h-[420px] sm:h-[520px] w-full",
+    "avatar_badge": "relative inline-block border-2 border-emerald-500 rounded-full"
+  },
+  "image_urls": {
+    "professionals": [
+      {
+        "url": "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Eletricista / Mão de obra",
+        "description": "Profissional eletricista autônomo em capacete de proteção e camisa xadrez"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1659353591742-9fa64d94738e?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Técnico / Encanador",
+        "description": "Profissional em uniforme de serviço hidráulico e manutenção"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1659353587424-f3f893a145d2?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Construção & Reformas",
+        "description": "Profissional qualificado preparado para reparos residenciais"
+      }
+    ],
+    "services_and_portfolio": [
+      {
+        "url": "https://images.unsplash.com/photo-1731168273756-e02cae42265b?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Reforma / Acabamento",
+        "description": "Corte de revestimento e piso em reforma residencial"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1618832515490-e181c4794a45?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Marcenaria / Cozinha",
+        "description": "Instalação de armários sob medida em cozinha planejada"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1505798577917-a65157d3320a?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "category": "Marcenaria / Carpintaria",
+        "description": "Trabalho em madeira com serra de esquadria de precisão"
+      }
+    ]
+  },
+  "key_features_and_flows": {
+    "auth_flow": {
+      "type": "JWT com escolha de papel",
+      "roles": ["Profissional", "Contratante"],
+      "test_ids": {
+        "email_input": "auth-email-input",
+        "password_input": "auth-password-input",
+        "role_select": "auth-role-select",
+        "submit_button": "auth-submit-button",
+        "toggle_mode": "auth-toggle-mode-button"
+      }
+    },
+    "feed_instagram_style": {
+      "elements": [
+        "Card de postagem com header de perfil e selo de profissional",
+        "Foto em proporção 4:3 / 1:1 com suporte a visualização em lightbox",
+        "Tag de localização interativa com link direto para o mapa",
+        "Botão de curtir com contador em tempo real",
+        "Seção de comentários expansível",
+        "Botão 'Solicitar Orçamento' / 'Contratar' direto na postagem"
+      ],
+      "test_ids": {
+        "feed_container": "instagram-feed-container",
+        "new_post_button": "create-post-trigger-button",
+        "like_button": "feed-post-like-button",
+        "comment_button": "feed-post-comment-button",
+        "hire_from_post": "feed-post-hire-button"
+      }
+    },
+    "map_uber_style": {
+      "library": "Leaflet com OpenStreetMap (gratuito)",
+      "features": [
+        "Localização do navegador via Geolocation API com fallback para São Paulo/Rio/Goiânia",
+        "Filtros de categoria (Eletricista, Encanador, Pintor, Marcenaria, Limpeza, T.I. & Design, Beleza, Todos)",
+        "Pins customizados no mapa diferenciando Profissionais e Pedidos Abertos",
+        "Popup interativo com avatar, distância em KM, nota média e CTA de pedido imediato",
+        "Raio de busca configurável (1km, 5km, 10km, 25km)"
+      ],
+      "test_ids": {
+        "map_container": "leaflet-map-container",
+        "category_chip": "map-category-chip",
+        "locate_me_button": "map-locate-me-button"
+      }
+    },
+    "service_requests_uber_flow": {
+      "steps": [
+        "1. Contratante cria pedido com Categoria, Descrição, Foto, Endereço/Localização e Orçamento estimado (R$)",
+        "2. Pedido aparece no Radar/Feed para Profissionais próximos",
+        "3. Profissional aceita o pedido com confirmação instantânea",
+        "4. Status do Pedido: Pendente -> Aceito -> Em Andamento -> Concluído",
+        "5. Após conclusão, janela modal de Avaliação por Estrelas (1 a 5) + Comentário"
+      ],
+      "test_ids": {
+        "create_request_button": "create-service-request-button",
+        "accept_request_button": "accept-service-request-button",
+        "status_badge": "service-status-badge",
+        "complete_service_button": "complete-service-button",
+        "star_rating_input": "star-rating-input"
+      }
+    },
+    "chat_communication": {
+      "features": [
+        "Lista de conversas ativas com badge de mensagens não lidas",
+        "Banner superior na conversa com resumo do Pedido (Status, Valor, Categoria)",
+        "Troca de mensagens em tempo real com horário e status de envio",
+        "Envio de anexos/fotos simulado no chat"
+      ],
+      "test_ids": {
+        "chat_list": "chat-conversations-list",
+        "chat_input": "chat-message-input",
+        "chat_send_button": "chat-send-message-button"
+      }
+    },
+    "user_profiles": {
+      "profissional_profile": [
+        "Header com foto, nome, categoria principal, selo verificado, avaliação média (ex: 4.9 ★)",
+        "Contador de serviços concluídos e distância atual",
+        "Apresentação/Bio e Especialidades",
+        "Galeria de portfólio alimentada pelas postagens do feed",
+        "Seção de avaliações recebidas dos contratantes",
+        "Ação primária: 'Solicitar Serviço' / 'Chamar no Chat'"
+      ],
+      "contratante_profile": [
+        "Header com foto, nome, papel Contratante, histórico de solicitações",
+        "Aba de Pedidos Ativos e Histórico Concluído",
+        "Avaliações enviadas para profissionais"
+      ],
+      "test_ids": {
+        "profile_avatar": "user-profile-avatar",
+        "profile_rating_badge": "user-profile-rating-badge",
+        "profile_action_chat": "profile-action-chat-button"
+      }
+    }
+  },
+  "component_guidelines": {
+    "shadcn_primitives": [
+      "Dialog / Sheet para formulários de criação de postagem e pedido de serviço",
+      "Tabs para chaveamento entre Feed, Mapa, Pedidos e Portfólio",
+      "Avatar com fallback estilizado para usuários sem foto",
+      "Badge customizado com cores de status para os serviços",
+      "Toast / Sonner para notificações de sucesso ao aceitar serviços ou postar"
+    ],
+    "icons": {
+      "preferred_library": "lucide-react",
+      "key_icons": [
+        "MapPin (Localização)",
+        "Briefcase (Mão de Obra / Categoria)",
+        "Heart (Curtida no Feed)",
+        "MessageCircle (Chat)",
+        "Star (Avaliação)",
+        "PlusCircle (Criar Pedido/Post)",
+        "User (Perfil)",
+        "CheckCircle (Concluído)",
+        "Clock (Pendente)",
+        "Navigation (Uber Radar)"
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Certifique-se de que TODA a interface está em Português do Brasil (PT-BR).",
+    "Adicione o atributo data-testid em TODOS os botões, campos de entrada, cards do feed, marcadores do mapa, itens de chat e badges de status.",
+    "No mobile, mantenha a barra de navegação inferior (Bottom Nav) fixa e com desfoque de vidro (glassmorphism).",
+    "O mapa Leaflet deve inicializar centralizado e permitir mover o marcador ou buscar por localização do usuário.",
+    "Forneça dados iniciais mockados ricos e realistas em Português (profissionais reais como eletricistas, pedreiros, encanadores, designers com fotos do Unsplash e avaliações já cadastradas) para que a aplicação pareça viva no primeiro carregamento.",
+    "Permita alternar suavemente entre os papéis de Profissional e Contratante ou no cadastro/login JWT simulado.",
+    "Ao concluir um serviço, abra automaticamente ou disponibilize a modal de Avaliação de 1 a 5 estrelas."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "no_transparent_overlays": "Nunca use background totalmente transparente em headers, dropdowns ou cards flutuantes. Sempre inclua backdrop-blur e fundo semi-sólido.",
+    "contrast_rules": "Textos em modo claro devem usar slate-900 / slate-800 e em modo escuro slate-100 / white. Mantenha taxa de contraste mínima de 4.5:1.",
+    "testing_ids": "Obrigatório colocar data-testid em kebab-case orientados à função em todas as interações."
+  }
+}
