@@ -1,24 +1,9 @@
-# Importação parcial da Emergent
+# Importação concluída
 
-O código atual foi copiado, incluindo alterações locais. Arquivos .env, credenciais e relatórios gerados foram excluídos. As senhas fixas dos testes foram substituídas por CLERK_TEST_PASSWORD.
+Os 149 arquivos do projeto exportado da Emergent estão na branch main, incluindo frontend, backend, testes, imagens e frontend/yarn.lock.
 
-Os seguintes 16 arquivos ainda precisam ser enviados a partir da cópia completa local (servicoja-codigo-completo.zip). O conector não conseguiu revisar o maior arquivo por limite de tamanho; o envio Git local também ficou indisponível por falha de acesso ao gerenciador de credenciais.
+Os 16 arquivos que estavam pendentes foram enviados em 21/10/2026. Seus hashes Git foram comparados com a cópia local: todos são idênticos.
 
-- `frontend/public/seed/hero-sp.jpg`
-- `frontend/public/seed/post-barbearia-1.jpg`
-- `frontend/public/seed/post-barbearia-2.jpg`
-- `frontend/public/seed/post-design-1.jpg`
-- `frontend/public/seed/post-design-2.jpg`
-- `frontend/public/seed/post-eletrica-1.jpg`
-- `frontend/public/seed/post-eletrica-2.jpg`
-- `frontend/public/seed/post-eletrica-3.jpg`
-- `frontend/public/seed/post-jardim-1.jpg`
-- `frontend/public/seed/post-jardim-2.jpg`
-- `frontend/public/seed/post-limpeza-1.jpg`
-- `frontend/public/seed/post-marcenaria-1.jpg`
-- `frontend/public/seed/post-marcenaria-2.jpg`
-- `frontend/public/seed/post-pintura-1.jpg`
-- `frontend/public/seed/post-reforma-1.jpg`
-- `frontend/yarn.lock`
+Arquivos .env, credenciais e relatórios gerados não foram publicados. Senhas fixas dos testes foram substituídas pela variável CLERK_TEST_PASSWORD.
 
-Validação: sintaxe dos 9 arquivos Python e leitura do package.json aprovadas. A aplicação não foi executada nesta migração.
+Validação realizada: sintaxe dos nove arquivos Python, leitura do package.json e integridade dos 16 arquivos finais. A aplicação não foi executada nesta migração; as variáveis de ambiente e serviços externos ainda precisam ser configurados.
