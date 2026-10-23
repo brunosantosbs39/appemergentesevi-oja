@@ -55,7 +55,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
   return (
     <form onSubmit={submit} className="space-y-4">
       {targetPro && (
-        <div className="flex items-center gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="request-target-banner">
+        <div className="flex items-center gap-2 rounded-none bg-amber-50 p-3 text-sm text-amber-900" data-testid="request-target-banner">
           <Target className="h-4 w-4" /> Pedido direto para <strong>{targetPro.name}</strong>
         </div>
       )}
@@ -85,7 +85,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
       <Field label="Foto (opcional)">
         <ImageUpload value={image} onChange={setImage} className="h-32" testid="request-image" />
       </Field>
-      <Button type="submit" disabled={busy} className="h-12 w-full rounded-full text-base font-semibold" data-testid="request-submit-button">
+      <Button type="submit" disabled={busy} className="h-12 w-full rounded-none text-base font-semibold" data-testid="request-submit-button">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} {targetPro ? "Enviar pedido" : "Publicar pedido"}
       </Button>
     </form>
@@ -94,7 +94,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
 
 export const CreateRequestDialog = ({ open, onOpenChange, targetPro, onCreated }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-xl" data-testid="create-request-dialog">
+    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-xl" data-testid="create-request-dialog">
       <DialogHeader>
         <DialogTitle className="font-heading text-2xl font-extrabold">Novo pedido de serviço</DialogTitle>
         <DialogDescription>Profissionais próximos recebem seu pedido e podem aceitar na hora.</DialogDescription>

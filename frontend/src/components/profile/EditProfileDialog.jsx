@@ -58,13 +58,13 @@ const ProfileForm = ({ onSaved, onClose }) => {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="flex items-center gap-4">
-        <ImageUpload value={f.avatar} onChange={set("avatar")} className="h-24 w-24 shrink-0 rounded-full" testid="edit-avatar" label="Foto" />
+        <ImageUpload value={f.avatar} onChange={set("avatar")} className="h-24 w-24 shrink-0 rounded-none" testid="edit-avatar" label="Foto" />
         <div className="flex-1 space-y-1.5">
           <Label>Tipo de conta</Label>
           <div className="grid grid-cols-2 gap-2">
             {[["contratante", "Contratante"], ["profissional", "Profissional"]].map(([id, label]) => (
               <button key={id} type="button" onClick={() => set("role")(id)} data-testid={`edit-role-${id}`}
-                className={cn("rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition-colors", f.role === id ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600")}>
+                className={cn("rounded-none border-2 px-3 py-2 text-sm font-semibold transition-colors", f.role === id ? "border-foreground bg-muted text-foreground" : "border-border text-foreground")}>
                 {label}
               </button>
             ))}
@@ -85,10 +85,10 @@ const ProfileForm = ({ onSaved, onClose }) => {
         </>
       )}
       <Field label="Sobre"><Textarea value={f.bio} onChange={set("bio")} rows={3} maxLength={1000} data-testid="edit-bio-input" /></Field>
-      <Button type="button" variant="outline" className="w-full rounded-full" onClick={locate} data-testid="edit-locate-button">
+      <Button type="button" variant="outline" className="w-full rounded-none" onClick={locate} data-testid="edit-locate-button">
         <Crosshair className="h-4 w-4" /> {pos ? "Localização atualizada" : "Atualizar minha localização no mapa"}
       </Button>
-      <Button type="submit" disabled={busy} className="h-12 w-full rounded-full text-base font-semibold" data-testid="edit-profile-submit-button">
+      <Button type="submit" disabled={busy} className="h-12 w-full rounded-none text-base font-semibold" data-testid="edit-profile-submit-button">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Salvar alterações
       </Button>
     </form>
@@ -97,7 +97,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
 export const EditProfileDialog = ({ open, onOpenChange, onSaved }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-xl" data-testid="edit-profile-dialog">
+    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-xl" data-testid="edit-profile-dialog">
       <DialogHeader>
         <DialogTitle className="font-heading text-2xl font-extrabold">Editar perfil</DialogTitle>
         <DialogDescription>Essas informações aparecem para outros usuários.</DialogDescription>

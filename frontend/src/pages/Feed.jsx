@@ -32,13 +32,13 @@ export default function Feed() {
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       <section className="min-w-0">
         <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Trabalhos recentes de profissionais perto de você.">
-          <Button onClick={() => setOpen(true)} className="rounded-full" data-testid="create-post-trigger-button">
+          <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
             <ImagePlus className="h-4 w-4" /> Nova postagem
           </Button>
         </PageHeader>
         <CategoryChips value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 max-w-xl space-y-6">
-          {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-600" />}
+          {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {posts?.length === 0 && (
             <EmptyState icon={ImagePlus} title="Nada por aqui ainda" text="Seja o primeiro a publicar nesta categoria." testid="feed-empty-state" />
           )}

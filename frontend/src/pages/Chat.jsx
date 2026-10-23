@@ -15,10 +15,10 @@ export default function Chat() {
         {id ? (
           <ChatThread key={id} id={id} />
         ) : (
-          <div className="flex w-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white text-center">
-            <MessageCircle className="h-8 w-8 text-emerald-600" />
-            <p className="mt-3 font-heading text-lg font-bold text-slate-900">Selecione uma conversa</p>
-            <p className="text-sm text-slate-500">Combine detalhes, valores e horários direto por aqui.</p>
+          <div className="flex w-full flex-col items-center justify-center rounded-none border border-dashed border-border bg-card text-center">
+            <MessageCircle className="h-8 w-8 text-foreground" />
+            <p className="mt-3 font-heading text-lg font-bold text-foreground">Selecione uma conversa</p>
+            <p className="text-sm text-muted-foreground">Combine detalhes, valores e horários direto por aqui.</p>
           </div>
         )}
       </div>

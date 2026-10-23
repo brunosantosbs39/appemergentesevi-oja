@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 const MeContext = createContext(null);
 
 const FullScreenState = ({ error, onRetry }) => (
-  <div className="grid min-h-screen place-items-center bg-[#F8FAFC]" data-testid="me-loading-state">
+  <div className="grid min-h-screen place-items-center bg-background" data-testid="me-loading-state">
     {error ? (
       <div className="text-center">
-        <p className="font-heading text-lg font-bold text-slate-900">Não foi possível carregar seu perfil</p>
-        <Button className="mt-4 rounded-full" onClick={onRetry} data-testid="me-retry-button">Tentar novamente</Button>
+        <p className="font-heading text-lg font-bold text-foreground">Não foi possível carregar seu perfil</p>
+        <Button className="mt-4 rounded-none" onClick={onRetry} data-testid="me-retry-button">Tentar novamente</Button>
       </div>
     ) : (
-      <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
+      <Loader2 className="h-7 w-7 animate-spin text-foreground" />
     )}
   </div>
 );

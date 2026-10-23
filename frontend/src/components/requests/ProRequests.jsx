@@ -16,13 +16,13 @@ import { useMyRequests } from "@/components/requests/useMyRequests";
 import { RequestList } from "@/components/requests/ClientRequests";
 
 const RadarBanner = ({ count }) => (
-  <div className="relative mb-5 flex items-center gap-4 overflow-hidden rounded-3xl bg-slate-950 p-5 text-white">
-    <div className="radar-sweep relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-emerald-500/40">
-      <Radar className="h-6 w-6 text-emerald-400" />
+  <div className="relative mb-5 flex items-center gap-4 overflow-hidden rounded-none bg-secondary p-5 text-white">
+    <div className="radar-sweep relative grid h-14 w-14 shrink-0 place-items-center rounded-none border border-foreground/40">
+      <Radar className="h-6 w-6 text-foreground" />
     </div>
     <div>
       <p className="font-heading text-lg font-bold">Procurando pedidos perto de você</p>
-      <p className="text-sm text-slate-300" data-testid="pro-available-count">{count === null ? "Buscando..." : `${count} pedido${count === 1 ? "" : "s"} disponíve${count === 1 ? "l" : "is"}`}</p>
+      <p className="text-sm text-muted-foreground" data-testid="pro-available-count">{count === null ? "Buscando..." : `${count} pedido${count === 1 ? "" : "s"} disponíve${count === 1 ? "l" : "is"}`}</p>
     </div>
   </div>
 );
@@ -79,26 +79,26 @@ export const ProRequests = () => {
     <div>
       <PageHeader eyebrow="Profissional" title="Pedidos" subtitle="Aceite pedidos próximos e acompanhe seus serviços.">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
-          <SelectTrigger className="w-44 rounded-full bg-white" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 rounded-none bg-card" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>
             {RADIUS_OPTIONS.map((o) => <SelectItem key={o.v} value={String(o.v)}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
       </PageHeader>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="rounded-full bg-slate-200/70 p-1">
-          <TabsTrigger value="disponiveis" className="rounded-full px-4" data-testid="pro-tab-available">Disponíveis</TabsTrigger>
-          <TabsTrigger value="ativos" className="rounded-full px-4" data-testid="pro-tab-active">Meus serviços {active ? `(${active.length})` : ""}</TabsTrigger>
-          <TabsTrigger value="historico" className="rounded-full px-4" data-testid="pro-tab-history">Histórico</TabsTrigger>
+        <TabsList className="rounded-none bg-muted/70 p-1">
+          <TabsTrigger value="disponiveis" className="rounded-none px-4" data-testid="pro-tab-available">Disponíveis</TabsTrigger>
+          <TabsTrigger value="ativos" className="rounded-none px-4" data-testid="pro-tab-active">Meus serviços {active ? `(${active.length})` : ""}</TabsTrigger>
+          <TabsTrigger value="historico" className="rounded-none px-4" data-testid="pro-tab-history">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="disponiveis" className="mt-6">
           <RadarBanner count={available?.length ?? null} />
-          {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-600" />}
+          {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
           <div className="grid gap-4 lg:grid-cols-2">
             {available?.map((r) => (
               <RequestCard key={r.id} request={r} me={me}>
-                <Button onClick={() => accept(r)} disabled={accepting === r.id} className="h-11 flex-1 rounded-full text-base font-semibold" data-testid="accept-service-request-button">
+                <Button onClick={() => accept(r)} disabled={accepting === r.id} className="h-11 flex-1 rounded-none text-base font-semibold" data-testid="accept-service-request-button">
                   {accepting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Aceitar pedido
                 </Button>
               </RequestCard>

@@ -18,10 +18,10 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
           onClick={() => toggle(slug)}
           data-testid={`${testid}-${slug}`}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors duration-200",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-none border px-3.5 py-1.5 text-sm font-medium transition-colors duration-200",
             isOn(slug)
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-200 bg-white text-slate-700 hover:border-emerald-500 hover:text-emerald-700",
+              ? "border-border bg-secondary text-white"
+              : "border-border bg-card text-foreground hover:border-foreground hover:text-foreground",
           )}
         >
           <Icon className="h-3.5 w-3.5" />

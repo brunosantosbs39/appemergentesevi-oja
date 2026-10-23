@@ -36,15 +36,15 @@ export const ReviewDialog = ({ request, onClose, onDone }) => {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="rounded-3xl sm:max-w-md" data-testid="review-dialog">
+      <DialogContent className="rounded-none sm:max-w-md" data-testid="review-dialog">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-extrabold">Como foi o serviço?</DialogTitle>
           <DialogDescription>{request.title}</DialogDescription>
         </DialogHeader>
         {other && (
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
+          <div className="flex items-center gap-3 rounded-none bg-card p-3">
             <UserAvatar user={other} />
-            <p className="font-semibold text-slate-900">{other.name}</p>
+            <p className="font-semibold text-foreground">{other.name}</p>
           </div>
         )}
         <div className="flex flex-col items-center gap-2 py-2">
@@ -52,7 +52,7 @@ export const ReviewDialog = ({ request, onClose, onDone }) => {
           <p className="text-sm font-semibold text-amber-700" data-testid="review-rating-label">{LABELS[rating]}</p>
         </div>
         <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} maxLength={500} placeholder="Deixe um comentário (opcional)" data-testid="review-comment-input" />
-        <Button onClick={submit} disabled={busy} className="h-12 rounded-full text-base font-semibold" data-testid="review-submit-button">
+        <Button onClick={submit} disabled={busy} className="h-12 rounded-none text-base font-semibold" data-testid="review-submit-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Enviar avaliação
         </Button>
       </DialogContent>

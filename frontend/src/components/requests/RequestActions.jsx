@@ -43,32 +43,32 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
   return (
     <>
       {otherId && r.status !== "pendente" && (
-        <Button variant="outline" className="rounded-full" onClick={chat} data-testid="request-chat-button">
+        <Button variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button className="rounded-full bg-slate-900 hover:bg-slate-800" onClick={() => run("em_andamento", "Serviço iniciado")} data-testid="start-service-button">
+        <Button className="rounded-none bg-secondary hover:bg-secondary" onClick={() => run("em_andamento", "Serviço iniciado")} data-testid="start-service-button">
           {spin("em_andamento") || <Play className="h-4 w-4" />} Iniciar serviço
         </Button>
       )}
       {active && (
-        <Button className="rounded-full" onClick={() => run("concluido", "Serviço concluído!")} data-testid="complete-service-button">
+        <Button className="rounded-none" onClick={() => run("concluido", "Serviço concluído!")} data-testid="complete-service-button">
           {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} Concluir
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button variant="ghost" className="rounded-full text-slate-600" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
+        <Button variant="ghost" className="rounded-none text-foreground" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
           Desistir
         </Button>
       )}
       {isClient && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
-        <Button variant="ghost" className="rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
+        <Button variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
           Cancelar
         </Button>
       )}
       {r.status === "concluido" && otherId && !reviewed && (
-        <Button className="rounded-full bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">
+        <Button className="rounded-none bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">
           <Star className="h-4 w-4" /> Avaliar
         </Button>
       )}

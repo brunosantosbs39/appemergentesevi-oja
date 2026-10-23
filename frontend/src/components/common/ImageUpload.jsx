@@ -28,7 +28,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
   };
 
   return (
-    <div className={cn("relative overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50", className)}>
+    <div className={cn("relative overflow-hidden rounded-none border-2 border-dashed border-border bg-card", className)}>
       <input ref={ref} type="file" accept="image/*" className="hidden" onChange={onFile} data-testid={`${testid}-input`} />
       {value ? (
         <>
@@ -36,7 +36,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="absolute right-2 top-2 rounded-full bg-slate-900/80 p-1.5 text-white backdrop-blur transition-colors hover:bg-slate-900"
+            className="absolute right-2 top-2 rounded-none bg-secondary/80 p-1.5 text-white backdrop-blur transition-colors hover:bg-secondary"
             data-testid={`${testid}-remove`}
           >
             <X className="h-4 w-4" />
@@ -47,7 +47,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
           type="button"
           onClick={() => ref.current?.click()}
           disabled={busy}
-          className="flex h-full min-h-[120px] w-full flex-col items-center justify-center gap-2 text-slate-500 transition-colors hover:text-emerald-700"
+          className="flex h-full min-h-[120px] w-full flex-col items-center justify-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
           data-testid={`${testid}-button`}
         >
           {busy ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}

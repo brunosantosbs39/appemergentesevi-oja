@@ -27,7 +27,7 @@ export const catOf = (slug) => CATEGORIES.find((c) => c.slug === slug) || CATEGO
 export const STATUS = {
   pendente: { label: "Pendente", cls: "bg-amber-100 text-amber-800 border-amber-300" },
   aceito: { label: "Aceito", cls: "bg-blue-100 text-blue-800 border-blue-300" },
-  em_andamento: { label: "Em andamento", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  em_andamento: { label: "Em andamento", cls: "bg-muted text-foreground border-foreground" },
   concluido: { label: "Concluído", cls: "bg-teal-100 text-teal-800 border-teal-300" },
   cancelado: { label: "Cancelado", cls: "bg-rose-100 text-rose-800 border-rose-300" },
 };

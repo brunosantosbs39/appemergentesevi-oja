@@ -11,7 +11,7 @@ import { CreateRequestDialog } from "@/components/requests/CreateRequestDialog";
 import { useMyRequests } from "@/components/requests/useMyRequests";
 
 export const RequestList = ({ items, empty, onUpdated, onReview, me }) => {
-  if (items === null) return <Loader2 className="mx-auto mt-10 h-6 w-6 animate-spin text-emerald-600" />;
+  if (items === null) return <Loader2 className="mx-auto mt-10 h-6 w-6 animate-spin text-foreground" />;
   if (items.length === 0) return empty;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -33,7 +33,7 @@ export const ClientRequests = () => {
   const active = mine?.filter((r) => ["pendente", "aceito", "em_andamento"].includes(r.status)) ?? null;
   const history = mine?.filter((r) => ["concluido", "cancelado"].includes(r.status)) ?? null;
   const newBtn = (
-    <Button onClick={() => setOpen(true)} className="rounded-full" data-testid="create-service-request-button">
+    <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-service-request-button">
       <Plus className="h-4 w-4" /> Novo pedido
     </Button>
   );
@@ -43,9 +43,9 @@ export const ClientRequests = () => {
     <div>
       <PageHeader eyebrow="Contratante" title="Meus pedidos" subtitle="Publique um pedido e profissionais próximos aceitam na hora.">{newBtn}</PageHeader>
       <Tabs defaultValue="ativos">
-        <TabsList className="rounded-full bg-slate-200/70 p-1">
-          <TabsTrigger value="ativos" className="rounded-full px-5" data-testid="client-tab-active">Ativos {active ? `(${active.length})` : ""}</TabsTrigger>
-          <TabsTrigger value="historico" className="rounded-full px-5" data-testid="client-tab-history">Histórico</TabsTrigger>
+        <TabsList className="rounded-none bg-muted/70 p-1">
+          <TabsTrigger value="ativos" className="rounded-none px-5" data-testid="client-tab-active">Ativos {active ? `(${active.length})` : ""}</TabsTrigger>
+          <TabsTrigger value="historico" className="rounded-none px-5" data-testid="client-tab-history">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="ativos" className="mt-6">
           <RequestList items={active} {...props} empty={<EmptyState icon={ClipboardList} title="Nenhum pedido ativo" text="Precisa de um eletricista, diarista ou designer? Publique agora." action={newBtn} testid="client-requests-empty" />} />

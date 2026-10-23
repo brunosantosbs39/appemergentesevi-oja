@@ -2,17 +2,28 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClerkProvider } from "@clerk/react";
 
-// Brand Clerk here once: it styles sign-in, sign-up and the user menu. Dark app: `yarn add @clerk/ui@1.38.1`,
-// `import { dark } from "@clerk/ui/themes"`, then add `theme: dark, captcha: { theme: "dark" }` (see Styling).
 const appearance = {
   variables: {
-    colorPrimary: "#059669",
-    colorPrimaryForeground: "#FFFFFF",
-    colorForeground: "#0F172A",
-    colorBackground: "#FFFFFF",
-    colorBorder: "#E2E8F0",
-    fontFamily: "'Figtree', sans-serif",
-    borderRadius: "0.9rem",
+    colorPrimary: "#ffffff",
+    colorPrimaryForeground: "#000000",
+    colorForeground: "#ffffff",
+    colorMutedForeground: "#b3b3b3",
+    colorBackground: "#141414",
+    colorInput: "#000000",
+    colorInputForeground: "#ffffff",
+    colorBorder: "#3a3a3a",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    borderRadius: "0px",
+  },
+  elements: {
+    cardBox: { border: "1px solid #262626", boxShadow: "none", borderRadius: 0 },
+    card: { background: "#141414", borderRadius: 0 },
+    headerTitle: { textTransform: "uppercase", fontWeight: 400, letterSpacing: ".08em" },
+    socialButtonsBlockButton: { color: "#ffffff", background: "#202020", border: "1px solid #444" },
+    footer: { background: "#141414" },
+    footerActionText: { color: "#b3b3b3" },
+    footerActionLink: { color: "#ffffff" },
+    formButtonPrimary: { color: "#000000", background: "#ffffff", textTransform: "uppercase", letterSpacing: ".12em" },
   },
 };
 

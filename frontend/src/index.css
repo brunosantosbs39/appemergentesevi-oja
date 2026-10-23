@@ -4,31 +4,31 @@
 
 @layer base {
     :root {
-        --background: 210 40% 98%;
-        --foreground: 222 47% 11%;
-        --card: 0 0% 100%;
-        --card-foreground: 222 47% 11%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 222 47% 11%;
-        --primary: 161 94% 30%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 222 47% 11%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 210 40% 96%;
-        --muted-foreground: 215 16% 47%;
-        --accent: 152 76% 91%;
-        --accent-foreground: 164 86% 16%;
+        --background: 0 0% 0%;
+        --foreground: 0 0% 100%;
+        --card: 0 0% 8%;
+        --card-foreground: 0 0% 100%;
+        --popover: 0 0% 8%;
+        --popover-foreground: 0 0% 100%;
+        --primary: 0 0% 100%;
+        --primary-foreground: 0 0% 0%;
+        --secondary: 0 0% 20%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 0 0% 14%;
+        --muted-foreground: 0 0% 70%;
+        --accent: 0 0% 20%;
+        --accent-foreground: 0 0% 100%;
         --destructive: 0 72% 51%;
         --destructive-foreground: 0 0% 100%;
-        --border: 214 32% 91%;
-        --input: 214 32% 91%;
-        --ring: 161 94% 30%;
+        --border: 0 0% 15%;
+        --input: 0 0% 26%;
+        --ring: 0 0% 100%;
         --chart-1: 161 94% 30%;
         --chart-2: 38 92% 50%;
         --chart-3: 222 47% 11%;
         --chart-4: 199 89% 48%;
         --chart-5: 0 72% 51%;
-        --radius: 0.9rem;
+        --radius: 0px;
     }
 }
 
@@ -186,3 +186,17 @@
         border-bottom-color: inherit;
     }
 }
+
+/* Shared monochrome theme for authenticated pages and portal content. */
+.brand-wordmark { color: #fff; font: 500 22px "Plus Jakarta Sans", sans-serif; letter-spacing: .13em; }
+h1.font-heading, h2.font-heading, h3.font-heading { font-weight: 400; text-transform: uppercase; letter-spacing: .04em; }
+button, input, textarea, select, [role="dialog"], [role="alertdialog"] { border-radius: 0; }
+a:focus-visible, button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.leaflet-container { background: #141414; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #141414; color: #fff; border-radius: 0; }
+.leaflet-bar a { background: #141414; color: #fff; }
+.pin-pro { border-color: #fff; background: #141414; color: #fff; box-shadow: none; }
+.pin-req { background: #fff; border-color: #777; border-radius: 0; }
+.radar-dot { background: #fff; animation: none; box-shadow: none; }
+.radar-sweep::before { background: conic-gradient(from 0deg, #ffffff50, transparent 35%); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

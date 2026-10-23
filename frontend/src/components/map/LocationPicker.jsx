@@ -33,7 +33,7 @@ export const LocationPicker = ({ value, onChange, testid = "location-picker" }) 
   };
   return (
     <div className="space-y-2">
-      <div className="relative h-44 overflow-hidden rounded-2xl border border-slate-200" data-testid={`${testid}-map`}>
+      <div className="relative h-44 overflow-hidden rounded-none border border-border" data-testid={`${testid}-map`}>
         <MapContainer center={[value.lat, value.lng]} zoom={14} className="z-0 h-full w-full">
           <TileLayer attribution={TILE_ATTR} url={TILE_URL} />
           <ClickSetter onChange={onChange} />
@@ -42,9 +42,9 @@ export const LocationPicker = ({ value, onChange, testid = "location-picker" }) 
           <Marker position={[value.lat, value.lng]} icon={meIcon} />
         </MapContainer>
       </div>
-      <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Toque no mapa para ajustar o local</span>
-        <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={locate} data-testid={`${testid}-locate-button`}>
+        <Button type="button" variant="outline" size="sm" className="rounded-none" onClick={locate} data-testid={`${testid}-locate-button`}>
           {locating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Crosshair className="h-3.5 w-3.5" />}
           Usar minha localização
         </Button>

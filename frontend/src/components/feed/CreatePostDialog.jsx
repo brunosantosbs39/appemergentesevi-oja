@@ -50,7 +50,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-2xl" data-testid="create-post-dialog">
+      <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-2xl" data-testid="create-post-dialog">
         <DialogHeader>
           <DialogTitle className="font-heading text-2xl font-extrabold">Nova postagem</DialogTitle>
           <DialogDescription>Mostre seu trabalho para quem está por perto.</DialogDescription>
@@ -79,11 +79,11 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated }) => {
                   <Crosshair className="h-4 w-4" />
                 </Button>
               </div>
-              {coords && <p className="text-xs text-emerald-700">Postagem aparecerá no mapa</p>}
+              {coords && <p className="text-xs text-foreground">Postagem aparecerá no mapa</p>}
             </div>
           </div>
         </div>
-        <Button onClick={submit} disabled={busy || !image} className="h-12 w-full rounded-full text-base font-semibold" data-testid="create-post-submit-button">
+        <Button onClick={submit} disabled={busy || !image} className="h-12 w-full rounded-none text-base font-semibold" data-testid="create-post-submit-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Publicar
         </Button>
       </DialogContent>
