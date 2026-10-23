@@ -1,3 +1,4 @@
+import { useCrypto } from "@/context/CryptoContext";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
@@ -16,6 +17,7 @@ const mergePage = (old, page) => [...new Map([...(old || []), ...page].map((c) =
 
 export const ConversationList = () => {
   const api = useApi();
+  const protection = useCrypto();
   const [items, setItems] = useState(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -53,7 +55,7 @@ export const ConversationList = () => {
   const filtered = items?.filter((c) => (!unreadOnly || c.unread > 0) && normalize(`${c.other?.name} ${c.last_message} ${c.request?.title || ""}`).includes(normalize(search))) || [];
   const unread = items?.filter((c) => c.unread > 0).length || 0;
   return <section className="sj-inbox">
-    <header className="sj-inbox-header"><Link to="/feed" className="sj-icon-button sj-mobile-back" aria-label="Voltar ao feed"><ArrowLeft size={21} /></Link><h1>Conversas</h1><ThemeToggle compact /><NotificationCenter compact /></header>
+    <header className="sj-inbox-header"><Link to="/feed" className="sj-icon-button sj-mobile-back" aria-label="Voltar ao feed"><ArrowLeft size={21} /></Link><h1>Conversas</h1><button type="button" className="sj-icon-button" onClick={protection.showSetup} aria-label="Proteção e recuperação do chat">🔒</button><ThemeToggle compact /><NotificationCenter compact /></header>
     <div className="sj-inbox-tools">
       <label className="sj-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar conversa" aria-label="Buscar conversa por nome ou mensagem" />{search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"><X size={16} /></button>}</label>
       <div className="sj-inbox-filters"><button type="button" className={!unreadOnly ? "active" : ""} aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>Todas</button><button type="button" className={unreadOnly ? "active" : ""} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>Não lidas {unread > 0 && <span>{unread}</span>}</button></div>

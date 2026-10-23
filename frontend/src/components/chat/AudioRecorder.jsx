@@ -1,11 +1,14 @@
+import { useCrypto } from "@/context/CryptoContext";
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Trash2, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
-export const AudioRecorder = ({ conversationId, onSent, compact = false, hideTrigger = false, onStateChange }) => {
+export const AudioRecorder = ({ conversationId, peerId, disabled = false, onSent, compact = false, hideTrigger = false, onStateChange }) => {
   const api = useApi();
+  const protection = useCrypto();
+  const pending = useRef(null);
   const recorder = useRef(null);
   const stream = useRef(null);
   const timer = useRef(null);
@@ -29,7 +32,7 @@ export const AudioRecorder = ({ conversationId, onSent, compact = false, hideTri
   }, [clip]);
   useEffect(() => { onStateChange?.(recording || !!clip || starting || busy); }, [recording, clip, starting, busy, onStateChange]);
   const start = async () => {
-    if (starting || recording || busy) return;
+    if (disabled || starting || recording || busy) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast.error("Seu navegador não permite gravar áudio. Use um navegador atualizado.");
     setStarting(true);
     try {
@@ -48,7 +51,7 @@ export const AudioRecorder = ({ conversationId, onSent, compact = false, hideTri
         setRecording(false);
         const blob = new Blob(chunks, { type: rec.mimeType });
         if (!blob.size || blob.size > 4 * 1024 * 1024) return toast.error("O áudio deve ter até 4 MB. Grave uma mensagem mais curta.");
-        setClip(blob);
+        pending.current = null; setClip(blob);
       };
       rec.onerror = () => { release(); if (mounted.current) { setRecording(false); toast.error("Não foi possível gravar o áudio."); } };
       setSeconds(0);
@@ -62,20 +65,21 @@ export const AudioRecorder = ({ conversationId, onSent, compact = false, hideTri
     } finally { if (mounted.current) setStarting(false); }
   };
   const send = async () => {
-    if (!clip || busy) return;
+    if (!clip || busy || disabled) return;
     setBusy(true);
     try {
+      if (!pending.current) pending.current = await protection.encryptMessage(peerId, conversationId, crypto.randomUUID(), "audio", { mime: clip.type }, await clip.arrayBuffer());
       const form = new FormData();
-      const extension = clip.type.includes("mp4") ? "m4a" : clip.type.includes("ogg") ? "ogg" : "webm";
-      form.append("file", clip, `audio.${extension}`);
-      const { data } = await api.post(`/conversations/${conversationId}/audio`, form);
+      form.append("envelope", JSON.stringify(pending.current.envelope));
+      form.append("file", pending.current.file, "audio.encrypted");
+      const { data } = await api.post(`/conversations/${conversationId}/encrypted-audio`, form);
       onSent(data);
-      setClip(null);
-    } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
+      pending.current = null; setClip(null);
+    } catch (err) { toast.error(err.response ? errMsg(err) : err.message); } finally { setBusy(false); }
   };
   return <div className={compact ? "sj-audio-controls" : "flex flex-wrap items-center gap-2"}>
-    {!recording && !clip && !hideTrigger && <Button type="button" variant="outline" className={compact ? "sj-mic" : undefined} onClick={start} disabled={starting} aria-label="Gravar áudio">{starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}{!compact && " Áudio"}</Button>}
+    {!recording && !clip && !hideTrigger && <Button type="button" variant="outline" className={compact ? "sj-mic" : undefined} onClick={start} disabled={starting || disabled} aria-label="Gravar áudio">{starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}{!compact && " Áudio"}</Button>}
     {recording && <><span role="status" className="text-sm text-red-500">Gravando {seconds}s / 120s</span><Button type="button" variant="outline" onClick={() => recorder.current?.stop()} aria-label="Parar gravação"><Square className="h-4 w-4" /> Parar</Button></>}
-    {clip && <><audio controls src={url || undefined} className="h-9 max-w-full" aria-label="Ouvir antes de enviar" /><Button type="button" variant="outline" disabled={busy} onClick={() => setClip(null)} aria-label="Descartar áudio"><Trash2 className="h-4 w-4" /></Button><Button type="button" disabled={busy} onClick={send}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar áudio</Button></>}
+    {clip && <><audio controls src={url || undefined} className="h-9 max-w-full" aria-label="Ouvir antes de enviar" /><Button type="button" variant="outline" disabled={busy} onClick={() => setClip(null)} aria-label="Descartar áudio"><Trash2 className="h-4 w-4" /></Button><Button type="button" disabled={busy || disabled} onClick={send}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar áudio</Button></>}
   </div>;
 };

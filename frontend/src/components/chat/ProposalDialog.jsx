@@ -21,7 +21,7 @@ export const ProposalDialog = ({ open, onOpenChange, conversationId, onSent }) =
       onSent(data); onOpenChange(false); setDescription(""); setAmount(""); setDeadline("");
     } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
   };
-  return <Dialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Enviar contraproposta</DialogTitle><DialogDescription>Não concorda com o valor anunciado? Sugira outro valor e explique sua contraproposta. Após o aceite, o contratante confirma a candidatura em Pedidos.</DialogDescription></DialogHeader>
+  return <Dialog open={open} onOpenChange={(value) => !busy && onOpenChange(value)}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Enviar contraproposta</DialogTitle><DialogDescription>As contrapropostas são processadas pelo sistema e não usam a proteção ponta a ponta das mensagens. Não concorda com o valor anunciado? Sugira outro valor e explique sua contraproposta. Após o aceite, o contratante confirma a candidatura em Pedidos.</DialogDescription></DialogHeader>
     <form onSubmit={submit} className="space-y-4">
       <label className="block space-y-2"><span>Descrição do serviço</span><Textarea required minLength={3} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
       <label className="block space-y-2"><span>Novo valor sugerido (R$)</span><Input required type="number" min="0.01" max="1000000" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>

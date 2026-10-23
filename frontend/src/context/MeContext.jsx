@@ -1,3 +1,4 @@
+import { CryptoProvider } from "@/context/CryptoContext";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
@@ -45,7 +46,7 @@ export function MeProvider({ children }) {
     refresh().catch(() => setError(true));
   };
   if (!me) return <FullScreenState error={error} onRetry={retry} />;
-  return <MeContext.Provider value={{ me, setMe, refresh }}>{children}</MeContext.Provider>;
+  return <MeContext.Provider value={{ me, setMe, refresh }}><CryptoProvider key={me.user_id} userId={me.user_id} enabled={!!me.role}>{children}</CryptoProvider></MeContext.Provider>;
 }
 
 export const useMe = () => useContext(MeContext);

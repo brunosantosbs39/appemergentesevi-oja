@@ -1,3 +1,4 @@
+import { useCrypto } from "@/context/CryptoContext";
 import { useApi } from "@/lib/api";
 import { useState } from "react";
 import { useClerk } from "@clerk/react";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 export const LogoutButton = ({ className }) => {
   const { signOut } = useClerk();
   const api = useApi();
+  const protection = useCrypto();
   const [busy, setBusy] = useState(false);
   const logout = async () => {
     if (busy) return;
@@ -21,6 +23,7 @@ export const LogoutButton = ({ className }) => {
           await subscription.unsubscribe();
         }
       } catch { /* Sign-out remains available when the device is offline. */ }
+      if (protection) { try { await protection.lock(); } catch { toast.error("Não foi possível remover as chaves locais. Limpe os dados deste site se o aparelho for compartilhado."); } }
       await signOut({ redirectUrl: "/" });
     } catch {
       toast.error("Não foi possível sair. Tente novamente.");

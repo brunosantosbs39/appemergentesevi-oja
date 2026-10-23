@@ -1,3 +1,5 @@
+import { useCrypto } from "@/context/CryptoContext";
+import { EncryptedText, ChatProtection } from "@/components/crypto/ChatProtection";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -26,13 +28,14 @@ const Bubble = memo(({ message: m, mine, readAt, onRespond, responding, onRetry 
   const read = mine && !m._state && readAt && readAt >= m.created_at;
   return <div className={`sj-message-row ${mine ? "mine" : ""}`} data-testid="chat-message">
     <div className={`sj-bubble ${m._state === "error" ? "failed" : ""}`}>
-      {m.kind === "audio" ? <AudioMessage message={m} /> : m.kind === "proposal" ? <div className="sj-proposal">
+      {m.e2ee?.header.kind === "text" ? <EncryptedText message={m} /> : m.kind === "audio" || m.kind === "encrypted_audio" ? <AudioMessage message={m} /> : m.kind === "proposal" ? <div className="sj-proposal">
         <div className="sj-proposal-title"><FileText size={18} /> Contraproposta</div>
         <p className="sj-message-text">{m.proposal.description}</p><strong className="sj-proposal-value">{brl(m.proposal.amount)}</strong>
         {m.proposal.deadline && <p>Prazo: {m.proposal.deadline}</p>}
         <p className="sj-proposal-status">{{ pending: "Aguardando resposta", accepted: "Contraproposta aceita", declined: "Contraproposta recusada" }[m.proposal.status]}</p>
         {!mine && m.proposal.status === "pending" && <div className="sj-proposal-actions"><button type="button" disabled={responding} onClick={() => onRespond(m.id, "accepted")}>Aceitar</button><button type="button" disabled={responding} onClick={() => onRespond(m.id, "declined")}>Recusar</button></div>}
       </div> : <p className="sj-message-text">{m.text}</p>}
+      <small className="block text-[10px] opacity-70">{m.e2ee ? "Protegida ponta a ponta" : m.kind === "proposal" ? "Proposta processada pelo sistema" : "Anterior à proteção"}</small>
       <div className="sj-message-meta"><time dateTime={m.created_at}>{time(m.created_at)}</time>{mine && <span title={m._state === "sending" ? "Enviando" : m._state === "error" ? "Não enviada" : read ? "Lida" : "Enviada"} aria-label={m._state === "sending" ? "Enviando" : m._state === "error" ? "Não enviada" : read ? "Lida" : "Enviada"}>{m._state === "sending" ? <Clock3 size={13} /> : m._state === "error" ? "!" : read ? <CheckCheck size={16} className="sj-read" /> : <Check size={15} />}</span>}</div>
       {m._state === "error" && <button type="button" className="sj-retry" onClick={() => onRetry(m)}><RotateCw size={13} /> Não enviada. Tentar novamente</button>}
     </div>
@@ -42,11 +45,14 @@ const Bubble = memo(({ message: m, mine, readAt, onRespond, responding, onRetry 
 export const ChatThread = ({ id }) => {
   const api = useApi();
   const { me } = useMe();
+  const protection = useCrypto();
+  const [peerReady, setPeerReady] = useState(false);
+  const [sealing, setSealing] = useState(false);
   const draftKey = `sj-draft:${me.user_id}:${id}`;
   const outboxKey = `sj-outbox:${me.user_id}:${id}`;
   const [conv, setConv] = useState(null);
-  const [msgs, setMsgs] = useState(() => saved(outboxKey, []).map((m) => ({ ...m, _state: "error" })));
-  const [text, setText] = useState(() => saved(draftKey, ""));
+  const [msgs, setMsgs] = useState(() => saved(outboxKey, []).filter((m) => m.e2ee).map((m) => ({ ...m, _state: "error" })));
+  const [text, setText] = useState("");
   const [proposalOpen, setProposalOpen] = useState(false);
   const [responding, setResponding] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -67,13 +73,13 @@ export const ChatThread = ({ id }) => {
   const [hasHistory, setHasHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  useEffect(() => { try { sessionStorage.setItem(draftKey, JSON.stringify(text)); } catch {} }, [draftKey, text]);
-  useEffect(() => { try { sessionStorage.setItem(outboxKey, JSON.stringify(msgs.filter((m) => m._state))); } catch {} }, [outboxKey, msgs]);
+  useEffect(() => { try { sessionStorage.removeItem(draftKey); } catch {} }, [draftKey]);
+  useEffect(() => { try { sessionStorage.setItem(outboxKey, JSON.stringify(msgs.filter((m) => m._state && m.e2ee))); } catch {} }, [outboxKey, msgs]);
   const merge = useCallback((data) => {
     setMsgs((previous) => {
       const clientIds = new Set(data.map((m) => m.client_id).filter(Boolean));
       const byId = new Map(previous.filter((m) => !(m._state && clientIds.has(m.client_id))).map((m) => [m.id, m]));
-      data.forEach((m) => byId.set(m.id, m));
+      data.forEach((m) => { if (JSON.stringify(byId.get(m.id)) !== JSON.stringify(m)) byId.set(m.id, m); });
       return [...byId.values()].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
     });
   }, []);
@@ -150,21 +156,27 @@ export const ChatThread = ({ id }) => {
     sendingIds.current.add(message.client_id);
     setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "sending" } : m));
     try {
-      const { data } = await api.post(`/conversations/${id}/messages`, { text: message.text, client_id: message.client_id });
+      const { data } = await api.post(`/conversations/${id}/encrypted-messages`, message.e2ee);
       merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh"));
     } catch {
       setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "error" } : m));
     } finally { sendingIds.current.delete(message.client_id); }
   };
-  const send = (event) => {
+  const send = async (event) => {
     event?.preventDefault();
-    if (!text.trim() || audioActive) return;
-    const clientId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const message = { id: `local-${clientId}`, client_id: clientId, sender_id: me.user_id, text: text.trim(), created_at: new Date().toISOString(), _state: "sending" };
-    nearBottom.current = true;
-    setMsgs((previous) => [...previous, message]); setText("");
-    api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {});
-    clearTimeout(typingTimer.current); transmit(message); inputRef.current?.focus();
+    if (!text.trim() || audioActive || sealing || !protection.ready || !peerReady) return;
+    setSealing(true);
+    const content = text.trim();
+    try {
+      const clientId = crypto.randomUUID();
+      const { envelope } = await protection.encryptMessage(conv.other.user_id, id, clientId, "text", { text: content });
+      const message = { id: `local-${clientId}`, conversation_id: id, client_id: clientId, sender_id: me.user_id, e2ee: envelope, kind: "encrypted_text", text: "Mensagem protegida", created_at: new Date().toISOString(), _state: "sending" };
+      nearBottom.current = true;
+      setMsgs((previous) => [...previous, message]); setText((current) => current.trim() === content ? "" : current);
+      api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {});
+      clearTimeout(typingTimer.current); transmit(message); inputRef.current?.focus();
+    } catch (err) { toast.error(err.response ? errMsg(err) : err.message); }
+    finally { setSealing(false); }
   };
   const respond = async (mid, status) => {
     if (responding) return;
@@ -183,6 +195,7 @@ export const ChatThread = ({ id }) => {
       <ThemeToggle compact />
       <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label="Opções da conversa" aria-expanded={actionsOpen}><MoreVertical size={22} /></button>
     </header>
+    <ChatProtection peerId={conv.other.user_id} onReady={setPeerReady} />
     {conv.request && <details className="sj-job"><summary><span className="sj-job-dot" /><span>{conv.request.title}</span><strong>{brl(conv.request.budget)}</strong></summary><div className="sj-job-body"><Link to="/pedidos">Ver vaga e acompanhar serviço</Link><ApplyButton key={conv.request.id} request={conv.request} /></div></details>}
     {error && <button type="button" className="sj-connection" onClick={() => pollRef.current?.()}>Conexão interrompida. Tentando reconectar… Toque para tentar agora.</button>}
     <div className="sj-message-area">
@@ -199,9 +212,9 @@ export const ChatThread = ({ id }) => {
     <ProposalDialog open={proposalOpen} onOpenChange={setProposalOpen} conversationId={id} onSent={(data) => { nearBottom.current = true; merge([data]); }} />
     <form onSubmit={send} className={`sj-composer ${audioActive ? "audio-active" : ""}`}>
       {!audioActive && <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label={actionsOpen ? "Fechar opções" : "Mais opções"}>{actionsOpen ? <X size={24} /> : <Plus size={24} />}</button>}
-      {!audioActive && <textarea ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
-      <AudioRecorder conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh")); }} />
-      {text.trim() && !audioActive && <button type="submit" className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
+      {!audioActive && <textarea disabled={!protection.ready || !peerReady || sealing} ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
+      <AudioRecorder peerId={conv.other.user_id} disabled={!protection.ready || !peerReady || sealing} conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh")); }} />
+      {text.trim() && !audioActive && <button type="submit" disabled={sealing || !protection.ready || !peerReady} className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
     </form>
   </section>;
 };

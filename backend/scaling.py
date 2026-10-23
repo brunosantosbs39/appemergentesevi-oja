@@ -31,9 +31,9 @@ async def write_limit(db, uid, path):
         bucket, maximum = "typing", 60
     elif path.endswith("/presence"):
         bucket, maximum = "presence", 12
-    elif path.endswith("/audio") or path.endswith("/upload"):
+    elif path.endswith(("/audio", "/encrypted-audio", "/upload")):
         bucket, maximum = "uploads", 12
-    elif path.endswith("/messages"):
+    elif path.endswith(("/messages", "/encrypted-messages")):
         bucket, maximum = "messages", 60
     else:
         bucket, maximum = "actions", 60

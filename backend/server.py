@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import math
 import os
@@ -8,7 +9,7 @@ from pathlib import Path
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form
 from fastapi.responses import Response, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -21,12 +22,14 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
     from backend.seed import seed_demo
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
@@ -252,6 +255,34 @@ async def subscribe_push(body: PushSubscriptionIn, me: dict = Depends(current_me
 async def unsubscribe_push(body: PushSubscriptionIn, me: dict = Depends(current_member)):
     await db.push_subscriptions.delete_one({"endpoint": body.endpoint, "user_id": me["user_id"]})
     return {"ok": True}
+
+
+# ---------- end-to-end identity (public keys + client-encrypted recovery only) ----------
+@api.get("/crypto/identity")
+async def own_crypto_identity(me: dict = Depends(onboarded)):
+    identity = await db.e2ee_identities.find_one({"user_id": me["user_id"]}, {"_id": 0, "proof": 0})
+    return {"identity": identity}
+
+
+@api.post("/crypto/identity")
+async def register_crypto_identity(body: IdentityIn, me: dict = Depends(onboarded)):
+    uid = me["user_id"]
+    key_id = validate_identity(body, uid)
+    doc = {"user_id": uid, "public": body.public.model_dump(), "key_id": key_id,
+           "backup": body.backup.model_dump(), "created_at": now_iso()}
+    record = await db.e2ee_identities.find_one_and_update({"user_id": uid}, {"$setOnInsert": doc},
+        upsert=True, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if record["key_id"] != key_id:
+        raise HTTPException(409, "Esta conta já tem uma chave. Use o código de recuperação; a chave não será substituída.")
+    return public_identity(record)
+
+
+@api.get("/crypto/users/{uid}")
+async def contact_crypto_identity(uid: str, me: dict = Depends(onboarded)):
+    if uid != me["user_id"] and not await db.conversations.find_one({"participants": {"$all": [uid, me["user_id"]]}}, {"_id": 1}):
+        raise HTTPException(404, "Contato não encontrado")
+    identity = await db.e2ee_identities.find_one({"user_id": uid}, {"_id": 0, "backup": 0, "proof": 0})
+    return {"identity": public_identity(identity) if identity else None}
 
 
 # ---------- profile ----------
@@ -824,24 +855,58 @@ async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool =
 
 @api.post("/conversations/{cid}/messages")
 async def send_message(cid: str, body: TextIn, me: dict = Depends(onboarded)):
-    conv = await my_conversation(cid, me["user_id"])
-    text = body.text.strip()
-    if not text:
-        raise HTTPException(400, "Mensagem vazia")
-    dedupe = {"conversation_id": cid, "sender_id": me["user_id"], "client_id": body.client_id}
-    if body.client_id:
-        existing = await db.messages.find_one(dedupe, {"_id": 0})
-        if existing:
-            return existing
-    try:
-        return await add_message(conv, me["user_id"], text, **({"client_id": body.client_id} if body.client_id else {}))
-    except DuplicateKeyError:
-        if not body.client_id:
-            raise
-        existing = await db.messages.find_one(dedupe, {"_id": 0})
-        if not existing:
-            raise
+    await my_conversation(cid, me["user_id"])
+    raise HTTPException(426, "Atualize o app e ative a proteção para enviar mensagens criptografadas.")
+
+
+async def save_encrypted_message(conv, me, envelope, audio_path=None):
+    wire = envelope.model_dump()
+    dedupe = {"conversation_id": conv["id"], "sender_id": me["user_id"], "client_id": envelope.header.client_id}
+    existing = await db.messages.find_one(dedupe, {"_id": 0})
+    if existing:
+        if existing.get("e2ee") != wire:
+            raise HTTPException(409, "Identificador já usado por outra mensagem")
         return existing
+    try:
+        is_audio = envelope.header.kind == "audio"
+        return await add_message(conv, me["user_id"], "Áudio protegido" if is_audio else "Mensagem protegida",
+            kind="encrypted_audio" if is_audio else "encrypted_text", e2ee=wire, client_id=envelope.header.client_id,
+            **({"audio_path": audio_path} if audio_path else {}))
+    except DuplicateKeyError:
+        existing = await db.messages.find_one(dedupe, {"_id": 0})
+        if not existing or existing.get("e2ee") != wire:
+            raise HTTPException(409, "Identificador já usado por outra mensagem")
+        return existing
+
+
+@api.post("/conversations/{cid}/encrypted-messages")
+async def send_encrypted_message(cid: str, body: Envelope, me: dict = Depends(onboarded)):
+    conv = await my_conversation(cid, me["user_id"])
+    await validate_envelope(db, conv, me["user_id"], body, "text")
+    return await save_encrypted_message(conv, me, body)
+
+
+@api.post("/conversations/{cid}/encrypted-audio")
+async def send_encrypted_audio(cid: str, envelope: str = Form(..., max_length=20000), file: UploadFile = File(...), me: dict = Depends(onboarded)):
+    conv = await my_conversation(cid, me["user_id"])
+    try:
+        body = Envelope.model_validate_json(envelope)
+    except ValueError:
+        raise HTTPException(400, "Mensagem criptografada inválida")
+    await validate_envelope(db, conv, me["user_id"], body, "audio")
+    existing = await db.messages.find_one({"conversation_id": cid, "sender_id": me["user_id"], "client_id": body.header.client_id}, {"_id": 0})
+    if existing:
+        if existing.get("e2ee") != body.model_dump():
+            raise HTTPException(409, "Identificador já usado por outra mensagem")
+        return existing
+    data = await file.read(MAX_UPLOAD + 17)
+    if len(data) != body.attachment.size or len(data) > MAX_UPLOAD + 16 or hashlib.sha256(data).hexdigest() != body.attachment.sha256:
+        raise HTTPException(400, "Áudio criptografado incompleto ou alterado")
+    path = f"{APP_NAME}/audio/{me['user_id']}/{new_id()}.encrypted"
+    result = await run_in_threadpool(put_object, path, data, "application/octet-stream")
+    await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
+        "conversation_id": cid, "content_type": "application/octet-stream", "e2ee": True, "is_deleted": False, "created_at": now_iso()})
+    return await save_encrypted_message(conv, me, body, result["path"])
 
 
 class TypingIn(BaseModel):
@@ -858,25 +923,14 @@ async def update_typing(cid: str, body: TypingIn, me: dict = Depends(onboarded))
 
 @api.post("/conversations/{cid}/audio")
 async def send_audio(cid: str, file: UploadFile = File(...), me: dict = Depends(onboarded)):
-    conv = await my_conversation(cid, me["user_id"])
-    content_type = (file.content_type or "").split(";")[0].strip().lower()
-    formats = {"audio/webm": "webm", "audio/mp4": "m4a", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav"}
-    if content_type not in formats:
-        raise HTTPException(400, "Formato de áudio não suportado")
-    data = await file.read(MAX_UPLOAD + 1)
-    if not data or len(data) > MAX_UPLOAD:
-        raise HTTPException(400, "Envie um áudio de até 4 MB")
-    path = f"{APP_NAME}/audio/{me['user_id']}/{new_id()}.{formats[content_type]}"
-    result = await run_in_threadpool(put_object, path, data, content_type)
-    await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
-                               "conversation_id": cid, "content_type": content_type, "is_deleted": False, "created_at": now_iso()})
-    return await add_message(conv, me["user_id"], "Mensagem de áudio", kind="audio", audio_path=result["path"])
+    await my_conversation(cid, me["user_id"])
+    raise HTTPException(426, "Atualize o app para enviar áudio com proteção de ponta a ponta.")
 
 
 @api.get("/conversations/{cid}/messages/{mid}/audio")
 async def read_audio(cid: str, mid: str, me: dict = Depends(onboarded)):
     await my_conversation(cid, me["user_id"])
-    msg = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "audio"}, {"_id": 0})
+    msg = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": {"$in": ["audio", "encrypted_audio"]}}, {"_id": 0})
     if not msg:
         raise HTTPException(404, "Áudio não encontrado")
     data, content_type = await run_in_threadpool(get_object, msg["audio_path"])
@@ -931,6 +985,17 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
     return msg
 
 
+# Never let identity backups, messages or authenticated responses enter browser/CDN caches.
+@app.middleware("http")
+async def private_api_cache(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/api/crypto/", "/api/conversations")):
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Vary"] = "Authorization, Cookie"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 app.include_router(api)
 app.include_router(clerk_router)
 
@@ -946,6 +1011,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    await db.e2ee_identities.create_index("user_id", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.posts.create_index("id", unique=True)
     await db.posts.create_index([("created_at", -1)])

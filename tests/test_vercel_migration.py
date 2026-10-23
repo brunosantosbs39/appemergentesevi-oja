@@ -103,9 +103,11 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     monkeypatch.setattr(server, "put_object", Mock(return_value={"path": "private/audio"}))
     monkeypatch.setattr(server, "get_object", Mock(return_value=(b"audio", "audio/webm")))
     file = UploadFile(filename="voice.webm", file=io.BytesIO(b"audio"), headers=Headers({"content-type": "audio/webm;codecs=opus"}))
-    asyncio.run(server.send_audio("chat", file, member))
-    assert files.insert_one.call_args.args[0]["conversation_id"] == "chat"
-    assert message.call_args.kwargs["kind"] == "audio"
+    with pytest.raises(server.HTTPException) as rejected:
+        asyncio.run(server.send_audio("chat", file, member))
+    assert rejected.value.status_code == 426
+    files.insert_one.assert_not_awaited()
+    message.assert_not_awaited()
     assert asyncio.run(server.read_audio("chat", "message", member)).body == b"audio"
     with pytest.raises(server.HTTPException):
         asyncio.run(server.download("private/audio"))
@@ -369,22 +371,16 @@ def test_checked_in_vacancy_disappears_from_publications_but_not_portfolio(monke
     assert posts.find.call_args.args[0] == {"kind": "portfolio"}
 
 
-def test_retrying_chat_message_uses_same_id_without_duplicates(monkeypatch):
+def test_legacy_plaintext_message_route_rejects_new_writes(monkeypatch):
     from unittest.mock import AsyncMock
     server = importlib.import_module("backend.server")
-    existing = {"id": "persisted", "client_id": "retry-12345", "sender_id": "me", "text": "Olá"}
-    monkeypatch.setattr(server, "my_conversation", AsyncMock(return_value={"id": "chat", "participants": ["me", "other"]}))
-    lookup = AsyncMock(return_value=existing)
-    monkeypatch.setattr(server, "db", SimpleNamespace(messages=SimpleNamespace(find_one=lookup)))
+    monkeypatch.setattr(server, "my_conversation", AsyncMock())
     insert = AsyncMock()
     monkeypatch.setattr(server, "add_message", insert)
-    body = server.TextIn(text="Olá", client_id="retry-12345")
-    assert asyncio.run(server.send_message("chat", body, {"user_id": "me"}))["id"] == "persisted"
+    with pytest.raises(server.HTTPException) as error:
+        asyncio.run(server.send_message("chat", server.TextIn(text="Olá", client_id="retry-12345"), {"user_id": "me"}))
+    assert error.value.status_code == 426
     insert.assert_not_awaited()
-    assert lookup.call_args.args[0] == {"conversation_id": "chat", "sender_id": "me", "client_id": "retry-12345"}
-    lookup.side_effect = [None, existing]
-    insert.side_effect = server.DuplicateKeyError("race")
-    assert asyncio.run(server.send_message("chat", body, {"user_id": "me"}))["id"] == "persisted"
 
 
 def test_typing_expires_and_is_scoped_to_conversation_participant(monkeypatch):
