@@ -486,7 +486,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
         r["distance_km"] = distance_km(lat, lng, r.get("lat"), r.get("lng"))
         applications = r.pop("applications", [])
         for application in applications:
-            if application["status"] == "pending" and r["status"] != "pendente":
+            if application["status"] == "pending" and (r["status"] != "pendente" or r["is_expired"]):
                 application["status"] = "not_selected"
             if application["status"] == "approved" and r.get("professional_id") != application["professional_id"]:
                 application["status"] = "withdrawn"
@@ -686,7 +686,7 @@ async def conv_summaries(convs: list, uid: str) -> list:
     rm = {}
     if rids:
         docs = await db.requests.find({"id": {"$in": rids}}, {"_id": 0, "id": 1, "title": 1, "category": 1,
-                                                               "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1}).to_list(1000)
+                                                               "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
         for doc in docs:
             applications = doc.pop("applications", [])
             doc["my_application"] = next((a for a in applications if a["professional_id"] == uid), None)
@@ -800,7 +800,7 @@ async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded
     if len(body.description.strip()) < 3:
         raise HTTPException(400, "Descreva o serviço da proposta")
     if conv.get("request_id"):
-        request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente"}, {"_id": 0})
+        request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
         if not request or me.get("role") != "profissional" or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
             raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
     return await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
@@ -816,13 +816,13 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
         if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
             raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
         rid = proposal_message["request_id"]
-        request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente"}, {"_id": 0})
+        request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
         if not request:
             raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
         applicant = proposal_message["sender_id"]
         amount = proposal_message["proposal"]["amount"]
         application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
-        query = {"id": rid, "client_id": me["user_id"], "status": "pendente"}
+        query = {"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}
         if application:
             query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
             change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}

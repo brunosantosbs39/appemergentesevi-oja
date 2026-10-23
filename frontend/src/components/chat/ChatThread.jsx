@@ -140,7 +140,7 @@ export const ChatThread = ({ id }) => {
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 pt-3">
         <AudioRecorder conversationId={id} onSent={(data) => merge([data])} />
-        {(!conv.request || me.role === "profissional" && conv.request.client_id !== me.user_id && conv.request.status === "pendente") && <Button type="button" variant="outline" onClick={() => setProposalOpen(true)}><FileText className="h-4 w-4" /> Enviar contraproposta</Button>}
+        {(!conv.request || me.role === "profissional" && conv.request.client_id !== me.user_id && conv.request.status === "pendente" && (!conv.request.expires_at || new Date(conv.request.expires_at) > new Date())) && <Button type="button" variant="outline" onClick={() => setProposalOpen(true)}><FileText className="h-4 w-4" /> Enviar contraproposta</Button>}
       </div>
       <ProposalDialog open={proposalOpen} onOpenChange={setProposalOpen} conversationId={id} onSent={(data) => merge([data])} />
       <form onSubmit={send} className="flex gap-2 border-t border-border p-3">
