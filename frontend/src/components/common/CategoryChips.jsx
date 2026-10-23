@@ -20,7 +20,7 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
           className={cn(
             "inline-flex shrink-0 items-center gap-1.5 rounded-none border px-3.5 py-1.5 text-sm font-medium transition-colors duration-200",
             isOn(slug)
-              ? "border-border bg-secondary text-white"
+              ? "border-border bg-secondary text-secondary-foreground"
               : "border-border bg-card text-foreground hover:border-foreground hover:text-foreground",
           )}
         >

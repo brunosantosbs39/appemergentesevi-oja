@@ -22,3 +22,31 @@
 @media(min-width:1280px){.sj-chat{grid-template-columns:370px minmax(0,1fr)}}
 @media(max-width:1023px){.sj-chat{grid-template-columns:minmax(0,1fr)}.sj-chat .sj-thread-pane{display:none}.sj-chat.thread-open .sj-inbox-pane{display:none}.sj-chat.thread-open .sj-thread-pane{display:block}.sj-mobile-back{display:flex}.sj-inbox-pane{border:0}.sj-inbox-header{padding:12px 16px;min-height:72px}.sj-inbox-header h1{font-size:25px}.sj-thread-header{padding:9px 10px;gap:5px;min-height:66px}.sj-contact{gap:9px}.sj-contact strong{font-size:15px}.sj-messages{padding:12px 12px 20px}.sj-bubble{max-width:85%}.sj-composer{gap:4px;padding:8px;padding-bottom:max(8px,env(safe-area-inset-bottom))}.sj-conversation-note{font-size:10px}.sj-job summary{padding:9px 15px}.sj-inbox-tools{padding-bottom:12px}}
 @media(prefers-reduced-motion:reduce){.sj-bubble,.sj-typing-bubble i{animation:none}.sj-chat *{scroll-behavior:auto!important}}
+/* The light chat keeps the same interaction and spacing as the dark version. */
+.light .sj-chat{--sj-bg:#efeae2;--sj-panel:#fff;--sj-header:#f0f2f5;--sj-line:#d9dee3;--sj-text:#17212b;--sj-muted:#61717b;--sj-green:#008069;color-scheme:light}
+.light .sj-conversation:hover,.light .sj-conversation.active{background:#f0f2f5}
+.light .sj-inbox-filters button.active{background:#d9fdd3;color:#11664d}
+.light .sj-conversation-top time.unread,.light .sj-conversation-preview p.sj-typing,.light .sj-contact small.sj-typing,.light .sj-inbox-empty a,.light .sj-thread-empty a,.light .sj-thread-empty button{color:#00785f}
+.light .sj-icon-button{color:#54656f}.light .sj-icon-button:hover{background:#e2e7eb}
+.light .sj-chat .theme-toggle{color:#54656f}.light .sj-chat .theme-toggle:hover{background:#e2e7eb}
+.light .sj-job{background:#fff}.light .sj-job summary strong,.light .sj-job-body>a{color:#00785f}
+.light .sj-message-area{background-image:radial-gradient(rgba(80,70,55,.07) .8px,transparent .8px)}
+.light .sj-messages{scrollbar-color:#c2c9cc transparent}
+.light .sj-conversation-note{background:#fff5d7;color:#655a39}
+.light .sj-date-divider{background:#fff;color:#54656f;box-shadow:0 1px 2px #0001}
+.light .sj-system{background:#e8f0f4;color:#42515a}
+.light .sj-bubble{background:#fff;box-shadow:0 1px 2px #0002}
+.light .sj-message-row.mine .sj-bubble{background:#d9fdd3}
+.light .sj-message-meta,.light .sj-message-row.mine .sj-message-meta{color:#52665a}
+.light .sj-read{color:#007ca4}.light .sj-retry{color:#a12127}.light .sj-bubble.failed{outline-color:#c25959}
+.light .sj-proposal-title{border-color:#17212b20}.light .sj-proposal-actions button+button{border-color:#54656f70;color:#17212b}
+.light .sj-typing-bubble{background:#fff}.light .sj-typing-bubble i{background:#7c9098}
+.light .sj-jump{background:#fff;color:#54656f;box-shadow:0 2px 8px #0002}
+.light .sj-composer{background:#f0f2f5}.light .sj-composer textarea{background:#fff;color:#17212b}.light .sj-composer textarea::placeholder{color:#6b7b85}
+.light .sj-audio-controls button:not(.sj-mic){background:#e0e7eb;color:#17212b}
+.light .sj-audio-controls button:last-child:not(.sj-mic){background:#008069;color:#fff}
+.light .sj-actions{background:#fff;border-color:#d9dee3;box-shadow:0 4px 25px #0002}
+.light .sj-actions a:hover,.light .sj-actions button:hover{background:#f0f2f5}
+.light .sj-welcome{background:#f7f8fa}.light .sj-welcome-icon{background:#e0f1e8;color:#008069}
+.light .sj-welcome p,.light .sj-welcome>span{color:#61717b}
+.light .sj-connection,.light .sj-inbox-error{background:#fff1cf;color:#735420}

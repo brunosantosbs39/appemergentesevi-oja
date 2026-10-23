@@ -4,6 +4,7 @@
 
 @layer base {
     :root {
+        color-scheme: dark;
         --background: 0 0% 0%;
         --foreground: 0 0% 100%;
         --card: 0 0% 8%;
@@ -30,6 +31,29 @@
         --chart-5: 0 72% 51%;
         --radius: 0px;
     }
+    :root.light {
+        color-scheme: light;
+        --background: 216 24% 97%;
+        --foreground: 215 28% 13%;
+        --card: 0 0% 100%;
+        --card-foreground: 215 28% 13%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 215 28% 13%;
+        --primary: 215 28% 13%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 214 23% 92%;
+        --secondary-foreground: 215 28% 18%;
+        --muted: 214 23% 94%;
+        --muted-foreground: 215 15% 40%;
+        --accent: 214 25% 91%;
+        --accent-foreground: 215 28% 13%;
+        --destructive: 0 72% 45%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 20% 85%;
+        --input: 214 20% 82%;
+        --ring: 215 28% 18%;
+    }
+
 }
 
 @layer base {
@@ -188,10 +212,10 @@
 }
 
 /* Shared monochrome theme for authenticated pages and portal content. */
-.brand-wordmark { color: #fff; font: 500 22px "Plus Jakarta Sans", sans-serif; letter-spacing: .13em; }
+.brand-wordmark { color: hsl(var(--foreground)); font: 500 22px "Plus Jakarta Sans", sans-serif; letter-spacing: .13em; }
 h1.font-heading, h2.font-heading, h3.font-heading { font-weight: 400; text-transform: uppercase; letter-spacing: .04em; }
 button, input, textarea, select, [role="dialog"], [role="alertdialog"] { border-radius: 0; }
-a:focus-visible, button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
 .leaflet-container { background: #141414; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #141414; color: #fff; border-radius: 0; }
 .leaflet-bar a { background: #141414; color: #fff; }
@@ -203,3 +227,16 @@ a:focus-visible, button:focus-visible { outline: 2px solid #fff; outline-offset:
 
 /* Keep the original radar treatment only in the professional search banner. */
 .legacy-radar-banner .radar-sweep::before { background: conic-gradient(from 0deg, rgba(16, 185, 129, 0.45), transparent 35%); }
+
+/* Light surfaces, including Leaflet's portal content. */
+.brand-wordmark.brand-on-photo { color: #fff; }
+.light ::selection { background: #18212b; color: #fff; }
+.light .bg-grid { background-image: linear-gradient(rgba(15,23,42,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.04) 1px,transparent 1px); }
+.light .leaflet-container { background: #e9eef2; }
+.light .leaflet-popup-content-wrapper,.light .leaflet-popup-tip,.light .leaflet-bar a { background: #fff; color: #18212b; }
+.light .pin-pro { border-color: #18212b; background: #fff; color: #18212b; }
+.light .pin-req { background: #18212b; color: #fff; border-color: #fff; }
+.light .radar-dot { background: #18212b; }
+.light .legacy-radar-banner .radar-dot { background: #10b981; }
+.light .theme-toggle { color: #18212b; }
+@media(max-width:380px) { header .brand-wordmark { font-size: 17px; letter-spacing:.08em; } }

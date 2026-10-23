@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowLeft, Check, CheckCheck, Clock3, FileText, Loader2, MoreVertical, Plus, RotateCw, Send, X } from "lucide-react";
@@ -141,6 +142,7 @@ export const ChatThread = ({ id }) => {
     <header className="sj-thread-header">
       <Link to="/chat" className="sj-icon-button sj-mobile-back" aria-label="Voltar às conversas" data-testid="chat-back-button"><ArrowLeft size={22} /></Link>
       <Link to={`/perfil/${conv.other.user_id}`} className="sj-contact" data-testid="chat-header-profile-link"><UserAvatar user={conv.other} /><span><strong>{conv.other.name}</strong><small className={conv.other_typing ? "sj-typing" : ""}>{conv.other_typing ? "digitando..." : conv.other.is_online ? "on-line" : "off-line"}</small></span></Link>
+      <ThemeToggle compact />
       <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label="Opções da conversa" aria-expanded={actionsOpen}><MoreVertical size={22} /></button>
     </header>
     {conv.request && <details className="sj-job"><summary><span className="sj-job-dot" /><span>{conv.request.title}</span><strong>{brl(conv.request.budget)}</strong></summary><div className="sj-job-body"><Link to="/pedidos">Ver vaga e acompanhar serviço</Link><ApplyButton key={conv.request.id} request={conv.request} /></div></details>}

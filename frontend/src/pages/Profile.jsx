@@ -24,7 +24,7 @@ const PostsGrid = ({ posts, onOpen }) =>
       {posts.map((p) => (
         <button key={p.id} onClick={() => onOpen(p)} className="group relative aspect-square overflow-hidden rounded-none bg-card sm:rounded-none" data-testid={`profile-post-thumb-${p.id}`}>
           <img src={imgUrl(p.image)} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-secondary/50 text-sm font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 text-sm font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
             <Heart className="h-4 w-4 fill-white" /> {p.likes_count}
           </span>
         </button>

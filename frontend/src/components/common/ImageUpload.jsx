@@ -41,7 +41,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
             disabled={busy}
             aria-label="Remover imagem"
             onClick={() => onChange(null)}
-            className="absolute right-2 top-2 rounded-none bg-secondary/80 p-1.5 text-white backdrop-blur transition-colors hover:bg-secondary"
+            className="absolute right-2 top-2 rounded-none bg-secondary/80 p-1.5 text-secondary-foreground backdrop-blur transition-colors hover:bg-secondary"
             data-testid={`${testid}-remove`}
           >
             <X className="h-4 w-4" />

@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { STATUS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-export const Logo = ({ to = "/" }) => (
-  <Link to={to} className="brand-wordmark" data-testid="brand-logo">SERVIÇOJÁ</Link>
+export const Logo = ({ to = "/", dark = false }) => (
+  <Link to={to} className={cn("brand-wordmark", dark && "brand-on-photo")} data-testid="brand-logo">SERVIÇOJÁ</Link>
 );
 
 export const StatusBadge = ({ status, testid = "service-status-badge" }) => {

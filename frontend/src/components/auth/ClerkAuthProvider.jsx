@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClerkProvider } from "@clerk/react";
+import { useTheme } from "next-themes";
 
-const appearance = {
+const darkAppearance = {
   variables: {
     colorPrimary: "#ffffff",
     colorPrimaryForeground: "#000000",
@@ -27,12 +28,30 @@ const appearance = {
   },
 };
 
+const lightAppearance = {
+  variables: { ...darkAppearance.variables,
+    colorPrimary: "#18212b", colorPrimaryForeground: "#ffffff", colorForeground: "#18212b",
+    colorMutedForeground: "#61717b", colorBackground: "#ffffff", colorInput: "#f5f7fa",
+    colorInputForeground: "#18212b", colorBorder: "#d9dee3",
+  },
+  elements: { ...darkAppearance.elements,
+    cardBox: { border: "1px solid #d9dee3", boxShadow: "0 12px 35px #18212b0a", borderRadius: 0 },
+    card: { background: "#ffffff", borderRadius: 0 },
+    socialButtonsBlockButton: { color: "#18212b", background: "#f5f7fa", border: "1px solid #d9dee3" },
+    footer: { background: "#f5f7fa" }, footerActionText: { color: "#61717b" },
+    footerActionLink: { color: "#18212b" },
+    formButtonPrimary: { ...darkAppearance.elements.formButtonPrimary, color: "#ffffff", background: "#18212b" },
+  },
+};
+
 const BACKEND_URL = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "");
 
 // Starts Clerk from the backend's runtime config, so deploy's live keys need no rebuild.
 // Must render inside <BrowserRouter> (see step 3) so Clerk navigates without reloading.
 export default function ClerkAuthProvider({ children }) {
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const appearance = resolvedTheme === "light" ? lightAppearance : darkAppearance;
   const [config, setConfig] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
 

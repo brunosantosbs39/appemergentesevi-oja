@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
@@ -26,7 +27,7 @@ const Dot = ({ n, className }) =>
 
 const Sidebar = ({ me, unread }) => (
   <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-border bg-card px-5 py-7 lg:flex">
-    <Logo to="/feed" />
+    <div className="flex items-center justify-between gap-2"><Logo to="/feed" /><ThemeToggle compact /></div>
     <nav className="mt-10 space-y-1">
       {NAV.map(({ to, label, icon: Icon, id }) => (
         <NavLink
@@ -36,7 +37,7 @@ const Sidebar = ({ me, unread }) => (
           className={({ isActive }) =>
             cn(
               "group flex items-center gap-3 rounded-none px-4 py-3 text-[15px] font-semibold transition-colors duration-200",
-              isActive ? "bg-secondary text-white" : "text-foreground hover:bg-card hover:text-foreground",
+              isActive ? "bg-secondary text-secondary-foreground" : "text-foreground hover:bg-card hover:text-foreground",
             )
           }
         >
@@ -63,7 +64,7 @@ const Sidebar = ({ me, unread }) => (
 const MobileTop = () => (
   <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur-xl lg:hidden">
     <Logo to="/feed" />
-    <div className="flex items-center gap-3"><LogoutButton /><UserButton /></div>
+    <div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /><UserButton /></div>
   </header>
 );
 
@@ -77,7 +78,7 @@ const BottomNav = ({ unread }) => (
         className={({ isActive }) =>
           cn(
             "relative flex flex-col items-center gap-0.5 rounded-none py-2 text-[10px] font-semibold transition-colors duration-200",
-            isActive ? "bg-secondary text-white" : "text-muted-foreground",
+            isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground",
           )
         }
       >

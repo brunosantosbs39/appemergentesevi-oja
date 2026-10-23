@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -92,7 +93,7 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen bg-background px-4 py-10" data-testid="onboarding-page">
       <form onSubmit={submit} className="mx-auto max-w-2xl space-y-8">
-        <div className="flex items-center justify-between gap-4"><Logo /><LogoutButton /></div>
+        <div className="flex items-center justify-between gap-4"><Logo /><div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /></div></div>
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-foreground">Bem-vindo(a)</p>
           <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
