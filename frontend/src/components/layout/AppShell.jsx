@@ -1,3 +1,4 @@
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { UserButton } from "@clerk/react";
 import { ClipboardList, Home, Map, MessageCircle, User } from "lucide-react";
@@ -54,13 +55,14 @@ const Sidebar = ({ me, unread }) => (
       </div>
       <UserButton />
     </div>
+    <LogoutButton className="mt-3 w-full" />
   </aside>
 );
 
 const MobileTop = () => (
   <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur-xl lg:hidden">
     <Logo to="/feed" />
-    <UserButton />
+    <div className="flex items-center gap-3"><LogoutButton /><UserButton /></div>
   </header>
 );
 
