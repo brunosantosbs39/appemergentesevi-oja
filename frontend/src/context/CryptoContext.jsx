@@ -58,11 +58,16 @@ export function CryptoProvider({ userId, enabled, children }) {
   }, [userId, record]);
   const getPeer = useCallback(async (uid) => {
     if (peers.current.has(uid)) return peers.current.get(uid);
-    const { data } = await api.get(`/crypto/users/${encodeURIComponent(uid)}`);
-    const peer = data.identity;
-    if (!peer) return null;
-    if (peer.user_id !== uid || await fingerprint(peer.public) !== peer.key_id) throw new Error("A identidade do contato não confere.");
-    await pinContact(userId, peer); peers.current.set(uid, peer); return peer;
+    const request = (async () => {
+      const { data } = await api.get(`/crypto/users/${encodeURIComponent(uid)}`);
+      const peer = data.identity;
+      if (!peer) return null;
+      if (peer.user_id !== uid || await fingerprint(peer.public) !== peer.key_id) throw new Error("A identidade do contato não confere.");
+      await pinContact(userId, peer); return peer;
+    })();
+    peers.current.set(uid, request);
+    try { const peer = await request; if (!peer) peers.current.delete(uid); return peer; }
+    catch (e) { peers.current.delete(uid); throw e; }
   }, [api, userId]);
   const encryptMessage = useCallback(async (uid, cid, clientId, kind, content, audio = null) => {
     if (!keys || status !== "ready") throw new Error("Ative ou recupere a proteção deste aparelho primeiro.");
