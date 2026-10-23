@@ -47,7 +47,7 @@ MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "imag
             "image/heic": "heic", "image/heif": "heif"}
 MAX_UPLOAD = 4 * 1024 * 1024
 PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "headline": 1, "bio": 1, "categories": 1,
-          "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1}
+          "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1, "last_seen": 1}
 # who may move a request to each status, and from which statuses
 TRANSITIONS = {
     "em_andamento": ("pro", ["aceito"]),
@@ -73,6 +73,15 @@ def distance_km(lat1, lng1, lat2, lng2):
     return round(2 * 6371.0 * math.asin(math.sqrt(a)), 2)
 
 
+def with_presence(doc: dict) -> dict:
+    try:
+        elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(doc.get("last_seen") or "")).total_seconds()
+        doc["is_online"] = 0 <= elapsed <= 75
+    except (ValueError, TypeError):
+        doc["is_online"] = False
+    return doc
+
+
 # ---------- auth ----------
 async def current_member(user: dict = Depends(require_user)) -> dict:
     uid = user["user_id"]
@@ -83,7 +92,7 @@ async def current_member(user: dict = Depends(require_user)) -> dict:
                 "jobs_done": 0, "created_at": now_iso()}
         await db.users.update_one({"user_id": uid}, {"$setOnInsert": stub}, upsert=True)
         doc = await db.users.find_one({"user_id": uid}, {"_id": 0})
-    return doc
+    return with_presence(doc)
 
 
 async def onboarded(me: dict = Depends(current_member)) -> dict:
@@ -97,13 +106,13 @@ async def users_map(ids) -> dict:
     if not ids:
         return {}
     docs = await db.users.find({"user_id": {"$in": ids}}, PUBLIC).to_list(1000)
-    return {d["user_id"]: d for d in docs}
+    return {d["user_id"]: with_presence(d) for d in docs}
 
 
 async def check_image(path: Optional[str], uid: str):
     if not path:
         return None
-    if not await db.files.find_one({"storage_path": path, "owner_id": uid, "is_deleted": False}):
+    if not await db.files.find_one({"storage_path": path, "owner_id": uid, "is_deleted": False, "conversation_id": {"$exists": False}}):
         raise HTTPException(400, "Imagem inválida, envie novamente")
     return path
 
@@ -134,6 +143,16 @@ class PostCreate(BaseModel):
 
 class TextIn(BaseModel):
     text: str = Field(..., min_length=1, max_length=2000)
+
+
+class ProposalIn(BaseModel):
+    description: str = Field(..., min_length=3, max_length=2000)
+    amount: float = Field(..., ge=0.01, le=1000000, allow_inf_nan=False)
+    deadline: str = Field("", max_length=120)
+
+
+class ProposalStatusIn(BaseModel):
+    status: Literal["accepted", "declined"]
 
 
 class RequestCreate(BaseModel):
@@ -173,6 +192,13 @@ async def get_me(me: dict = Depends(current_member)):
     return me
 
 
+@api.post("/me/presence")
+async def heartbeat(me: dict = Depends(current_member)):
+    stamp = now_iso()
+    await db.users.update_one({"user_id": me["user_id"]}, {"$set": {"last_seen": stamp}})
+    return {"is_online": True, "last_seen": stamp}
+
+
 @api.put("/me")
 async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
     data = body.model_dump(exclude_unset=True)
@@ -210,7 +236,7 @@ async def upload(file: UploadFile = File(...), me: dict = Depends(current_member
 @api.get("/files/{path:path}")
 async def download(path: str):
     record = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
-    if not record:
+    if not record or record.get("conversation_id"):
         raise HTTPException(404, "Arquivo não encontrado")
     data, ctype = await run_in_threadpool(get_object, path)
     return Response(content=data, media_type=record.get("content_type") or ctype,
@@ -228,7 +254,7 @@ async def professionals(lat: Optional[float] = None, lng: Optional[float] = None
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"headline": rx}]
-    docs = await db.users.find(query, {**PUBLIC, "lat": 1, "lng": 1}).to_list(1000)
+    docs = [with_presence(d) for d in await db.users.find(query, {**PUBLIC, "lat": 1, "lng": 1}).to_list(1000)]
     for d in docs:
         d["distance_km"] = distance_km(lat, lng, d.get("lat"), d.get("lng"))
     if radius_km > 0 and lat is not None and lng is not None:
@@ -250,7 +276,7 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
     doc["posts_count"] = await db.posts.count_documents({"user_id": uid})
     doc["requests_count"] = await db.requests.count_documents({"client_id": uid})
-    return doc
+    return with_presence(doc)
 
 
 @api.get("/users/{uid}/reviews")
@@ -355,9 +381,10 @@ async def get_or_create_conversation(a: str, b: str, request_id: Optional[str] =
                                                       return_document=ReturnDocument.AFTER)
 
 
-async def add_message(conv: dict, sender_id: Optional[str], text: str, system: bool = False) -> dict:
+async def add_message(conv: dict, sender_id: Optional[str], text: str, system: bool = False, **extra) -> dict:
     msg = {"id": new_id(), "conversation_id": conv["id"], "sender_id": sender_id, "text": text, "system": system,
            "created_at": now_iso()}
+    msg.update(extra)
     await db.messages.insert_one(dict(msg))
     inc = {f"unread.{p}": 1 for p in conv["participants"] if p != sender_id}
     await db.conversations.update_one({"id": conv["id"]}, {"$set": {"last_message": text[:140], "last_at": msg["created_at"]},
@@ -579,7 +606,8 @@ async def list_messages(cid: str, after: Optional[str] = None, me: dict = Depend
     query = {"conversation_id": cid}
     if after:
         query["created_at"] = {"$gt": after}
-    msgs = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).to_list(500)
+    msgs = await db.messages.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    msgs.reverse()
     if (conv.get("unread") or {}).get(me["user_id"], 0):
         await db.conversations.update_one({"id": cid}, {"$set": {f"unread.{me['user_id']}": 0}})
     return msgs
@@ -592,6 +620,55 @@ async def send_message(cid: str, body: TextIn, me: dict = Depends(onboarded)):
     if not text:
         raise HTTPException(400, "Mensagem vazia")
     return await add_message(conv, me["user_id"], text)
+
+
+@api.post("/conversations/{cid}/audio")
+async def send_audio(cid: str, file: UploadFile = File(...), me: dict = Depends(onboarded)):
+    conv = await my_conversation(cid, me["user_id"])
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    formats = {"audio/webm": "webm", "audio/mp4": "m4a", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav"}
+    if content_type not in formats:
+        raise HTTPException(400, "Formato de áudio não suportado")
+    data = await file.read(MAX_UPLOAD + 1)
+    if not data or len(data) > MAX_UPLOAD:
+        raise HTTPException(400, "Envie um áudio de até 4 MB")
+    path = f"{APP_NAME}/audio/{me['user_id']}/{new_id()}.{formats[content_type]}"
+    result = await run_in_threadpool(put_object, path, data, content_type)
+    await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
+                               "conversation_id": cid, "content_type": content_type, "is_deleted": False, "created_at": now_iso()})
+    return await add_message(conv, me["user_id"], "Mensagem de áudio", kind="audio", audio_path=result["path"])
+
+
+@api.get("/conversations/{cid}/messages/{mid}/audio")
+async def read_audio(cid: str, mid: str, me: dict = Depends(onboarded)):
+    await my_conversation(cid, me["user_id"])
+    msg = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "audio"}, {"_id": 0})
+    if not msg:
+        raise HTTPException(404, "Áudio não encontrado")
+    data, content_type = await run_in_threadpool(get_object, msg["audio_path"])
+    return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, no-store"})
+
+
+@api.post("/conversations/{cid}/proposals")
+async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded)):
+    conv = await my_conversation(cid, me["user_id"])
+    if len(body.description.strip()) < 3:
+        raise HTTPException(400, "Descreva o serviço da proposta")
+    return await add_message(conv, me["user_id"], "Proposta de serviço", kind="proposal",
+                             proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
+                                       "deadline": body.deadline.strip(), "status": "pending"})
+
+
+@api.patch("/conversations/{cid}/proposals/{mid}")
+async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict = Depends(onboarded)):
+    await my_conversation(cid, me["user_id"])
+    msg = await db.messages.find_one_and_update(
+        {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
+        {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"]}},
+        projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if not msg:
+        raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+    return msg
 
 
 app.include_router(api)

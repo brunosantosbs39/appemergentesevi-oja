@@ -76,3 +76,59 @@ def test_profile_cover_validates_owner_and_supports_removal(monkeypatch):
     with pytest.raises(server.HTTPException):
         asyncio.run(server.update_me(server.ProfileUpdate(cover="someone-elses-image"), member))
     users.update_one.assert_not_awaited()
+
+
+def test_presence_expires_and_handles_legacy_profiles(monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    server = importlib.import_module("backend.server")
+    assert server.with_presence({})["is_online"] is False
+    assert server.with_presence({"last_seen": "invalid"})["is_online"] is False
+    assert server.with_presence({"last_seen": datetime.now(timezone.utc).isoformat()})["is_online"] is True
+    assert server.with_presence({"last_seen": (datetime.now(timezone.utc) - timedelta(seconds=76)).isoformat()})["is_online"] is False
+
+
+def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
+    from unittest.mock import AsyncMock
+    from pydantic import ValidationError
+    server = importlib.import_module("backend.server")
+    member = {"user_id": "sender", "role": "profissional"}
+    conv = {"id": "chat", "participants": ["sender", "recipient"]}
+    membership = AsyncMock(return_value=conv)
+    monkeypatch.setattr(server, "my_conversation", membership)
+    message = AsyncMock(return_value={"id": "message"})
+    monkeypatch.setattr(server, "add_message", message)
+    files = SimpleNamespace(insert_one=AsyncMock(), find_one=AsyncMock(return_value={"conversation_id": "chat"}))
+    messages = SimpleNamespace(find_one=AsyncMock(return_value={"audio_path": "private/audio"}), find_one_and_update=AsyncMock(return_value={"id": "proposal"}))
+    monkeypatch.setattr(server, "db", SimpleNamespace(files=files, messages=messages))
+    monkeypatch.setattr(server, "put_object", Mock(return_value={"path": "private/audio"}))
+    monkeypatch.setattr(server, "get_object", Mock(return_value=(b"audio", "audio/webm")))
+    file = UploadFile(filename="voice.webm", file=io.BytesIO(b"audio"), headers=Headers({"content-type": "audio/webm;codecs=opus"}))
+    asyncio.run(server.send_audio("chat", file, member))
+    assert files.insert_one.call_args.args[0]["conversation_id"] == "chat"
+    assert message.call_args.kwargs["kind"] == "audio"
+    assert asyncio.run(server.read_audio("chat", "message", member)).body == b"audio"
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.download("private/audio"))
+    for payload, mime in [(b"", "audio/webm"), (b"x" * (server.MAX_UPLOAD + 1), "audio/webm"), (b"html", "text/html")]:
+        bad = UploadFile(filename="bad", file=io.BytesIO(payload), headers=Headers({"content-type": mime}))
+        with pytest.raises(server.HTTPException):
+            asyncio.run(server.send_audio("chat", bad, member))
+    with pytest.raises(ValidationError):
+        server.ProposalIn(description="Service", amount=float("nan"))
+    asyncio.run(server.send_proposal("chat", server.ProposalIn(description=" Pintura ", amount=125.5, deadline="Sexta"), member))
+    assert message.call_args.kwargs["proposal"]["status"] == "pending"
+    asyncio.run(server.respond_proposal("chat", "proposal", server.ProposalStatusIn(status="accepted"), member))
+    query = messages.find_one_and_update.call_args.args[0]
+    assert query["sender_id"] == {"$ne": "sender"}
+    assert query["proposal.status"] == "pending"
+    messages.find_one_and_update.return_value = None
+    with pytest.raises(server.HTTPException) as error:
+        asyncio.run(server.respond_proposal("chat", "proposal", server.ProposalStatusIn(status="declined"), member))
+    assert error.value.status_code == 409
+    membership.side_effect = server.HTTPException(404, "Conversa não encontrada")
+    message.reset_mock()
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.send_proposal("other", server.ProposalIn(description="Service", amount=50), member))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.read_audio("other", "message", member))
+    message.assert_not_awaited()

@@ -1,3 +1,4 @@
+import { PresenceBadge } from "@/components/common/PresenceBadge";
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Loader2, MessageCircle } from "lucide-react";
@@ -44,6 +45,7 @@ export const ConversationList = () => {
                 <p className="truncate text-sm font-bold text-foreground">{c.other?.name}</p>
                 <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{ago(c.last_at)}</span>
               </div>
+              <PresenceBadge user={c.other} />
               <p className={cn("truncate text-xs", c.unread ? "font-semibold text-foreground" : "text-muted-foreground")}>{c.last_message || "Diga olá!"}</p>
               {c.request && (
                 <div className="mt-1 flex items-center gap-1.5">

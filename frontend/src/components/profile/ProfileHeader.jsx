@@ -1,3 +1,4 @@
+import { PresenceBadge } from "@/components/common/PresenceBadge";
 import { Camera, BadgeCheck, Briefcase, ClipboardList, Grid3x3, MapPin, MessageCircle, Navigation, Pencil, Send } from "lucide-react";
 import { imgUrl } from "@/lib/api";
 import { brl, catOf, km } from "@/lib/constants";
@@ -43,6 +44,7 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onChat, onHire }) =
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="rounded-full bg-secondary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="profile-role-badge">{isPro ? "Profissional" : "Contratante"}</span>
             {user.headline && <span className="font-medium text-foreground">{user.headline}</span>}
+            <PresenceBadge user={user} />
             {user.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{user.city}</span>}
             {user.distance_km != null && !isMe && <span className="inline-flex items-center gap-1"><Navigation className="h-3.5 w-3.5" />{km(user.distance_km)} de você</span>}
           </div>

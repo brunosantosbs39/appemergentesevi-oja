@@ -78,6 +78,13 @@ export default function Profile() {
     load().catch(() => setUser(false));
   }, [load]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      api.get(`/users/${uid}`).then(({ data }) => setUser(data)).catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [api, uid]);
+
   const openChat = async () => {
     try {
       const { data } = await api.post("/conversations", { user_id: uid });

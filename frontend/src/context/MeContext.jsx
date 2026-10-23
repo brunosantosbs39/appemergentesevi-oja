@@ -30,6 +30,16 @@ export function MeProvider({ children }) {
   useEffect(() => {
     refresh().catch(() => setError(true));
   }, [refresh]);
+  useEffect(() => {
+    const heartbeat = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) api.post("/me/presence").catch(() => {});
+    };
+    heartbeat();
+    const timer = setInterval(heartbeat, 25000);
+    document.addEventListener("visibilitychange", heartbeat);
+    window.addEventListener("online", heartbeat);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", heartbeat); window.removeEventListener("online", heartbeat); };
+  }, [api]);
   const retry = () => {
     setError(false);
     refresh().catch(() => setError(true));
