@@ -1,5 +1,6 @@
+import { ContactButton } from "@/components/chat/ContactButton";
 import { PresenceBadge } from "@/components/common/PresenceBadge";
-import { Camera, BadgeCheck, Briefcase, ClipboardList, Grid3x3, MapPin, MessageCircle, Navigation, Pencil, Send } from "lucide-react";
+import { Camera, BadgeCheck, Briefcase, ClipboardList, Grid3x3, MapPin, Navigation, Pencil, Send } from "lucide-react";
 import { imgUrl } from "@/lib/api";
 import { brl, catOf, km } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ const Stat = ({ icon: Icon, value, label, testid }) => (
   </div>
 );
 
-export const ProfileHeader = ({ user, isMe, canHire, onEdit, onChat, onHire }) => {
+export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
   const isPro = user.role === "profissional";
   return (
     <section className="overflow-hidden rounded-[2rem] border border-border bg-card">
@@ -31,7 +32,6 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onChat, onHire }) =
               <Button variant="outline" className="rounded-full" onClick={onEdit} data-testid="profile-edit-button"><Pencil className="h-4 w-4" /> Editar perfil</Button>
             ) : (
               <>
-                <Button variant="outline" className="rounded-full" onClick={onChat} data-testid="profile-action-chat-button"><MessageCircle className="h-4 w-4" /> Chamar no chat</Button>
                 {canHire && <Button className="rounded-full" onClick={onHire} data-testid="profile-action-hire-button"><Send className="h-4 w-4" /> Solicitar serviço</Button>}
               </>
             )}
@@ -57,6 +57,7 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onChat, onHire }) =
             </div>
           )}
         </div>
+        {!isMe && <div className="mt-4"><ContactButton userId={user.user_id} label="Conversar com este usuário" className="w-full sm:w-auto" testid="profile-action-chat-button" /></div>}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col justify-center rounded-none border border-border bg-card px-4 py-3">
             <RatingBadge avg={user.rating_avg} count={user.rating_count} testid="user-profile-rating-badge" />

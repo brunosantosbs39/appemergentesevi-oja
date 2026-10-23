@@ -1,3 +1,4 @@
+import { ContactButton } from "@/components/chat/ContactButton";
 import { ServiceAttendance } from "@/components/requests/ServiceAttendance";
 import { Link } from "react-router-dom";
 import { Clock, MapPin, Navigation, Target, Wallet } from "lucide-react";
@@ -68,6 +69,7 @@ export const RequestCard = ({ request: r, me, children }) => {
           </p>
         )
       )}
+      {!iAmClient && r.status === "pendente" && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
       <ServiceAttendance request={r} />
       {children && <div className="mt-4 flex flex-wrap gap-2">{children}</div>}
     </article>

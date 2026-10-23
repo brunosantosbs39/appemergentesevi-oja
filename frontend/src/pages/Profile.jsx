@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Grid3x3, Heart, Loader2, Star, UserX } from "lucide-react";
-import { toast } from "sonner";
-import { errMsg, imgUrl, useApi } from "@/lib/api";
+import { imgUrl, useApi } from "@/lib/api";
 import { ago, catOf } from "@/lib/constants";
 import { useMe } from "@/context/MeContext";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -56,7 +55,6 @@ export default function Profile() {
   const { id } = useParams();
   const { me } = useMe();
   const api = useApi();
-  const navigate = useNavigate();
   const uid = id === "me" ? me.user_id : id;
   const isMe = uid === me.user_id;
   const [user, setUser] = useState(null);
@@ -85,22 +83,13 @@ export default function Profile() {
     return () => clearInterval(timer);
   }, [api, uid]);
 
-  const openChat = async () => {
-    try {
-      const { data } = await api.post("/conversations", { user_id: uid });
-      navigate(`/chat/${data.id}`);
-    } catch (e) {
-      toast.error(errMsg(e));
-    }
-  };
-
   if (user === false) return <EmptyState icon={UserX} title="Perfil não encontrado" testid="profile-not-found" />;
   if (!user) return <Loader2 className="mx-auto mt-16 h-6 w-6 animate-spin text-foreground" />;
   const isPro = user.role === "profissional";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="profile-page">
-      <ProfileHeader user={user} isMe={isMe} canHire={isPro && me.role === "contratante"} onEdit={() => setEditOpen(true)} onChat={openChat} onHire={() => setHireOpen(true)} />
+      <ProfileHeader user={user} isMe={isMe} canHire={isPro && me.role === "contratante"} onEdit={() => setEditOpen(true)} onHire={() => setHireOpen(true)} />
       {user.bio && (
         <section className="rounded-none border border-border bg-card p-6" data-testid="profile-bio">
           <p className="font-mono text-[10px] uppercase tracking-widest text-foreground">Sobre</p>

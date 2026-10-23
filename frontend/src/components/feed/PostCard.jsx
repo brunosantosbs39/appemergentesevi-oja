@@ -1,3 +1,4 @@
+import { ContactButton } from "@/components/chat/ContactButton";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BadgeCheck, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
@@ -114,6 +115,7 @@ export const PostCard = ({ post, onDeleted, onHire }) => {
             </Button>
           )}
         </div>
+        {!mine && <ContactButton userId={post.user_id} label="Conversar com quem publicou" className="mt-3 w-full" testid="feed-post-chat-button" />}
         <p className="mt-1 text-sm font-bold text-foreground" data-testid="feed-post-likes-count">
           {likes} curtida{likes === 1 ? "" : "s"}
         </p>

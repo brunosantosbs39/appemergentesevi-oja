@@ -1,6 +1,6 @@
 import { PresenceBadge } from "@/components/common/PresenceBadge";
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useParams } from "react-router-dom";
 import { Loader2, MessageCircle } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { ago } from "@/lib/constants";
@@ -11,13 +11,18 @@ import { cn } from "@/lib/utils";
 export const ConversationList = () => {
   const api = useApi();
   const [items, setItems] = useState(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const { id } = useParams();
 
   useEffect(() => {
-    const load = () => api.get("/conversations").then((r) => setItems(r.data)).catch(() => setItems((p) => p || []));
+    let active = true;
+    const load = () => api.get("/conversations").then((r) => { if (active) { setItems(r.data); setError(false); } }).catch(() => { if (active) setError(true); });
     load();
     const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, [api]);
+    window.addEventListener("conversations-changed", load);
+    return () => { active = false; clearInterval(t); window.removeEventListener("conversations-changed", load); };
+  }, [api, id, attempt]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-none border border-border bg-card">
@@ -25,11 +30,12 @@ export const ConversationList = () => {
         <h1 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">Conversas</h1>
       </div>
       <div className="flex-1 overflow-y-auto p-2" data-testid="chat-conversations-list">
-        {items === null && <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin text-foreground" />}
-        {items?.length === 0 && (
+        {items === null && !error && <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin text-foreground" />}
+        {error && <div className="p-4 text-sm" role="alert"><p>Não foi possível atualizar suas conversas.</p><button type="button" className="mt-2 underline" onClick={() => setAttempt((n) => n + 1)}>Tentar novamente</button></div>}
+        {!error && items?.length === 0 && (
           <div className="px-6 py-12 text-center text-sm text-muted-foreground" data-testid="chat-empty-state">
             <MessageCircle className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-            Nenhuma conversa ainda. Aceite um pedido ou chame um profissional pelo perfil.
+            Nenhuma conversa ainda. Abra um perfil ou uma vaga e toque em Conversar.
           </div>
         )}
         {items?.map((c) => (

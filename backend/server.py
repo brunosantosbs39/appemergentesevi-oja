@@ -606,8 +606,15 @@ async def start_conversation(body: ConversationIn, me: dict = Depends(onboarded)
     if not await db.users.find_one({"user_id": body.user_id}, {"_id": 1}):
         raise HTTPException(404, "Usuário não encontrado")
     request_id = None
-    if body.request_id and await db.requests.find_one(
-            {"id": body.request_id, "$or": [{"client_id": me["user_id"]}, {"professional_id": me["user_id"]}]}, {"_id": 1}):
+    if body.request_id:
+        request = await db.requests.find_one({"id": body.request_id}, {"_id": 0})
+        uid = me["user_id"]
+        visible = request and (uid in (request["client_id"], request.get("professional_id")) or (
+            request["status"] == "pendente" and me["role"] == "profissional" and request.get("target_pro_id") in (None, uid)))
+        matching_pair = request and (body.user_id == request["client_id"] or (
+            uid == request["client_id"] and body.user_id == request.get("professional_id")))
+        if not visible or not matching_pair:
+            raise HTTPException(404, "Pedido não encontrado para esta conversa")
         request_id = body.request_id
     conv = await get_or_create_conversation(me["user_id"], body.user_id, request_id)
     return {"id": conv["id"]}

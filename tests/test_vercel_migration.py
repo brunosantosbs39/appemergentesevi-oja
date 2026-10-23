@@ -175,3 +175,32 @@ def test_check_in_out_records_server_time_and_rejects_invalid_transitions(monkey
     with pytest.raises(server.HTTPException):
         asyncio.run(server.check_out_service("job", member))
     users.update_one.assert_awaited_once()
+
+
+def test_start_chat_from_available_vacancy_and_keep_inbox_private(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    vacancy = {"id": "vacancy", "client_id": "author", "professional_id": None, "target_pro_id": None, "status": "pendente"}
+    requests = SimpleNamespace(find_one=AsyncMock(return_value=vacancy))
+    create = AsyncMock(return_value={"id": "existing-chat"})
+    monkeypatch.setattr(server, "get_or_create_conversation", create)
+    cursor = Mock()
+    cursor.sort.return_value = cursor
+    cursor.to_list = AsyncMock(return_value=[])
+    conversations = SimpleNamespace(find=Mock(return_value=cursor))
+    monkeypatch.setattr(server, "db", SimpleNamespace(users=SimpleNamespace(find_one=AsyncMock(return_value={"user_id": "author"})), requests=requests, conversations=conversations))
+    member = {"user_id": "pro", "role": "profissional"}
+    body = server.ConversationIn(user_id="author", request_id="vacancy")
+    assert asyncio.run(server.start_conversation(body, member)) == {"id": "existing-chat"}
+    create.assert_awaited_once_with("pro", "author", "vacancy")
+    assert asyncio.run(server.start_conversation(server.ConversationIn(user_id="author"), member))["id"] == "existing-chat"
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.start_conversation(server.ConversationIn(user_id="other", request_id="vacancy"), member))
+    vacancy["target_pro_id"] = "someone-else"
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.start_conversation(body, member))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.start_conversation(server.ConversationIn(user_id="pro"), member))
+    monkeypatch.setattr(server, "conv_summaries", AsyncMock(return_value=[]))
+    assert asyncio.run(server.list_conversations(member)) == []
+    assert conversations.find.call_args.args[0] == {"participants": "pro"}
