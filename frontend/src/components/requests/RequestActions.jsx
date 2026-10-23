@@ -15,12 +15,13 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
   const isPro = r.professional_id === me.user_id;
   const otherId = isClient ? r.professional_id : r.client_id;
   const reviewed = isClient ? r.client_reviewed : r.pro_reviewed;
-  const active = ["aceito", "em_andamento"].includes(r.status);
 
   const run = async (status, label) => {
+    if (busy) return;
     setBusy(status);
     try {
-      const { data } = await api.post(`/requests/${r.id}/status`, { status });
+      const action = status === "em_andamento" ? "check-in" : status === "concluido" ? "check-out" : "status";
+      const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status } : {});
       onUpdated(data);
       toast.success(label);
       if (status === "concluido") onReview(data);
@@ -43,32 +44,32 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
   return (
     <>
       {otherId && r.status !== "pendente" && (
-        <Button variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
+        <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button className="rounded-none bg-secondary hover:bg-secondary" onClick={() => run("em_andamento", "Serviço iniciado")} data-testid="start-service-button">
-          {spin("em_andamento") || <Play className="h-4 w-4" />} Iniciar serviço
+        <Button disabled={!!busy} className="rounded-none bg-secondary hover:bg-secondary" onClick={() => run("em_andamento", "Check-in registrado: serviço iniciado")} data-testid="start-service-button">
+          {spin("em_andamento") || <Play className="h-4 w-4" />} Check-in · Iniciar serviço
         </Button>
       )}
-      {active && (
-        <Button className="rounded-none" onClick={() => run("concluido", "Serviço concluído!")} data-testid="complete-service-button">
-          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} Concluir
+      {isPro && r.status === "em_andamento" && (
+        <Button disabled={!!busy} className="rounded-none" onClick={() => run("concluido", "Check-out registrado: serviço finalizado!")} data-testid="complete-service-button">
+          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} Check-out · Finalizar
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button variant="ghost" className="rounded-none text-foreground" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
           Desistir
         </Button>
       )}
       {isClient && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
-        <Button variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
           Cancelar
         </Button>
       )}
       {r.status === "concluido" && otherId && !reviewed && (
-        <Button className="rounded-none bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">
+        <Button disabled={!!busy} className="rounded-none bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">
           <Star className="h-4 w-4" /> Avaliar
         </Button>
       )}

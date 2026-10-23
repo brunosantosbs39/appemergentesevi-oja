@@ -51,7 +51,7 @@ PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1,
 # who may move a request to each status, and from which statuses
 TRANSITIONS = {
     "em_andamento": ("pro", ["aceito"]),
-    "concluido": ("any", ["aceito", "em_andamento"]),
+    "concluido": ("pro", ["em_andamento"]),
     "cancelado": ("client", ["pendente", "aceito", "em_andamento"]),
     "pendente": ("pro", ["aceito"]),
 }
@@ -497,10 +497,15 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
         query["client_id"] = uid
     else:
         query["$or"] = [{"client_id": uid}, {"professional_id": uid}]
-    update = {"status": body.status, "updated_at": now_iso()}
-    if body.status == "concluido":
-        update["completed_at"] = now_iso()
+    stamp = now_iso()
+    update = {"status": body.status, "updated_at": stamp}
     before = await db.requests.find_one(query, {"_id": 0})
+    if body.status == "em_andamento":
+        update.update({"check_in_at": stamp, "check_in_by": uid})
+    if body.status == "concluido":
+        update.update({"completed_at": stamp, "check_out_at": stamp, "check_out_by": uid})
+        if before and before.get("check_in_at"):
+            update["service_duration_seconds"] = max(0, int((datetime.fromisoformat(stamp) - datetime.fromisoformat(before["check_in_at"])).total_seconds()))
     if body.status == "pendente":
         update.update({"professional_id": None, "target_pro_id": None})
     r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
@@ -514,6 +519,9 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
         await db.users.update_one({"user_id": r["professional_id"]}, {"$inc": {"jobs_done": 1}})
     if body.status == "pendente":
         await notify_request(before, "O profissional desistiu do pedido. Ele voltou para a fila de pedidos.")
+    elif body.status in ("em_andamento", "concluido"):
+        event = "Check-in registrado: serviço iniciado" if body.status == "em_andamento" else "Check-out registrado: serviço finalizado"
+        await notify_request(r, f"{event}. Horário registrado: {stamp} (UTC). Consulte os detalhes no pedido.")
     else:
         await notify_request(r, f"Status do pedido atualizado: {STATUS_LABELS[body.status]}.")
     return (await enrich_requests([r], me.get("lat"), me.get("lng")))[0]
@@ -542,6 +550,16 @@ async def review_request(rid: str, body: ReviewIn, me: dict = Depends(onboarded)
         await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
                                                                  "rating_count": agg[0]["n"]}})
     return review
+
+
+@api.post("/requests/{rid}/check-in")
+async def check_in_service(rid: str, me: dict = Depends(onboarded)):
+    return await change_status(rid, StatusIn(status="em_andamento"), me)
+
+
+@api.post("/requests/{rid}/check-out")
+async def check_out_service(rid: str, me: dict = Depends(onboarded)):
+    return await change_status(rid, StatusIn(status="concluido"), me)
 
 
 # ---------- conversations ----------

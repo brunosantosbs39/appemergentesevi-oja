@@ -132,3 +132,46 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     with pytest.raises(server.HTTPException):
         asyncio.run(server.read_audio("other", "message", member))
     message.assert_not_awaited()
+
+
+def test_check_in_out_records_server_time_and_rejects_invalid_transitions(monkeypatch):
+    from datetime import datetime
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    member = {"user_id": "pro", "role": "profissional"}
+    state = {"id": "job", "status": "aceito", "client_id": "client", "professional_id": "pro"}
+    async def find_one(query, projection):
+        if "$or" in query:
+            return dict(state) if any(state.get(key) == val for part in query["$or"] for key, val in part.items()) else None
+        return dict(state) if state["status"] in query["status"]["$in"] and state["professional_id"] == query.get("professional_id") else None
+    async def update(query, changes, **kwargs):
+        if state["status"] not in query["status"]["$in"] or state["professional_id"] != query.get("professional_id"):
+            return None
+        state.update(changes["$set"])
+        return dict(state)
+    users = SimpleNamespace(update_one=AsyncMock())
+    monkeypatch.setattr(server, "db", SimpleNamespace(requests=SimpleNamespace(find_one=find_one, find_one_and_update=update), users=users))
+    async def enrich(items, *args):
+        return items
+    monkeypatch.setattr(server, "enrich_requests", enrich)
+    monkeypatch.setattr(server, "notify_request", AsyncMock())
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_out_service("job", member))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_in_service("job", {"user_id": "client"}))
+    result = asyncio.run(server.check_in_service("job", member))
+    assert result["status"] == "em_andamento"
+    assert result["check_in_by"] == "pro"
+    started = result["check_in_at"]
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_in_service("job", member))
+    assert state["check_in_at"] == started
+    result = asyncio.run(server.check_out_service("job", member))
+    assert result["status"] == "concluido"
+    assert result["check_out_by"] == "pro"
+    assert result["check_out_at"] == result["completed_at"]
+    assert datetime.fromisoformat(result["check_out_at"]) >= datetime.fromisoformat(started)
+    assert result["service_duration_seconds"] >= 0
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_out_service("job", member))
+    users.update_one.assert_awaited_once()
