@@ -56,6 +56,7 @@ export const RequestCard = ({ request: r, me, children }) => {
                 <Navigation className="h-3.5 w-3.5" /> {km(r.distance_km)}
               </span>
             )}
+            {r.expires_at && <span className="text-xs">{r.is_expired ? "Prazo encerrado" : "Candidaturas até"}: {new Date(r.expires_at).toLocaleString("pt-BR")}</span>}
             <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {ago(r.created_at)}</span>
           </div>
         </div>

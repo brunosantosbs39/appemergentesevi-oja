@@ -98,7 +98,7 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     message = AsyncMock(return_value={"id": "message"})
     monkeypatch.setattr(server, "add_message", message)
     files = SimpleNamespace(insert_one=AsyncMock(), find_one=AsyncMock(return_value={"conversation_id": "chat"}))
-    messages = SimpleNamespace(find_one=AsyncMock(return_value={"audio_path": "private/audio"}), find_one_and_update=AsyncMock(return_value={"id": "proposal"}))
+    messages = SimpleNamespace(find_one=AsyncMock(return_value={"audio_path": "private/audio"}), find_one_and_update=AsyncMock(return_value={"id": "proposal", "sender_id": "recipient"}))
     monkeypatch.setattr(server, "db", SimpleNamespace(files=files, messages=messages))
     monkeypatch.setattr(server, "put_object", Mock(return_value={"path": "private/audio"}))
     monkeypatch.setattr(server, "get_object", Mock(return_value=(b"audio", "audio/webm")))
@@ -287,3 +287,82 @@ def test_accepted_counterproposal_attaches_new_price_to_candidate(monkeypatch):
     assert request["budget"] == 200
     with pytest.raises(server.HTTPException):
         asyncio.run(server.respond_proposal("chat", "offer", server.ProposalStatusIn(status="accepted"), {"user_id": "pro"}))
+
+
+def test_portfolio_and_publications_have_separate_lifetimes(monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    stored = []
+    posts = SimpleNamespace(insert_one=AsyncMock(side_effect=lambda doc: stored.append(doc)))
+    monkeypatch.setattr(server, "db", SimpleNamespace(posts=posts))
+    monkeypatch.setattr(server, "check_image", AsyncMock())
+    async def enrich(items, uid): return items
+    monkeypatch.setattr(server, "enrich_posts", enrich)
+    member = {"user_id": "pro", "role": "profissional"}
+    expiry = datetime.now(timezone.utc) + timedelta(hours=2)
+    portfolio = asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image", expires_at=expiry), member))
+    assert portfolio["kind"] == "portfolio" and portfolio["expires_at"] is None
+    publication = asyncio.run(server.create_post(server.PostCreate(kind="publication", image="image", expires_at=expiry), member))
+    assert publication["expires_at"] == expiry.isoformat()
+    with pytest.raises(server.HTTPException):
+        server.expiration_iso(datetime.now(timezone.utc) - timedelta(seconds=1))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image"), {"user_id": "client", "role": "contratante"}))
+
+
+def test_web_push_subscription_validation_and_delivery(monkeypatch):
+    import base64
+    import backend.notifications as notices
+    from unittest.mock import AsyncMock
+    import pywebpush
+    keys = {"p256dh": base64.urlsafe_b64encode(b'\x04' + b'x' * 64).decode().rstrip('='), "auth": base64.urlsafe_b64encode(b'y' * 16).decode().rstrip('=')}
+    subscription = {"endpoint": "https://fcm.googleapis.com/fcm/send/test", "keys": keys}
+    notices.validate_subscription(subscription)
+    for endpoint in ["https://localhost/private", "https://fcm.googleapis.com.evil.example/", "http://fcm.googleapis.com/x", "https://fcm.googleapis.com:8443/x"]:
+        with pytest.raises(notices.HTTPException):
+            notices.validate_subscription({"endpoint": endpoint, "keys": keys})
+    cursor = SimpleNamespace(to_list=AsyncMock(return_value=[{"endpoint": subscription["endpoint"], "subscription": subscription}]))
+    db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock()), push_subscriptions=SimpleNamespace(find=Mock(return_value=cursor), delete_one=AsyncMock()))
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "test-key")
+    send = Mock()
+    monkeypatch.setattr(pywebpush, "webpush", send)
+    asyncio.run(notices.send_notice(db, "recipient", "Nova mensagem", "Atualização", "/chat/chat"))
+    assert db.notifications.insert_one.call_args.args[0]["user_id"] == "recipient"
+    assert send.call_args.kwargs["subscription_info"] == subscription
+    assert send.call_args.kwargs["ttl"] == 3600
+    send.side_effect = RuntimeError("unavailable")
+    asyncio.run(notices.send_notice(db, "recipient", "Nova mensagem", "Atualização", "/chat/chat"))
+    assert db.notifications.insert_one.await_count == 2
+
+
+def test_notification_inbox_scopes_to_authenticated_user(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    cursor = Mock(); cursor.sort.return_value = cursor; cursor.to_list = AsyncMock(return_value=[])
+    notifications = SimpleNamespace(find=Mock(return_value=cursor), update_one=AsyncMock())
+    monkeypatch.setattr(server, "db", SimpleNamespace(notifications=notifications))
+    assert asyncio.run(server.list_notifications({"user_id": "owner"})) == []
+    assert notifications.find.call_args.args[0] == {"user_id": "owner"}
+    asyncio.run(server.read_notification("notice", {"user_id": "owner"}))
+    assert notifications.update_one.call_args.args[0] == {"id": "notice", "user_id": "owner"}
+
+
+def test_checked_in_vacancy_disappears_from_publications_but_not_portfolio(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    linked_post = {"id": "publication", "request_id": "job", "kind": "publication"}
+    posts_cursor = Mock(); posts_cursor.sort.return_value = posts_cursor; posts_cursor.to_list = AsyncMock(return_value=[linked_post])
+    job_cursor = SimpleNamespace(to_list=AsyncMock(return_value=[{"id": "job", "status": "em_andamento", "check_in_at": server.now_iso()}]))
+    posts = SimpleNamespace(find=Mock(return_value=posts_cursor))
+    monkeypatch.setattr(server, "db", SimpleNamespace(posts=posts, requests=SimpleNamespace(find=Mock(return_value=job_cursor))))
+    async def enrich(items, uid): return items
+    monkeypatch.setattr(server, "enrich_posts", enrich)
+    member = {"user_id": "viewer"}
+    assert asyncio.run(server.list_posts(me=member)) == []
+    query = posts.find.call_args.args[0]
+    assert query["kind"] == {"$ne": "portfolio"}
+    assert "$and" in query
+    posts_cursor.to_list.return_value = [{"id": "work", "kind": "portfolio"}]
+    assert asyncio.run(server.list_posts(kind="portfolio", me=member))[0]["id"] == "work"
+    assert posts.find.call_args.args[0] == {"kind": "portfolio"}

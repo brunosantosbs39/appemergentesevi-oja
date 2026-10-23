@@ -23,10 +23,12 @@ try:  # launched as `backend.server`
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
     from backend.seed import seed_demo
+    from backend.notifications import send_notice, validate_subscription
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
+    from notifications import send_notice, validate_subscription
 
 mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
 if not mongo_url:
@@ -133,6 +135,9 @@ class ProfileUpdate(BaseModel):
 
 
 class PostCreate(BaseModel):
+    kind: Literal["publication", "portfolio"] = "publication"
+    expires_at: Optional[datetime] = None
+    request_id: Optional[str] = None
     image: str
     caption: str = Field("", max_length=2200)
     category: Optional[str] = None
@@ -156,6 +161,7 @@ class ProposalStatusIn(BaseModel):
 
 
 class RequestCreate(BaseModel):
+    expires_at: Optional[datetime] = None
     category: str
     title: str = Field(..., min_length=3, max_length=100)
     description: str = Field("", max_length=2000)
@@ -179,6 +185,55 @@ class ReviewIn(BaseModel):
 class ConversationIn(BaseModel):
     user_id: str
     request_id: Optional[str] = None
+
+
+def expiration_iso(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        raise HTTPException(400, "Informe o fuso horário da validade")
+    if value <= datetime.now(timezone.utc):
+        raise HTTPException(400, "A validade precisa estar no futuro")
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def vacancy_open_query():
+    return {"$or": [{"expires_at": None}, {"expires_at": {"$gt": now_iso()}}]}
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(..., max_length=4096)
+    keys: dict
+
+
+@api.get("/notifications/config")
+async def notification_config(me: dict = Depends(current_member)):
+    return {"public_key": os.environ.get("VAPID_PUBLIC_KEY", ""), "enabled": bool(os.environ.get("VAPID_PRIVATE_KEY"))}
+
+
+@api.get("/notifications")
+async def list_notifications(me: dict = Depends(current_member)):
+    return await db.notifications.find({"user_id": me["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@api.post("/notifications/{nid}/read")
+async def read_notification(nid: str, me: dict = Depends(current_member)):
+    await db.notifications.update_one({"id": nid, "user_id": me["user_id"]}, {"$set": {"read": True}})
+    return {"ok": True}
+
+
+@api.post("/push/subscriptions")
+async def subscribe_push(body: PushSubscriptionIn, me: dict = Depends(current_member)):
+    subscription = body.model_dump()
+    validate_subscription(subscription)
+    await db.push_subscriptions.update_one({"endpoint": body.endpoint}, {"$set": {"endpoint": body.endpoint, "subscription": subscription, "user_id": me["user_id"], "updated_at": now_iso()}}, upsert=True)
+    return {"ok": True}
+
+
+@api.delete("/push/subscriptions")
+async def unsubscribe_push(body: PushSubscriptionIn, me: dict = Depends(current_member)):
+    await db.push_subscriptions.delete_one({"endpoint": body.endpoint, "user_id": me["user_id"]})
+    return {"ok": True}
 
 
 # ---------- profile ----------
@@ -300,14 +355,21 @@ async def enrich_posts(posts: list, uid: str) -> list:
 
 
 @api.get("/posts")
-async def list_posts(user_id: Optional[str] = None, category: Optional[str] = None, limit: int = 60,
+async def list_posts(user_id: Optional[str] = None, category: Optional[str] = None, limit: int = 60, kind: Literal["publication", "portfolio"] = "publication",
                      me: dict = Depends(onboarded)):
-    query = {}
+    query = {"kind": "portfolio"} if kind == "portfolio" else {"kind": {"$ne": "portfolio"}, "$and": [vacancy_open_query()]}
     if user_id:
         query["user_id"] = user_id
     if category and category != "todos":
         query["category"] = category
     posts = await db.posts.find(query, {"_id": 0}).sort("created_at", -1).to_list(max(1, min(limit, 200)))
+    if kind == "publication":
+        linked = [p["request_id"] for p in posts if p.get("request_id")]
+        closed = set()
+        if linked:
+            requests = await db.requests.find({"id": {"$in": linked}}, {"_id": 0, "id": 1, "status": 1, "expires_at": 1, "check_in_at": 1}).to_list(200)
+            closed = {r["id"] for r in requests if r.get("check_in_at") or r["status"] in ("concluido", "cancelado") or r.get("expires_at") and r["expires_at"] <= now_iso()}
+        posts = [p for p in posts if p.get("request_id") not in closed]
     return await enrich_posts(posts, me["user_id"])
 
 
@@ -316,8 +378,14 @@ async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
     await check_image(body.image, me["user_id"])
     if body.category and body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
+    if body.kind == "portfolio" and me["role"] != "profissional":
+        raise HTTPException(403, "O portfólio é exclusivo de profissionais")
+    if body.request_id and not await db.requests.find_one({"id": body.request_id, "client_id": me["user_id"]}):
+        raise HTTPException(400, "Escolha uma vaga publicada por você")
+    expiry = expiration_iso(body.expires_at) if body.kind == "publication" else None
     doc = {"id": new_id(), "user_id": me["user_id"], **body.model_dump(), "likes": [], "comments_count": 0,
            "created_at": now_iso()}
+    doc["expires_at"] = expiry
     await db.posts.insert_one(dict(doc))
     return (await enrich_posts([doc], me["user_id"]))[0]
 
@@ -389,6 +457,11 @@ async def add_message(conv: dict, sender_id: Optional[str], text: str, system: b
     inc = {f"unread.{p}": 1 for p in conv["participants"] if p != sender_id}
     await db.conversations.update_one({"id": conv["id"]}, {"$set": {"last_message": text[:140], "last_at": msg["created_at"]},
                                                            "$inc": inc})
+    for participant in conv["participants"]:
+        if participant != sender_id:
+            title = "Atualização do serviço" if system else "Nova mensagem no ServiçoJá"
+            body = text if system else "Você recebeu uma contraproposta." if extra.get("kind") == "proposal" else "Você recebeu uma mensagem de áudio." if extra.get("kind") == "audio" else "Você recebeu uma nova mensagem."
+            await send_notice(db, participant, title, body, f"/chat/{conv['id']}")
     return msg
 
 
@@ -406,6 +479,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
     ids += [a["professional_id"] for r in items if r.get("client_id") == viewer_id for a in r.get("applications", [])]
     um = await users_map(ids)
     for r in items:
+        r["is_expired"] = bool(r.get("expires_at") and r["expires_at"] <= now_iso())
         r["client"] = um.get(r.get("client_id"))
         r["professional"] = um.get(r.get("professional_id"))
         r["target_pro"] = um.get(r.get("target_pro_id"))
@@ -437,6 +511,7 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
     doc["title"] = doc["title"].strip()
+    doc["expires_at"] = expiration_iso(body.expires_at)
     await db.requests.insert_one(dict(doc))
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
@@ -457,7 +532,7 @@ async def available_requests(lat: Optional[float] = None, lng: Optional[float] =
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
-    query = {"status": "pendente", "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
+    query = {"status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
     if category and category != "todos":
         query["category"] = category
     items = await enrich_requests(await db.requests.find(query, {"_id": 0}).to_list(500), lat, lng, viewer_id=uid)
@@ -488,7 +563,7 @@ async def accept_request(rid: str, me: dict = Depends(onboarded)):
     uid = me["user_id"]
     application = {"professional_id": uid, "status": "pending", "applied_at": now_iso()}
     r = await db.requests.find_one_and_update(
-        {"id": rid, "status": "pendente", "client_id": {"$ne": uid},
+        {"id": rid, "status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid},
          "$or": [{"target_pro_id": None}, {"target_pro_id": uid}],
          "applications.professional_id": {"$ne": uid}},
         {"$push": {"applications": application}, "$set": {"updated_at": now_iso()}},
@@ -513,7 +588,7 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
         candidate = next((a for a in (current or {}).get("applications", []) if a["professional_id"] == professional_id), {})
         changes["agreed_budget"] = candidate.get("negotiated_budget", (current or {}).get("budget"))
         changes.update({"status": "aceito", "professional_id": professional_id, "accepted_at": stamp, "approved_by": me["user_id"]})
-    selection_query = {"id": rid, "client_id": me["user_id"], "status": "pendente",
+    selection_query = {"id": rid, "$and": [vacancy_open_query()], "client_id": me["user_id"], "status": "pendente",
                        "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}}
     if body.status == "approved" and current:
         selection_query["updated_at"] = current.get("updated_at")
@@ -763,6 +838,7 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
         projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not msg:
         raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+    await send_notice(db, msg["sender_id"], "Resposta à contraproposta", "Sua contraproposta foi aceita." if body.status == "accepted" else "Sua contraproposta foi recusada.", f"/chat/{cid}")
     return msg
 
 
@@ -788,6 +864,9 @@ async def startup():
     await db.conversations.create_index("id", unique=True)
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
     await db.requests.create_index("applications.professional_id")
+    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    await db.push_subscriptions.create_index("endpoint", unique=True)
+    await db.push_subscriptions.create_index("user_id")
     await db.comments.create_index([("post_id", 1), ("created_at", 1)])
     await db.reviews.create_index("to_id")
     await db.files.create_index("storage_path")

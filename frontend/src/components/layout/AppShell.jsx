@@ -1,3 +1,4 @@
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { UserButton } from "@clerk/react";
@@ -98,6 +99,7 @@ export default function AppShell() {
       <MobileTop />
       <main className="pb-28 lg:pb-10 lg:pl-72">
         <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10">
+          <div className="mb-4 flex justify-end"><NotificationCenter /></div>
           <Outlet />
         </div>
       </main>

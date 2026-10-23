@@ -28,7 +28,7 @@ export const ApplicationsPanel = ({ request, onUpdated }) => {
       <p className="text-sm">{a.negotiated_budget != null ? `Valor negociado: ${brl(a.negotiated_budget)}` : `Valor anunciado: ${brl(request.budget)}`}</p>
       <div className="flex flex-wrap gap-2">
         <ContactButton userId={a.professional_id} label="Conversar" />
-        {request.status === "pendente" && a.status === "pending" && <><Button type="button" disabled={!!busy} onClick={() => decide(a.professional_id, "approved")}>Aprovar candidato</Button><Button type="button" variant="outline" disabled={!!busy} onClick={() => decide(a.professional_id, "declined")}>Recusar</Button></>}
+        {request.status === "pendente" && !request.is_expired && a.status === "pending" && <><Button type="button" disabled={!!busy} onClick={() => decide(a.professional_id, "approved")}>Aprovar candidato</Button><Button type="button" variant="outline" disabled={!!busy} onClick={() => decide(a.professional_id, "declined")}>Recusar</Button></>}
       </div>
     </div>)}
   </section>;

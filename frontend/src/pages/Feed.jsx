@@ -29,6 +29,8 @@ export default function Feed() {
   useEffect(() => {
     setPosts(null);
     load().catch(() => setPosts([]));
+    const timer = setInterval(() => load().catch(() => {}), 15000);
+    return () => clearInterval(timer);
   }, [load]);
 
   useEffect(() => {

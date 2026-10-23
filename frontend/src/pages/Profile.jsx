@@ -1,3 +1,5 @@
+import { CreatePostDialog } from "@/components/feed/CreatePostDialog";
+import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Grid3x3, Heart, Loader2, Star, UserX } from "lucide-react";
@@ -59,15 +61,18 @@ export default function Profile() {
   const isMe = uid === me.user_id;
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [portfolio, setPortfolio] = useState([]);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [hireOpen, setHireOpen] = useState(false);
   const [viewPost, setViewPost] = useState(null);
 
   const load = useCallback(async () => {
-    const [u, p, r] = await Promise.all([api.get(`/users/${uid}`), api.get("/posts", { params: { user_id: uid } }), api.get(`/users/${uid}/reviews`)]);
+    const [u, p, r, works] = await Promise.all([api.get(`/users/${uid}`), api.get("/posts", { params: { user_id: uid } }), api.get(`/users/${uid}/reviews`), api.get("/posts", { params: { user_id: uid, kind: "portfolio" } })]);
     setUser(u.data);
     setPosts(p.data);
+    setPortfolio(works.data);
     setReviews(r.data);
   }, [api, uid]);
 
@@ -96,20 +101,27 @@ export default function Profile() {
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground">{user.bio}</p>
         </section>
       )}
-      <Tabs defaultValue="posts">
-        <TabsList className="rounded-none bg-muted/70 p-1">
-          <TabsTrigger value="posts" className="rounded-none px-5" data-testid="profile-tab-posts">{isPro ? "Portfólio" : "Postagens"}</TabsTrigger>
+      <Tabs defaultValue={isPro ? "portfolio" : "posts"}>
+        <TabsList className="h-auto flex-wrap rounded-none bg-muted/70 p-1">
+          {isPro && <TabsTrigger value="portfolio" className="rounded-none px-4">Portfólio ({portfolio.length})</TabsTrigger>}
+          <TabsTrigger value="posts" className="rounded-none px-5" data-testid="profile-tab-posts">Publicações</TabsTrigger>
           <TabsTrigger value="reviews" className="rounded-none px-5" data-testid="profile-tab-reviews">Avaliações ({reviews.length})</TabsTrigger>
         </TabsList>
+        {isPro && <TabsContent value="portfolio" className="mt-5 space-y-4">
+          <p className="text-sm text-muted-foreground">Trabalhos realizados para conhecer a qualidade do serviço.</p>
+          {isMe && <Button type="button" onClick={() => setPortfolioOpen(true)}>Adicionar trabalho ao portfólio</Button>}
+          <PostsGrid posts={portfolio} onOpen={setViewPost} />
+        </TabsContent>}
         <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} /></TabsContent>
         <TabsContent value="reviews" className="mt-5"><ReviewsList reviews={reviews} /></TabsContent>
       </Tabs>
       <Dialog open={!!viewPost} onOpenChange={(o) => !o && setViewPost(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto border-0 bg-transparent p-0 shadow-none sm:max-w-lg" data-testid="profile-post-dialog">
           <DialogTitle className="sr-only">Postagem</DialogTitle>
-          {viewPost && <PostCard post={viewPost} onDeleted={(pid) => { setPosts((p) => p.filter((x) => x.id !== pid)); setViewPost(null); }} />}
+          {viewPost && <PostCard post={viewPost} onDeleted={(pid) => { setPosts((p) => p.filter((x) => x.id !== pid)); setPortfolio((p) => p.filter((x) => x.id !== pid)); setViewPost(null); }} />}
         </DialogContent>
       </Dialog>
+      <CreatePostDialog kind="portfolio" open={portfolioOpen} onOpenChange={setPortfolioOpen} onCreated={(post) => setPortfolio((previous) => [post, ...previous])} />
       <EditProfileDialog open={editOpen} onOpenChange={setEditOpen} onSaved={() => load().catch(() => {})} />
       <CreateRequestDialog open={hireOpen} onOpenChange={setHireOpen} targetPro={user} />
     </div>

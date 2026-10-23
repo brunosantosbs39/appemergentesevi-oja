@@ -13,7 +13,7 @@ export const ApplyButton = ({ request, onApplied }) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
-  if (me.role !== "profissional" || request.client_id === me.user_id || request.status !== "pendente") return null;
+  if (me.role !== "profissional" || request.client_id === me.user_id || request.status !== "pendente" || request.is_expired || request.expires_at && new Date(request.expires_at) <= new Date()) return null;
   const apply = async () => {
     if (busy) return;
     setBusy(true);
