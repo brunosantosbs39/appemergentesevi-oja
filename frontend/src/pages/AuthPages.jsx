@@ -11,7 +11,7 @@ const AuthLayout = ({ children, title }) => (
       <div className="relative">
         <p className="font-mono text-xs uppercase tracking-widest text-white">ServiçoJá</p>
         <h2 className="mt-3 max-w-md font-heading text-4xl font-extrabold leading-tight tracking-tight text-white">{title}</h2>
-        <p className="mt-4 max-w-md text-muted-foreground">Profissionais autônomos e contratantes conectados por localização, feed e chat.</p>
+        <p className="mt-4 max-w-md text-slate-300">Profissionais autônomos e contratantes conectados por localização, feed e chat.</p>
       </div>
     </aside>
     <main className="relative flex flex-col items-center justify-center px-4 py-10 sm:px-8">

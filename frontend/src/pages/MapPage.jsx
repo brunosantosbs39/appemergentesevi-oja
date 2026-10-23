@@ -33,7 +33,7 @@ const ProPopup = ({ p, canHire, onHire }) => (
         Ver perfil
       </Link>
       {canHire && (
-        <button onClick={() => onHire(p)} className="flex-1 rounded-none bg-secondary py-1.5 text-xs font-semibold text-white" data-testid="map-popup-hire-button">
+        <button onClick={() => onHire(p)} className="flex-1 rounded-none bg-primary py-1.5 text-xs font-semibold text-primary-foreground" data-testid="map-popup-hire-button">
           Solicitar
         </button>
       )}
@@ -46,7 +46,7 @@ const ReqPopup = ({ r }) => (
     <p className="font-mono text-[10px] uppercase tracking-widest text-amber-700">{catOf(r.category).label} • {km(r.distance_km)}</p>
     <p className="mt-1 font-heading text-sm font-bold text-foreground">{r.title}</p>
     <p className="text-xs font-semibold text-foreground">{brl(r.budget)}</p>
-    <Link to="/pedidos" className="mt-2 block rounded-none bg-secondary py-1.5 text-center text-xs font-semibold !text-white" data-testid="map-popup-request-link">
+    <Link to="/pedidos" className="mt-2 block rounded-none bg-primary py-1.5 text-center text-xs font-semibold !text-primary-foreground" data-testid="map-popup-request-link">
       Ver pedido
     </Link>
     <ApplyButton request={r} />

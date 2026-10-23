@@ -35,7 +35,7 @@ const RolePicker = ({ value, onChange }) => (
         )}
       >
         {value === id && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-foreground" />}
-        <span className={cn("grid h-11 w-11 place-items-center rounded-none", value === id ? "bg-secondary text-white" : "bg-secondary text-foreground")}>
+        <span className={cn("grid h-11 w-11 place-items-center rounded-none", value === id ? "bg-secondary text-secondary-foreground" : "bg-secondary text-foreground")}>
           <Icon className="h-5 w-5" />
         </span>
         <p className="mt-4 font-heading text-lg font-bold text-foreground">{title}</p>
