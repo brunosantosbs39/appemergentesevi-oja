@@ -8,12 +8,12 @@ from pathlib import Path
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query
+from fastapi.responses import Response, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.cors import CORSMiddleware
 
@@ -24,20 +24,31 @@ try:  # launched as `backend.server`
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
     from backend.seed import seed_demo
-    from backend.notifications import send_notice, validate_subscription
+    from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
-    from notifications import send_notice, validate_subscription
+    from scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from notifications import send_notice, validate_subscription, notification_tasks
 
 mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
 if not mongo_url:
     raise RuntimeError("Configure MONGO_URL or MONGODB_URI before starting the API")
-client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=10000)
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=10000,
+    maxPoolSize=int(os.environ.get("MONGO_MAX_POOL_SIZE", "10")), minPoolSize=0,
+    maxIdleTimeMS=60000, waitQueueTimeoutMS=5000, connectTimeoutMS=10000)
 db = client[os.environ.get("DB_NAME", "servicoja")]
 
 app = FastAPI(title="ServiçoJá API")
+read_guard = ReadBurstGuard()
+
+@app.exception_handler(PyMongoError)
+async def database_unavailable(request: Request, exc: PyMongoError):
+    logger.warning("Database request unavailable: %s", type(exc).__name__)
+    return JSONResponse(status_code=503, content={"detail": "Serviço temporariamente ocupado. Tente novamente em instantes."}, headers={"Retry-After": "5"})
+
 api = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("servicoja")
@@ -86,8 +97,12 @@ def with_presence(doc: dict) -> dict:
 
 
 # ---------- auth ----------
-async def current_member(user: dict = Depends(require_user)) -> dict:
+async def current_member(request: Request, user: dict = Depends(require_user), _notifications=Depends(notification_tasks)) -> dict:
     uid = user["user_id"]
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        await write_limit(db, uid, request.url.path)
+    else:
+        read_guard.check(uid)
     doc = await db.users.find_one({"user_id": uid}, {"_id": 0})
     if doc is None:
         stub = {"user_id": uid, "name": "", "role": None, "avatar": None, "headline": "", "bio": "", "categories": [],
@@ -303,25 +318,19 @@ async def download(path: str):
 
 # ---------- professionals & users ----------
 @api.get("/professionals")
-async def professionals(lat: Optional[float] = None, lng: Optional[float] = None, radius_km: float = 0,
-                        category: Optional[str] = None, q: Optional[str] = None, sort: str = "distance",
-                        limit: int = 100, me: dict = Depends(onboarded)):
+async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(0, ge=0, le=20000),
+                        category: Optional[str] = None, q: Optional[str] = Query(None, max_length=100), sort: str = "distance",
+                        limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
     query = {"role": "profissional", "user_id": {"$ne": me["user_id"]}}
     if category and category != "todos":
         query["categories"] = category
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"headline": rx}]
-    docs = [with_presence(d) for d in await db.users.find(query, {**PUBLIC, "lat": 1, "lng": 1}).to_list(1000)]
-    for d in docs:
-        d["distance_km"] = distance_km(lat, lng, d.get("lat"), d.get("lng"))
-    if radius_km > 0 and lat is not None and lng is not None:
-        docs = [d for d in docs if d["distance_km"] is not None and d["distance_km"] <= radius_km]
-    if sort == "rating":
-        docs.sort(key=lambda d: (-(d.get("rating_avg") or 0), -(d.get("rating_count") or 0)))
-    else:
-        docs.sort(key=lambda d: d["distance_km"] if d["distance_km"] is not None else 1e9)
-    return docs[: max(1, min(limit, 200))]
+    pipeline = nearby_pipeline(query, lat, lng, radius_km, sort, limit, offset)
+    # Public projection prevents private profile fields from reaching the client.
+    pipeline.append({"$project": {**PUBLIC, "lat": 1, "lng": 1, "distance_km": 1}})
+    return [with_presence(d) for d in await db.users.aggregate(pipeline, maxTimeMS=5000).to_list(limit)]
 
 
 @api.get("/users/{uid}")
@@ -359,13 +368,18 @@ async def enrich_posts(posts: list, uid: str) -> list:
 
 @api.get("/posts")
 async def list_posts(user_id: Optional[str] = None, category: Optional[str] = None, limit: int = 60, kind: Literal["publication", "portfolio"] = "publication",
-                     me: dict = Depends(onboarded)):
+                     me: dict = Depends(onboarded), before: Optional[str] = None, response: Response = None):
     query = {"kind": "portfolio"} if kind == "portfolio" else {"kind": {"$ne": "portfolio"}, "$and": [vacancy_open_query()]}
     if user_id:
         query["user_id"] = user_id
     if category and category != "todos":
         query["category"] = category
-    posts = await db.posts.find(query, {"_id": 0}).sort("created_at", -1).to_list(max(1, min(limit, 200)))
+    if before:
+        stamp, ident = parse_cursor(before)
+        query.setdefault("$and", []).append({"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]})
+    posts = await db.posts.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(max(1, min(limit, 200)))
+    if response is not None and len(posts) == max(1, min(limit, 200)):
+        response.headers["X-Next-Cursor"] = page_cursor(posts[-1]["created_at"], posts[-1]["id"])
     if kind == "publication":
         linked = [p["request_id"] for p in posts if p.get("request_id")]
         closed = set()
@@ -455,6 +469,7 @@ async def get_or_create_conversation(a: str, b: str, request_id: Optional[str] =
 async def add_message(conv: dict, sender_id: Optional[str], text: str, system: bool = False, **extra) -> dict:
     msg = {"id": new_id(), "conversation_id": conv["id"], "sender_id": sender_id, "text": text, "system": system,
            "created_at": now_iso()}
+    msg["updated_at"] = msg["created_at"]
     msg.update(extra)
     await db.messages.insert_one(dict(msg))
     inc = {f"unread.{p}": 1 for p in conv["participants"] if p != sender_id}
@@ -518,29 +533,28 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
 
 
 @api.get("/requests/mine")
-async def my_requests(me: dict = Depends(onboarded)):
+async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = None, limit: int = 100):
     uid = me["user_id"]
-    items = await db.requests.find({"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}]}, {"_id": 0}) \
-        .sort("created_at", -1).to_list(500)
-    return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=me["user_id"])
+    query = {"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}]}
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$and"] = [{"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]}]
+    items = await db.requests.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(max(1, min(limit, 100)))
+    return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=uid)
 
 
 @api.get("/requests/available")
-async def available_requests(lat: Optional[float] = None, lng: Optional[float] = None, radius_km: float = 25,
-                             category: Optional[str] = None, me: dict = Depends(onboarded)):
+async def available_requests(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(25, ge=0, le=20000),
+                             category: Optional[str] = None, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
     query = {"status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
     if category and category != "todos":
         query["category"] = category
-    items = await enrich_requests(await db.requests.find(query, {"_id": 0}).to_list(500), lat, lng, viewer_id=uid)
-    if radius_km > 0 and lat is not None:
-        items = [r for r in items if r.get("target_pro_id") == uid
-                 or (r["distance_km"] is not None and r["distance_km"] <= radius_km)]
-    items.sort(key=lambda r: (r.get("target_pro_id") != uid,
-                              r["distance_km"] if r["distance_km"] is not None else 1e9))
-    return items
+    pipeline = nearby_pipeline(query, lat, lng, radius_km, "distance", limit, offset, target_uid=uid)
+    items = await db.requests.aggregate(pipeline, maxTimeMS=5000).to_list(limit)
+    return await enrich_requests(items, lat, lng, viewer_id=uid)
 
 
 @api.get("/requests/{rid}")
@@ -706,15 +720,21 @@ async def my_conversation(cid: str, uid: str) -> dict:
 
 
 @api.get("/conversations")
-async def list_conversations(me: dict = Depends(onboarded)):
-    convs = await db.conversations.find({"participants": me["user_id"]}, {"_id": 0}).sort("last_at", -1).to_list(200)
+async def list_conversations(me: dict = Depends(onboarded), before: Optional[str] = None, limit: int = 50):
+    query = {"participants": me["user_id"]}
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$or"] = [{"last_at": {"$lt": stamp}}, {"last_at": stamp, "id": {"$lt": ident}}]
+    convs = await db.conversations.find(query, {"_id": 0}).sort([("last_at", -1), ("id", -1)]).to_list(max(1, min(limit, 100)))
     return await conv_summaries(convs, me["user_id"])
 
 
 @api.get("/conversations/unread-count")
 async def unread_count(me: dict = Depends(onboarded)):
-    convs = await db.conversations.find({"participants": me["user_id"]}, {"_id": 0, "unread": 1}).to_list(500)
-    return {"count": sum((c.get("unread") or {}).get(me["user_id"], 0) for c in convs)}
+    uid = me["user_id"]
+    totals = await db.conversations.aggregate([{"$match": {"participants": uid}},
+        {"$group": {"_id": None, "count": {"$sum": {"$ifNull": [f"$unread.{uid}", 0]}}}}], maxTimeMS=5000).to_list(1)
+    return {"count": totals[0]["count"] if totals else 0}
 
 
 @api.post("/conversations")
@@ -743,15 +763,58 @@ async def get_conversation(cid: str, me: dict = Depends(onboarded)):
     return (await conv_summaries([await my_conversation(cid, me["user_id"])], me["user_id"]))[0]
 
 
+@api.get("/conversations/{cid}/sync")
+async def sync_conversation(cid: str, after: Optional[str] = None, mark_read: bool = True, me: dict = Depends(onboarded)):
+    started = now_iso()
+    watermark = (datetime.fromisoformat(started) - timedelta(seconds=5)).isoformat()
+    uid = me["user_id"]
+    conv = await my_conversation(cid, uid)
+    more = False
+    if after:
+        stamp, ident = parse_cursor(after)
+        pipeline = [
+            {"$match": {"conversation_id": cid, "$or": [{"updated_at": {"$gte": stamp}}, {"created_at": {"$gte": stamp}}]}},
+            {"$set": {"_changed": {"$ifNull": ["$updated_at", "$created_at"]}}},
+            {"$match": {"$or": [{"_changed": {"$gt": stamp}}, {"_changed": stamp, "id": {"$gt": ident}}]}},
+            {"$sort": {"_changed": 1, "id": 1}}, {"$limit": 101}, {"$project": {"_id": 0}}]
+        messages = await db.messages.aggregate(pipeline, maxTimeMS=5000).to_list(101)
+        more = len(messages) > 100
+        messages = messages[:100]
+        cursor = page_cursor(messages[-1]["_changed"], messages[-1]["id"]) if more else page_cursor(watermark, "")
+        # Never move behind a message observed after this request started.
+        if more and messages and messages[-1]["_changed"] >= started:
+            cursor = page_cursor(messages[-1]["_changed"], messages[-1]["id"])
+        for message in messages:
+            message.pop("_changed", None)
+    else:
+        messages = await db.messages.find({"conversation_id": cid}, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(50)
+        messages.reverse()
+        cursor = page_cursor(watermark, "")
+    if mark_read and (conv.get("unread") or {}).get(uid, 0):
+        # Clear only the snapshot that was actually observed, never a concurrent send.
+        seen = max([conv.get("last_at") or started, *(m["created_at"] for m in messages)])
+        if not more:
+            await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
+                {"$set": {f"unread.{uid}": 0}, "$max": {f"read_at.{uid}": seen}})
+    summary = (await conv_summaries([conv], uid))[0]
+    return {"conversation": summary, "messages": messages, "cursor": cursor, "has_more": more,
+            "history_cursor": page_cursor(messages[0]["created_at"], messages[0]["id"]) if messages and not after else None,
+            "has_history": not after and len(messages) == 50}
+
+
 @api.get("/conversations/{cid}/messages")
-async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool = True, me: dict = Depends(onboarded)):
+async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool = True, before: Optional[str] = None, limit: int = 50, me: dict = Depends(onboarded)):
+    limit = max(1, min(limit, 100))
     conv = await my_conversation(cid, me["user_id"])
     query = {"conversation_id": cid}
     if after:
         query["created_at"] = {"$gt": after}
-    msgs = await db.messages.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$or"] = [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]
+    msgs = await db.messages.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(limit)
     msgs.reverse()
-    if mark_read:
+    if mark_read and not before and (conv.get("unread") or {}).get(me["user_id"], 0):
         # Do not clear a new message that arrived after the conversation snapshot.
         seen = msgs[-1]["created_at"] if msgs else now_iso()
         await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
@@ -860,7 +923,7 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
             raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
     msg = await db.messages.find_one_and_update(
         {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
-        {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"]}},
+        {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"], "updated_at": now_iso()}},
         projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not msg:
         raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
@@ -877,6 +940,7 @@ app.add_middleware(
     allow_origins=[origin.strip() for origin in os.environ.get("CORS_ORIGINS", "").split(",") if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Next-Cursor", "Retry-After"],
 )
 
 
@@ -898,6 +962,17 @@ async def startup():
     await db.comments.create_index([("post_id", 1), ("created_at", 1)])
     await db.reviews.create_index("to_id")
     await db.files.create_index("storage_path")
+    await db.rate_limits.create_index("expires_at", expireAfterSeconds=0)
+    await db.users.create_index([("role", 1), ("lat", 1), ("lng", 1)])
+    await db.users.create_index([("role", 1), ("categories", 1), ("lat", 1)])
+    await db.requests.create_index([("status", 1), ("lat", 1), ("lng", 1)])
+    await db.requests.create_index([("client_id", 1), ("created_at", -1)])
+    await db.requests.create_index([("professional_id", 1), ("created_at", -1)])
+    await db.conversations.create_index([("participants", 1), ("last_at", -1), ("id", -1)])
+    await db.messages.create_index([("conversation_id", 1), ("created_at", -1), ("id", -1)])
+    await db.messages.create_index([("conversation_id", 1), ("updated_at", 1), ("id", 1)])
+    await db.posts.create_index([("user_id", 1), ("kind", 1), ("created_at", -1)])
+    await db.posts.create_index([("category", 1), ("created_at", -1)])
     if os.environ.get("SEED_DEMO", "false").lower() == "true":
         await seed_demo(db)
     try:

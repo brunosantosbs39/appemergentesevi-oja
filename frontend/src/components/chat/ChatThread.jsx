@@ -62,6 +62,10 @@ export const ChatThread = ({ id }) => {
   const typingAt = useRef(0);
   const sendingIds = useRef(new Set());
   const pollRef = useRef(null);
+  const cursorRef = useRef(null);
+  const historyRef = useRef(null);
+  const [hasHistory, setHasHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => { try { sessionStorage.setItem(draftKey, JSON.stringify(text)); } catch {} }, [draftKey, text]);
   useEffect(() => { try { sessionStorage.setItem(outboxKey, JSON.stringify(msgs.filter((m) => m._state))); } catch {} }, [outboxKey, msgs]);
@@ -77,21 +81,55 @@ export const ChatThread = ({ id }) => {
   useEffect(() => {
     let active = true;
     let inFlight = false;
+    let timer;
+    let quiet = 0;
     const poll = async () => {
-      if (inFlight || document.visibilityState !== "visible") return;
+      clearTimeout(timer);
+      if (!active) return;
+      if (inFlight || document.visibilityState !== "visible" || !navigator.onLine) {
+        timer = setTimeout(poll, 15000); return;
+      }
       inFlight = true;
+      let delay = 5000;
       try {
-        const [conversation, messages] = await Promise.all([api.get(`/conversations/${id}`), api.get(`/conversations/${id}/messages`, { params: { mark_read: nearBottom.current } })]);
-        if (active) { setConv(conversation.data); merge(messages.data); setError(false); }
-      } catch (err) { if (active) { setError(true); if (err.response?.status === 404) setConv(false); } }
-      finally { inFlight = false; if (active) setLoading(false); }
+        const { data } = await api.get(`/conversations/${id}/sync`, { params: { after: cursorRef.current || undefined, mark_read: nearBottom.current } });
+        if (active) {
+          if (!cursorRef.current) { historyRef.current = data.history_cursor; setHasHistory(data.has_history); }
+          cursorRef.current = data.cursor;
+          setConv(data.conversation); merge(data.messages); setError(false);
+          quiet = data.messages.length || data.conversation.other_typing ? 0 : quiet + 1;
+          delay = data.has_more ? 100 : quiet > 3 ? 15000 : 5000;
+        }
+      } catch (err) {
+        if (active) { setError(true); if (err.response?.status === 404) setConv(false); }
+        const retry = Number(err.response?.headers?.["retry-after"]);
+        delay = Math.min(60000, Math.max(10000, (retry || 0) * 1000));
+      } finally {
+        inFlight = false;
+        if (active) { setLoading(false); clearTimeout(timer); timer = setTimeout(poll, delay); }
+      }
     };
     pollRef.current = poll; poll();
-    const timer = setInterval(poll, 2500);
     document.addEventListener("visibilitychange", poll);
     window.addEventListener("online", poll);
-    return () => { active = false; clearInterval(timer); clearTimeout(typingTimer.current); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {}); };
+    window.addEventListener("chat-refresh", poll);
+    return () => { active = false; clearTimeout(timer); clearTimeout(typingTimer.current); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); window.removeEventListener("chat-refresh", poll); api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {}); };
   }, [api, id, merge]);
+
+  const loadHistory = async () => {
+    if (loadingHistory || !historyRef.current) return;
+    setLoadingHistory(true);
+    const list = listRef.current;
+    const height = list?.scrollHeight || 0;
+    const top = list?.scrollTop || 0;
+    try {
+      const { data } = await api.get(`/conversations/${id}/messages`, { params: { before: historyRef.current, mark_read: false, limit: 50 } });
+      if (data.length) { const first = data[0]; historyRef.current = btoa(JSON.stringify([first.created_at, first.id])).replace(/\+/g, "-").replace(/\//g, "_"); }
+      nearBottom.current = false;
+      merge(data); setHasHistory(data.length === 50);
+      requestAnimationFrame(() => { if (list) list.scrollTop = top + list.scrollHeight - height; });
+    } catch (err) { toast.error(errMsg(err)); } finally { setLoadingHistory(false); }
+  };
 
   useEffect(() => {
     const list = listRef.current;
@@ -113,7 +151,7 @@ export const ChatThread = ({ id }) => {
     setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "sending" } : m));
     try {
       const { data } = await api.post(`/conversations/${id}/messages`, { text: message.text, client_id: message.client_id });
-      merge([data]); window.dispatchEvent(new Event("conversations-changed"));
+      merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh"));
     } catch {
       setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "error" } : m));
     } finally { sendingIds.current.delete(message.client_id); }
@@ -150,6 +188,7 @@ export const ChatThread = ({ id }) => {
     <div className="sj-message-area">
       <div ref={listRef} className="sj-messages" data-testid="chat-messages-list" onScroll={() => { const list = listRef.current; nearBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 110; if (nearBottom.current) setAway(false); }}>
         <div className="sj-conversation-note">Combine os detalhes por aqui. Candidatura, aprovação e registros do serviço ficam vinculados à vaga.</div>
+        {hasHistory && <button type="button" className="sj-history-button" disabled={loadingHistory} onClick={loadHistory}>{loadingHistory ? "Carregando..." : "Carregar mensagens anteriores"}</button>}
         {!msgs.length && !loading && <div className="sj-system">Diga olá para {conv.other.name?.split(" ")[0]} 👋</div>}
         {msgs.map((m, index) => <Fragment key={m.id}>{(index === 0 || dayKey(m.created_at) !== dayKey(msgs[index - 1].created_at)) && <div className="sj-date-divider">{dayLabel(m.created_at)}</div>}<Bubble message={m} mine={m.sender_id === me.user_id} readAt={conv.other_read_at} onRespond={respond} responding={responding} onRetry={transmit} /></Fragment>)}
         {conv.other_typing && <div className="sj-typing-bubble" aria-label="Digitando"><i /><i /><i /></div>}
@@ -161,7 +200,7 @@ export const ChatThread = ({ id }) => {
     <form onSubmit={send} className={`sj-composer ${audioActive ? "audio-active" : ""}`}>
       {!audioActive && <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label={actionsOpen ? "Fechar opções" : "Mais opções"}>{actionsOpen ? <X size={24} /> : <Plus size={24} />}</button>}
       {!audioActive && <textarea ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
-      <AudioRecorder conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); }} />
+      <AudioRecorder conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh")); }} />
       {text.trim() && !audioActive && <button type="submit" className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
     </form>
   </section>;

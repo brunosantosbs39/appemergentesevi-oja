@@ -1,3 +1,4 @@
+import { mergeItems } from "@/lib/pagination";
 import { CreatePostDialog } from "@/components/feed/CreatePostDialog";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
@@ -62,6 +63,17 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
+  const [postCursors, setPostCursors] = useState({});
+  const [loadingPage, setLoadingPage] = useState(null);
+  const loadPostPage = async (kind) => {
+    if (loadingPage || !postCursors[kind]) return;
+    setLoadingPage(kind);
+    try {
+      const { data, headers } = await api.get("/posts", { params: { user_id: uid, kind, before: postCursors[kind] } });
+      (kind === "portfolio" ? setPortfolio : setPosts)((old) => mergeItems(old, data));
+      setPostCursors((old) => ({ ...old, [kind]: headers["x-next-cursor"] || null }));
+    } finally { setLoadingPage(null); }
+  };
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
@@ -73,6 +85,7 @@ export default function Profile() {
     setUser(u.data);
     setPosts(p.data);
     setPortfolio(works.data);
+    setPostCursors({ publication: p.headers["x-next-cursor"], portfolio: works.headers["x-next-cursor"] });
     setReviews(r.data);
   }, [api, uid]);
 
@@ -83,6 +96,7 @@ export default function Profile() {
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       api.get(`/users/${uid}`).then(({ data }) => setUser(data)).catch(() => {});
     }, 15000);
     return () => clearInterval(timer);
@@ -111,8 +125,9 @@ export default function Profile() {
           <p className="text-sm text-muted-foreground">Trabalhos realizados para conhecer a qualidade do serviço.</p>
           {isMe && <Button type="button" onClick={() => setPortfolioOpen(true)}>Adicionar trabalho ao portfólio</Button>}
           <PostsGrid posts={portfolio} onOpen={setViewPost} />
+          {postCursors.portfolio && <Button variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("portfolio").catch(() => {})}>Carregar mais trabalhos</Button>}
         </TabsContent>}
-        <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} /></TabsContent>
+        <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} />{postCursors.publication && <Button className="mt-4" variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("publication").catch(() => {})}>Carregar mais publicações</Button>}</TabsContent>
         <TabsContent value="reviews" className="mt-5"><ReviewsList reviews={reviews} /></TabsContent>
       </Tabs>
       <Dialog open={!!viewPost} onOpenChange={(o) => !o && setViewPost(null)}>

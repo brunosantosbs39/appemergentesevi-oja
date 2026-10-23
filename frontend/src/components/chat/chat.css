@@ -50,3 +50,5 @@
 .light .sj-welcome{background:#f7f8fa}.light .sj-welcome-icon{background:#e0f1e8;color:#008069}
 .light .sj-welcome p,.light .sj-welcome>span{color:#61717b}
 .light .sj-connection,.light .sj-inbox-error{background:#fff1cf;color:#735420}
+
+.sj-history-button{display:block;margin:12px auto;padding:10px 16px;border:1px solid var(--sj-line);border-radius:18px;background:var(--sj-panel);color:var(--sj-text);font-size:13px}.sj-history-button:disabled{opacity:.6}

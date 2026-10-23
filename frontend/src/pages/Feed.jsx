@@ -1,6 +1,7 @@
+import { mergeItems } from "@/lib/pagination";
 import { Link } from "react-router-dom";
 import { RequestCard } from "@/components/requests/RequestCard";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
@@ -20,23 +21,46 @@ export default function Feed() {
   const [vacancies, setVacancies] = useState([]);
   const [open, setOpen] = useState(false);
   const [hire, setHire] = useState(null);
+  const catRef = useRef(cat);
+  catRef.current = cat;
+  const cursor = useRef(null);
+  const initialized = useRef(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = async () => {
+    if (!cursor.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data, headers } = await api.get("/posts", { params: { ...(cat !== "todos" ? { category: cat } : {}), before: cursor.current } });
+      if (catRef.current !== cat) return;
+      setPosts((previous) => mergeItems(previous, data));
+      cursor.current = headers["x-next-cursor"] || null; setHasMore(!!cursor.current);
+    } finally { setLoadingMore(false); }
+  };
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/posts", { params: cat !== "todos" ? { category: cat } : {} });
-    setPosts(data);
+    const { data, headers } = await api.get("/posts", { params: cat !== "todos" ? { category: cat } : {} });
+    if (catRef.current !== cat) return;
+    setPosts((previous) => {
+      const next = headers["x-next-cursor"];
+      const boundary = next ? JSON.parse(atob(next.replace(/-/g, "+").replace(/_/g, "/"))) : null;
+      const older = boundary ? (previous || []).filter((post) => post.created_at < boundary[0] || post.created_at === boundary[0] && post.id < boundary[1]) : [];
+      return mergeItems(older, data).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)).filter((post) => !post.expires_at || new Date(post.expires_at) > new Date());
+    });
+    if (!initialized.current) { initialized.current = true; cursor.current = headers["x-next-cursor"] || null; setHasMore(!!cursor.current); }
   }, [api, cat]);
 
   useEffect(() => {
-    setPosts(null);
+    cursor.current = null; initialized.current = false; setHasMore(false); setPosts(null);
     load().catch(() => setPosts([]));
-    const timer = setInterval(() => load().catch(() => {}), 15000);
+    const timer = setInterval(() => document.visibilityState === "visible" && load().catch(() => {}), 15000);
     return () => clearInterval(timer);
   }, [load]);
 
   useEffect(() => {
-    const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
+    const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, limit: 3, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
     loadVacancies();
-    const timer = setInterval(loadVacancies, 15000);
+    const timer = setInterval(() => document.visibilityState === "visible" && loadVacancies(), 30000);
     return () => clearInterval(timer);
   }, [api, me.role, cat]);
 
@@ -58,6 +82,7 @@ export default function Feed() {
           {posts?.map((p) => (
             <PostCard key={p.id} post={p} onHire={setHire} onDeleted={(id) => setPosts((prev) => prev.filter((x) => x.id !== id))} />
           ))}
+          {hasMore && <Button variant="outline" disabled={loadingMore} onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar publicações anteriores"}</Button>}
         </div>
       </section>
       <aside className="hidden xl:block">

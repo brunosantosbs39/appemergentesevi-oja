@@ -1,5 +1,7 @@
+import { mergeItems } from "@/lib/pagination";
+import { Button } from "@/components/ui/button";
 import { applicationLabel } from "@/components/requests/ApplicationsPanel";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Radar } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { DEFAULT_POS, RADIUS_OPTIONS } from "@/lib/constants";
@@ -32,8 +34,19 @@ export const ProRequests = () => {
   const [radius, setRadius] = useState(25);
   const [tab, setTab] = useState("disponiveis");
   const [available, setAvailable] = useState(null);
+  const availableOffset = useRef(0);
+  const [moreAvailable, setMoreAvailable] = useState(false);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const loadMoreAvailable = async () => {
+    if (loadingAvailable) return;
+    setLoadingAvailable(true);
+    try {
+      const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius, limit: 50, offset: availableOffset.current } });
+      setAvailable((previous) => mergeItems(previous, data)); availableOffset.current += data.length; setMoreAvailable(data.length === 50);
+    } finally { setLoadingAvailable(false); }
+  };
   const [reviewReq, setReviewReq] = useState(null);
-  const { items, update, markReviewed } = useMyRequests();
+  const { items, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
 
   useEffect(() => {
     locate();
@@ -41,12 +54,14 @@ export const ProRequests = () => {
 
   const loadAvailable = useCallback(async () => {
     const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius } });
-    setAvailable(data);
+    setAvailable((previous) => availableOffset.current > 50 ? mergeItems(previous, data).filter((r) => !r.expires_at || new Date(r.expires_at) > new Date()) : data);
+    if (!availableOffset.current) { availableOffset.current = data.length; setMoreAvailable(data.length === 50); }
   }, [api, pos.lat, pos.lng, radius]);
 
   useEffect(() => {
+    availableOffset.current = 0; setAvailable(null); setMoreAvailable(false);
     loadAvailable().catch(() => setAvailable([]));
-    const t = setInterval(() => loadAvailable().catch(() => {}), 15000);
+    const t = setInterval(() => document.visibilityState === "visible" && loadAvailable().catch(() => {}), 15000);
     return () => clearInterval(t);
   }, [loadAvailable]);
 
@@ -82,6 +97,7 @@ export const ProRequests = () => {
               <RequestCard key={r.id} request={r} me={me} />
             ))}
           </div>
+          {moreAvailable && <Button type="button" variant="outline" disabled={loadingAvailable} className="mt-5" onClick={() => loadMoreAvailable().catch(() => {})}>{loadingAvailable ? "Carregando..." : "Carregar mais oportunidades"}</Button>}
         </TabsContent>
         <TabsContent value="candidaturas" className="mt-6">
           {applications === null ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : applications.length === 0 ? <EmptyState icon={CheckCircle2} title="Nenhuma candidatura ainda" text="Candidate-se a uma vaga na aba Disponíveis." /> : <div className="grid gap-4 lg:grid-cols-2">{applications.map((r) => <RequestCard key={r.id} request={r} me={me}><p className="text-sm font-semibold">{applicationLabel(r.my_application.status)}</p></RequestCard>)}</div>}
@@ -93,6 +109,7 @@ export const ProRequests = () => {
           <RequestList items={history} {...props} empty={<EmptyState icon={CheckCircle2} title="Sem histórico ainda" testid="pro-history-empty" />} />
         </TabsContent>
       </Tabs>
+      {hasMore && <Button type="button" variant="outline" disabled={loadingMore} className="mt-5" onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar mais pedidos e histórico"}</Button>}
       <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, "pro_reviewed")} />
     </div>
   );

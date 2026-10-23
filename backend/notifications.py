@@ -7,10 +7,21 @@ import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from fastapi import HTTPException
+from contextvars import ContextVar
+from fastapi import HTTPException, BackgroundTasks
 from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger("servicoja.notifications")
+
+
+_request_tasks = ContextVar("notification_background_tasks", default=None)
+
+async def notification_tasks(tasks: BackgroundTasks):
+    token = _request_tasks.set(tasks)
+    try:
+        yield
+    finally:
+        _request_tasks.reset(token)
 
 
 def validate_subscription(subscription):
@@ -42,6 +53,20 @@ async def send_notice(db, user_id, title, body, url):
         await db.notifications.insert_one(dict(notice))
         if not os.environ.get("VAPID_PRIVATE_KEY"):
             return
+        tasks = _request_tasks.get()
+        if tasks is not None:
+            tasks.add_task(deliver_notice, db, user_id, notice)
+        else:
+            await deliver_notice(db, user_id, notice)
+
+    except Exception:
+        logger.exception("Notification delivery unavailable")
+
+
+async def deliver_notice(db, user_id, notice):
+    """Best-effort Web Push; the durable inbox remains available on failure."""
+    title, body, url = notice["title"], notice["body"], notice["url"]
+    try:
         subscriptions = await db.push_subscriptions.find({"user_id": user_id}, {"_id": 0}).to_list(10)
         async def deliver(record):
             from pywebpush import webpush, WebPushException
@@ -60,4 +85,4 @@ async def send_notice(db, user_id, title, body, url):
                 logger.warning("Push delivery unavailable")
         await asyncio.gather(*(deliver(s) for s in subscriptions))
     except Exception:
-        logger.exception("Notification delivery unavailable")
+        logger.exception("Push delivery unavailable")

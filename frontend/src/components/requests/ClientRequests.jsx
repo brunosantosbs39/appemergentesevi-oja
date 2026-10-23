@@ -26,7 +26,7 @@ export const RequestList = ({ items, empty, onUpdated, onReview, me }) => {
 
 export const ClientRequests = () => {
   const { me } = useMe();
-  const { items, setItems, update, markReviewed } = useMyRequests();
+  const { items, setItems, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
   const [open, setOpen] = useState(false);
   const [reviewReq, setReviewReq] = useState(null);
   const mine = items?.filter((r) => r.client_id === me.user_id) ?? null;
@@ -54,6 +54,7 @@ export const ClientRequests = () => {
           <RequestList items={history} {...props} empty={<EmptyState icon={ClipboardList} title="Sem histórico ainda" testid="client-history-empty" />} />
         </TabsContent>
       </Tabs>
+      {hasMore && <Button type="button" variant="outline" disabled={loadingMore} className="mt-5" onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar mais pedidos e histórico"}</Button>}
       <CreateRequestDialog open={open} onOpenChange={setOpen} onCreated={(r) => setItems((prev) => [r, ...(prev || [])])} />
       <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, "client_reviewed")} />
     </div>

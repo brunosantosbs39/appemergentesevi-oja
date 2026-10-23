@@ -9,7 +9,7 @@ export function useApi() {
   const tokenRef = useRef(getToken);
   tokenRef.current = getToken;
   return useMemo(() => {
-    const inst = axios.create({ baseURL: API });
+    const inst = axios.create({ baseURL: API, timeout: 20000 });
     inst.interceptors.request.use(async (config) => {
       const token = await tokenRef.current();
       if (token) config.headers.Authorization = `Bearer ${token}`;

@@ -20,9 +20,9 @@ export const NotificationCenter = ({ compact = false }) => {
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  const load = useCallback(() => api.get("/notifications").then(({ data }) => { setItems(data); setError(false); }).catch(() => setError(true)), [api]);
+  const load = useCallback(() => document.visibilityState === "visible" && navigator.onLine ? api.get("/notifications").then(({ data }) => { setItems(data); setError(false); }).catch(() => setError(true)) : Promise.resolve(), [api]);
   useEffect(() => {
-    load(); const timer = setInterval(load, 15000);
+    load(); const timer = setInterval(load, 30000);
     api.get("/notifications/config").then(({ data }) => setConfig(data)).catch(() => {});
     if (supported) navigator.serviceWorker.register("/sw.js").then(async (registration) => {
       const subscription = await registration.pushManager.getSubscription();
