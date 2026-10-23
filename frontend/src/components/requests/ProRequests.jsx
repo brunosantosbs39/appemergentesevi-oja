@@ -16,13 +16,13 @@ import { useMyRequests } from "@/components/requests/useMyRequests";
 import { RequestList } from "@/components/requests/ClientRequests";
 
 const RadarBanner = ({ count }) => (
-  <div className="relative mb-5 flex items-center gap-4 overflow-hidden rounded-none bg-secondary p-5 text-white">
-    <div className="radar-sweep relative grid h-14 w-14 shrink-0 place-items-center rounded-none border border-foreground/40">
-      <Radar className="h-6 w-6 text-foreground" />
+  <div className="legacy-radar-banner relative mb-5 flex items-center gap-4 overflow-hidden rounded-3xl bg-slate-950 p-5 text-white">
+    <div className="radar-sweep relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-emerald-500/40">
+      <Radar className="h-6 w-6 text-emerald-400" />
     </div>
     <div>
       <p className="font-heading text-lg font-bold">Procurando pedidos perto de você</p>
-      <p className="text-sm text-muted-foreground" data-testid="pro-available-count">{count === null ? "Buscando..." : `${count} pedido${count === 1 ? "" : "s"} disponíve${count === 1 ? "l" : "is"}`}</p>
+      <p className="text-sm text-slate-300" data-testid="pro-available-count">{count === null ? "Buscando..." : `${count} pedido${count === 1 ? "" : "s"} disponíve${count === 1 ? "l" : "is"}`}</p>
     </div>
   </div>
 );

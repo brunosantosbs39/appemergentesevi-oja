@@ -200,3 +200,6 @@ a:focus-visible, button:focus-visible { outline: 2px solid #fff; outline-offset:
 .radar-dot { background: #fff; animation: none; box-shadow: none; }
 .radar-sweep::before { background: conic-gradient(from 0deg, #ffffff50, transparent 35%); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Keep the original radar treatment only in the professional search banner. */
+.legacy-radar-banner .radar-sweep::before { background: conic-gradient(from 0deg, rgba(16, 185, 129, 0.45), transparent 35%); }
