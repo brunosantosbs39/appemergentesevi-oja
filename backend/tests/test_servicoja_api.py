@@ -160,11 +160,17 @@ class TestRequests:
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "cancelado"}).status_code == 409
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "foo"}).status_code == 422
         jobs_before = pro_s.get(f"{API}/me").json()["jobs_done"]
-        r = pro_s.post(f"{API}/requests/{rid}/status", json={"status": "em_andamento"})
+        assert pro_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
+        r = pro_s.post(f"{API}/requests/{rid}/check-in")
         assert r.status_code == 200 and r.json()["status"] == "em_andamento"
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "pendente"}).status_code == 409
-        r = client_s.post(f"{API}/requests/{rid}/status", json={"status": "concluido"})
+        assert r.json()["check_in_at"]
+        assert client_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
+        r = pro_s.post(f"{API}/requests/{rid}/check-out")
         assert r.status_code == 200 and r.json()["status"] == "concluido"
+        assert r.json()["check_out_at"]
+        assert r.json()["service_duration_seconds"] >= 0
+        assert pro_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
         assert pro_s.get(f"{API}/me").json()["jobs_done"] == jobs_before + 1
         assert client_s.post(f"{API}/requests/{rid}/status", json={"status": "cancelado"}).status_code == 409
         # reviews
