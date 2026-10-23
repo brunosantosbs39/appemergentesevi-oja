@@ -24,10 +24,11 @@ const ProfileForm = ({ onSaved, onClose }) => {
   const { me, setMe } = useMe();
   const [f, setF] = useState({
     name: me.name || "", role: me.role, headline: me.headline || "", bio: me.bio || "", city: me.city || "",
-    categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null,
+    categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null, cover: me.cover || null,
   });
   const [pos, setPos] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v?.target ? v.target.value : v }));
 
   const locate = () =>
@@ -38,11 +39,13 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (uploading || busy) return;
     if (f.role === "profissional" && f.categories.length === 0) return toast.error("Escolha pelo menos uma categoria");
     setBusy(true);
     try {
       const body = { ...f, name: f.name.trim(), hourly_rate: f.hourly_rate === "" ? null : Number(f.hourly_rate), ...(pos || {}) };
       if (f.avatar === me.avatar) delete body.avatar;
+      if (f.cover === (me.cover || null)) delete body.cover;
       const { data } = await api.put("/me", body);
       setMe(data);
       toast.success("Perfil atualizado");
@@ -57,6 +60,10 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      <Field label="Imagem de capa">
+        <ImageUpload allowReplace value={f.cover} onChange={set("cover")} onBusyChange={setUploading} className="h-36 w-full sm:h-40" testid="edit-cover" label="Adicionar imagem de capa" />
+        <p className="text-xs text-muted-foreground">Escolha uma imagem horizontal de até 4 MB. Salve as alterações para atualizar sua capa.</p>
+      </Field>
       <div className="flex items-center gap-4">
         <ImageUpload value={f.avatar} onChange={set("avatar")} className="h-24 w-24 shrink-0 rounded-none" testid="edit-avatar" label="Foto" />
         <div className="flex-1 space-y-1.5">
@@ -88,7 +95,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
       <Button type="button" variant="outline" className="w-full rounded-none" onClick={locate} data-testid="edit-locate-button">
         <Crosshair className="h-4 w-4" /> {pos ? "Localização atualizada" : "Atualizar minha localização no mapa"}
       </Button>
-      <Button type="submit" disabled={busy} className="h-12 w-full rounded-none text-base font-semibold" data-testid="edit-profile-submit-button">
+      <Button type="submit" disabled={busy || uploading} className="h-12 w-full rounded-none text-base font-semibold" data-testid="edit-profile-submit-button">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Salvar alterações
       </Button>
     </form>

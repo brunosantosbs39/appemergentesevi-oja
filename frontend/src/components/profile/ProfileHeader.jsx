@@ -1,4 +1,5 @@
-import { BadgeCheck, Briefcase, ClipboardList, Grid3x3, MapPin, MessageCircle, Navigation, Pencil, Send } from "lucide-react";
+import { Camera, BadgeCheck, Briefcase, ClipboardList, Grid3x3, MapPin, MessageCircle, Navigation, Pencil, Send } from "lucide-react";
+import { imgUrl } from "@/lib/api";
 import { brl, catOf, km } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/common/UserAvatar";
@@ -16,10 +17,13 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onChat, onHire }) =
   return (
     <section className="overflow-hidden rounded-[2rem] border border-border bg-card">
       <div className="bg-grid relative h-32 bg-secondary sm:h-40">
-        <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-secondary/30 blur-3xl" />
+        {user.cover ? (
+          <img src={imgUrl(user.cover)} alt={`Capa de ${user.name || "perfil"}`} className="absolute inset-0 h-full w-full object-cover" data-testid="profile-cover" />
+        ) : <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-secondary/30 blur-3xl" />}
+        {isMe && <Button type="button" onClick={onEdit} className="absolute right-3 top-3 bg-black/70 text-white hover:bg-black" data-testid="profile-edit-cover-button"><Camera className="h-4 w-4" /> {user.cover ? "Alterar capa" : "Adicionar capa"}</Button>}
       </div>
       <div className="px-5 pb-6 sm:px-8">
-        <div className="-mt-14 flex flex-wrap items-end justify-between gap-4">
+        <div className="relative -mt-14 flex flex-wrap items-end justify-between gap-4">
           <UserAvatar user={user} className="h-28 w-28 border-4 border-white text-2xl shadow-lg" ring={isPro} testid="user-profile-avatar" />
           <div className="flex flex-wrap gap-2">
             {isMe ? (

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { errMsg, imgUrl, useApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export const ImageUpload = ({ value, onChange, testid = "image-upload", className, label = "Adicionar foto" }) => {
+export const ImageUpload = ({ value, onChange, testid = "image-upload", className, label = "Adicionar foto", onBusyChange, allowReplace = false }) => {
   const api = useApi();
   const ref = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -15,6 +15,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) return toast.error("A imagem deve ter até 4 MB");
     setBusy(true);
+    onBusyChange?.(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -24,6 +25,7 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
       toast.error(errMsg(err));
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -33,8 +35,11 @@ export const ImageUpload = ({ value, onChange, testid = "image-upload", classNam
       {value ? (
         <>
           <img src={imgUrl(value)} alt="Prévia" className="h-full w-full object-cover" data-testid={`${testid}-preview`} />
+          {allowReplace && <button type="button" disabled={busy} onClick={() => ref.current?.click()} className="absolute bottom-2 right-2 bg-black/80 px-3 py-2 text-sm text-white" data-testid={`${testid}-replace`}>{busy ? "Enviando..." : "Trocar imagem"}</button>}
           <button
             type="button"
+            disabled={busy}
+            aria-label="Remover imagem"
             onClick={() => onChange(null)}
             className="absolute right-2 top-2 rounded-none bg-secondary/80 p-1.5 text-white backdrop-blur transition-colors hover:bg-secondary"
             data-testid={`${testid}-remove`}

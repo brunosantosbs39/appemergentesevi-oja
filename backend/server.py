@@ -46,7 +46,7 @@ STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
             "image/heic": "heic", "image/heif": "heif"}
 MAX_UPLOAD = 4 * 1024 * 1024
-PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "headline": 1, "bio": 1, "categories": 1,
+PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "headline": 1, "bio": 1, "categories": 1,
           "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1}
 # who may move a request to each status, and from which statuses
 TRANSITIONS = {
@@ -119,6 +119,7 @@ class ProfileUpdate(BaseModel):
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lng: Optional[float] = Field(None, ge=-180, le=180)
     hourly_rate: Optional[float] = Field(None, ge=0, le=100000)
+    cover: Optional[str] = None
     avatar: Optional[str] = None
 
 
@@ -178,6 +179,8 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
     if "categories" in data:
         cats = [c for c in dict.fromkeys(data["categories"] or []) if c in CATEGORIES]
         data["categories"] = cats[:5]
+    if data.get("cover"):
+        await check_image(data["cover"], me["user_id"])
     if data.get("avatar"):
         await check_image(data["avatar"], me["user_id"])
     if not data.get("role") and not me.get("role"):

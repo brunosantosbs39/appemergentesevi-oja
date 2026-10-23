@@ -49,3 +49,30 @@ def test_upload_rejects_large_files_and_active_image_types(monkeypatch):
         with pytest.raises(server.HTTPException) as error:
             asyncio.run(server.upload(file, {"user_id": "test"}))
         assert error.value.status_code == 400
+
+
+def test_profile_cover_validates_owner_and_supports_removal(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setenv("MONGO_URL", "mongodb://localhost:27017")
+    with patch("motor.motor_asyncio.AsyncIOMotorClient"):
+        server = importlib.import_module("backend.server")
+    member = {"user_id": "owner", "role": "contratante"}
+    users = SimpleNamespace(update_one=AsyncMock(), find_one=AsyncMock(return_value={**member, "cover": "image-path"}))
+    monkeypatch.setattr(server, "db", SimpleNamespace(users=users))
+    validate = AsyncMock()
+    monkeypatch.setattr(server, "check_image", validate)
+    result = asyncio.run(server.update_me(server.ProfileUpdate(cover="image-path"), member))
+    validate.assert_awaited_once_with("image-path", "owner")
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": "image-path"}})
+    assert result["cover"] == "image-path"
+    assert server.PUBLIC["cover"] == 1
+    validate.reset_mock()
+    asyncio.run(server.update_me(server.ProfileUpdate(cover=None), member))
+    validate.assert_not_awaited()
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": None}})
+    validate.side_effect = server.HTTPException(403, "Arquivo não autorizado")
+    users.update_one.reset_mock()
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.update_me(server.ProfileUpdate(cover="someone-elses-image"), member))
+    users.update_one.assert_not_awaited()
