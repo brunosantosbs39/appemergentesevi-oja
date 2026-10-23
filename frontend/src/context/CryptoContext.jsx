@@ -33,7 +33,7 @@ export function CryptoProvider({ userId, enabled, children }) {
       setStatus(identity ? local ? "ready" : "locked" : "new");
     } catch (e) { setKeys(null); setStatus("error"); setError(e.response ? errMsg(e) : e.message); }
   }, [api, userId, enabled]);
-  useEffect(() => { load(); return () => peers.current.clear(); }, [load]);
+  useEffect(() => { const cache = peers.current; load(); return () => cache.clear(); }, [load]);
   const prepare = useCallback(async () => { const value = await createIdentity(userId); setPending(value); }, [userId]);
   const activate = useCallback(async () => {
     if (!pending) throw new Error("Gere e guarde seu código primeiro.");
