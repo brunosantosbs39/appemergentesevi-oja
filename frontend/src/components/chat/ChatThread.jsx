@@ -1,3 +1,4 @@
+import { ApplyButton } from "@/components/requests/ApplyButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Send, FileText } from "lucide-react";
@@ -29,11 +30,11 @@ const Bubble = ({ m, mine, onRespond, responding }) => {
       <div className={cn("max-w-[78%] rounded-none px-4 py-2.5 text-sm", mine ? "rounded-br-md bg-secondary text-white" : "rounded-bl-md border border-border bg-card text-foreground")}>
         {m.kind === "audio" ? <AudioMessage message={m} /> : m.kind === "proposal" ? (
           <div className="space-y-2">
-            <p className="font-bold">Proposta de serviço</p>
+            <p className="font-bold">Contraproposta de valor</p>
             <p className="whitespace-pre-wrap break-words">{m.proposal.description}</p>
             <p className="text-lg font-bold">{brl(m.proposal.amount)}</p>
             {m.proposal.deadline && <p>Prazo: {m.proposal.deadline}</p>}
-            <p role="status">{{ pending: "Aguardando resposta", accepted: "Proposta aceita", declined: "Proposta recusada" }[m.proposal.status]}</p>
+            <p role="status">{{ pending: "Aguardando resposta", accepted: "Contraproposta aceita", declined: "Contraproposta recusada" }[m.proposal.status]}</p>
             {!mine && m.proposal.status === "pending" && <div className="flex flex-wrap gap-2"><Button type="button" disabled={responding} onClick={() => onRespond(m.id, "accepted")}>Aceitar</Button><Button type="button" variant="outline" disabled={responding} onClick={() => onRespond(m.id, "declined")}>Recusar</Button></div>}
           </div>
         ) : <p className="whitespace-pre-wrap break-words">{m.text}</p>}
@@ -131,6 +132,7 @@ export const ChatThread = ({ id }) => {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-none border border-border bg-card" data-testid="chat-thread">
       <ThreadHeader conv={conv} />
+      {conv.request && <div className="px-4 pb-2"><ApplyButton key={conv.request.id} request={conv.request} /></div>}
       <div className="flex-1 space-y-3 overflow-y-auto bg-background px-4 py-5" data-testid="chat-messages-list">
         {msgs.length === 0 && <p className="text-center text-sm text-muted-foreground">Envie a primeira mensagem para {conv.other.name}.</p>}
         {msgs.map((m) => <Bubble key={m.id} m={m} mine={m.sender_id === me.user_id} onRespond={respond} responding={responding} />)}
@@ -138,7 +140,7 @@ export const ChatThread = ({ id }) => {
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-3 pt-3">
         <AudioRecorder conversationId={id} onSent={(data) => merge([data])} />
-        <Button type="button" variant="outline" onClick={() => setProposalOpen(true)}><FileText className="h-4 w-4" /> Proposta</Button>
+        {(!conv.request || me.role === "profissional" && conv.request.client_id !== me.user_id && conv.request.status === "pendente") && <Button type="button" variant="outline" onClick={() => setProposalOpen(true)}><FileText className="h-4 w-4" /> Enviar contraproposta</Button>}
       </div>
       <ProposalDialog open={proposalOpen} onOpenChange={setProposalOpen} conversationId={id} onSent={(data) => merge([data])} />
       <form onSubmit={send} className="flex gap-2 border-t border-border p-3">

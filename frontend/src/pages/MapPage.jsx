@@ -1,3 +1,4 @@
+import { ApplyButton } from "@/components/requests/ApplyButton";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Crosshair, Loader2, MapPinOff } from "lucide-react";
@@ -48,6 +49,7 @@ const ReqPopup = ({ r }) => (
     <Link to="/pedidos" className="mt-2 block rounded-none bg-secondary py-1.5 text-center text-xs font-semibold !text-white" data-testid="map-popup-request-link">
       Ver pedido
     </Link>
+    <ApplyButton request={r} />
   </div>
 );
 

@@ -509,10 +509,16 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
     stamp = now_iso()
     changes = {"applications.$.status": body.status, "applications.$.responded_at": stamp, "updated_at": stamp}
     if body.status == "approved":
+        current = await db.requests.find_one({"id": rid, "client_id": me["user_id"]}, {"_id": 0})
+        candidate = next((a for a in (current or {}).get("applications", []) if a["professional_id"] == professional_id), {})
+        changes["agreed_budget"] = candidate.get("negotiated_budget", (current or {}).get("budget"))
         changes.update({"status": "aceito", "professional_id": professional_id, "accepted_at": stamp, "approved_by": me["user_id"]})
+    selection_query = {"id": rid, "client_id": me["user_id"], "status": "pendente",
+                       "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}}
+    if body.status == "approved" and current:
+        selection_query["updated_at"] = current.get("updated_at")
     r = await db.requests.find_one_and_update(
-        {"id": rid, "client_id": me["user_id"], "status": "pendente",
-         "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}},
+        selection_query,
         {"$set": changes}, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not r:
         raise HTTPException(409, "Candidatura indisponível ou ação não autorizada")
@@ -605,7 +611,10 @@ async def conv_summaries(convs: list, uid: str) -> list:
     rm = {}
     if rids:
         docs = await db.requests.find({"id": {"$in": rids}}, {"_id": 0, "id": 1, "title": 1, "category": 1,
-                                                               "status": 1, "budget": 1}).to_list(1000)
+                                                               "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1}).to_list(1000)
+        for doc in docs:
+            applications = doc.pop("applications", [])
+            doc["my_application"] = next((a for a in applications if a["professional_id"] == uid), None)
         rm = {d["id"]: d for d in docs}
     out = []
     for c in convs:
@@ -715,14 +724,39 @@ async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded
     conv = await my_conversation(cid, me["user_id"])
     if len(body.description.strip()) < 3:
         raise HTTPException(400, "Descreva o serviço da proposta")
-    return await add_message(conv, me["user_id"], "Proposta de serviço", kind="proposal",
-                             proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
+    if conv.get("request_id"):
+        request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente"}, {"_id": 0})
+        if not request or me.get("role") != "profissional" or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
+            raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
+    return await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
+                             request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
                                        "deadline": body.deadline.strip(), "status": "pending"})
 
 
 @api.patch("/conversations/{cid}/proposals/{mid}")
 async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict = Depends(onboarded)):
     await my_conversation(cid, me["user_id"])
+    proposal_message = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "proposal"}, {"_id": 0})
+    if proposal_message and proposal_message.get("request_id") and body.status == "accepted":
+        if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
+            raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
+        rid = proposal_message["request_id"]
+        request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente"}, {"_id": 0})
+        if not request:
+            raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
+        applicant = proposal_message["sender_id"]
+        amount = proposal_message["proposal"]["amount"]
+        application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
+        query = {"id": rid, "client_id": me["user_id"], "status": "pendente"}
+        if application:
+            query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
+            change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}
+        else:
+            query["applications.professional_id"] = {"$ne": applicant}
+            change = {"$push": {"applications": {"professional_id": applicant, "status": "pending", "applied_at": now_iso(), "negotiated_budget": amount}}, "$set": {"updated_at": now_iso()}}
+        result = await db.requests.update_one(query, change)
+        if result.matched_count == 0:
+            raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
     msg = await db.messages.find_one_and_update(
         {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
         {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"]}},

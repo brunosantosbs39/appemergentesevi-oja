@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { RequestCard } from "@/components/requests/RequestCard";
 import { useCallback, useEffect, useState } from "react";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
@@ -15,6 +17,7 @@ export default function Feed() {
   const { me } = useMe();
   const [cat, setCat] = useState("todos");
   const [posts, setPosts] = useState(null);
+  const [vacancies, setVacancies] = useState([]);
   const [open, setOpen] = useState(false);
   const [hire, setHire] = useState(null);
 
@@ -28,6 +31,14 @@ export default function Feed() {
     load().catch(() => setPosts([]));
   }, [load]);
 
+  useEffect(() => {
+    if (me.role !== "profissional") return;
+    const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
+    loadVacancies();
+    const timer = setInterval(loadVacancies, 15000);
+    return () => clearInterval(timer);
+  }, [api, me.role, cat]);
+
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       <section className="min-w-0">
@@ -38,6 +49,7 @@ export default function Feed() {
         </PageHeader>
         <CategoryChips value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 max-w-xl space-y-6">
+          {vacancies.length > 0 && <section className="space-y-4" aria-label="Vagas abertas"><div className="flex items-center justify-between"><h2 className="font-heading text-xl font-bold">Vagas abertas</h2><Link to="/pedidos" className="text-sm underline">Ver todas as vagas</Link></div>{vacancies.map((r) => <RequestCard key={r.id} request={r} me={me} />)}</section>}
           {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {posts?.length === 0 && (
             <EmptyState icon={ImagePlus} title="Nada por aqui ainda" text="Seja o primeiro a publicar nesta categoria." testid="feed-empty-state" />

@@ -212,6 +212,8 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
     server = importlib.import_module("backend.server")
     state = {"id": "job", "title": "Pintura", "status": "pendente", "client_id": "owner", "professional_id": None, "applications": []}
     async def find(query, projection):
+        if "status" not in query and "client_id" in query:
+            return copy.deepcopy(state) if query["client_id"] == state["client_id"] else None
         if "$or" in query:
             return copy.deepcopy(state) if any(state.get(k) == v for part in query["$or"] for k, v in part.items()) else None
         if state["status"] in query["status"]["$in"] and state.get("professional_id") == query.get("professional_id"):
@@ -267,3 +269,21 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
         asyncio.run(server.check_in_service("job", other))
     assert asyncio.run(server.check_in_service("job", pro))["check_in_by"] == "pro"
     assert asyncio.run(server.check_out_service("job", pro))["check_out_by"] == "pro"
+
+
+def test_accepted_counterproposal_attaches_new_price_to_candidate(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    proposal = {"id": "offer", "sender_id": "pro", "request_id": "job", "proposal": {"status": "pending", "amount": 250}}
+    request = {"id": "job", "client_id": "owner", "status": "pendente", "budget": 200, "applications": [{"professional_id": "pro", "status": "pending"}]}
+    requests = SimpleNamespace(find_one=AsyncMock(return_value=request), update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1)))
+    messages = SimpleNamespace(find_one=AsyncMock(return_value=proposal), find_one_and_update=AsyncMock(return_value={**proposal, "proposal": {"status": "accepted", "amount": 250}}))
+    monkeypatch.setattr(server, "my_conversation", AsyncMock())
+    monkeypatch.setattr(server, "db", SimpleNamespace(requests=requests, messages=messages))
+    result = asyncio.run(server.respond_proposal("chat", "offer", server.ProposalStatusIn(status="accepted"), {"user_id": "owner"}))
+    assert result["proposal"]["status"] == "accepted"
+    change = requests.update_one.call_args.args[1]
+    assert change["$set"]["applications.$.negotiated_budget"] == 250
+    assert request["budget"] == 200
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.respond_proposal("chat", "offer", server.ProposalStatusIn(status="accepted"), {"user_id": "pro"}))

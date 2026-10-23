@@ -1,3 +1,4 @@
+import { ApplyButton } from "@/components/requests/ApplyButton";
 import { ContactButton } from "@/components/chat/ContactButton";
 import { ServiceAttendance } from "@/components/requests/ServiceAttendance";
 import { Link } from "react-router-dom";
@@ -47,7 +48,7 @@ export const RequestCard = ({ request: r, me, children }) => {
           {r.description && <p className="mt-1 line-clamp-3 text-sm text-foreground">{r.description}</p>}
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-semibold text-foreground" data-testid="service-request-budget">
-              <Wallet className="h-3.5 w-3.5 text-foreground" /> {brl(r.budget)}
+              <Wallet className="h-3.5 w-3.5 text-foreground" /> {brl(r.agreed_budget ?? r.budget)}
             </span>
             {r.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {r.address}</span>}
             {r.distance_km != null && (
@@ -70,6 +71,7 @@ export const RequestCard = ({ request: r, me, children }) => {
         )
       )}
       {!iAmClient && r.status === "pendente" && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
+      <ApplyButton request={r} />
       <ServiceAttendance request={r} />
       {children && <div className="mt-4 flex flex-wrap gap-2">{children}</div>}
     </article>

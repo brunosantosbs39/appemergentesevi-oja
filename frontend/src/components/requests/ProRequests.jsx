@@ -1,13 +1,10 @@
 import { applicationLabel } from "@/components/requests/ApplicationsPanel";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2, Radar } from "lucide-react";
-import { toast } from "sonner";
-import { errMsg, useApi } from "@/lib/api";
+import { useApi } from "@/lib/api";
 import { DEFAULT_POS, RADIUS_OPTIONS } from "@/lib/constants";
 import { useMe } from "@/context/MeContext";
 import { useGeo } from "@/hooks/useGeo";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState, PageHeader } from "@/components/common/Misc";
@@ -31,14 +28,12 @@ const RadarBanner = ({ count }) => (
 export const ProRequests = () => {
   const api = useApi();
   const { me } = useMe();
-  const navigate = useNavigate();
   const { pos, locate } = useGeo(me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS);
   const [radius, setRadius] = useState(25);
   const [tab, setTab] = useState("disponiveis");
   const [available, setAvailable] = useState(null);
-  const [accepting, setAccepting] = useState(null);
   const [reviewReq, setReviewReq] = useState(null);
-  const { items, setItems, update, markReviewed } = useMyRequests();
+  const { items, update, markReviewed } = useMyRequests();
 
   useEffect(() => {
     locate();
@@ -54,22 +49,6 @@ export const ProRequests = () => {
     const t = setInterval(() => loadAvailable().catch(() => {}), 15000);
     return () => clearInterval(t);
   }, [loadAvailable]);
-
-  const accept = async (r) => {
-    setAccepting(r.id);
-    try {
-      const { data } = await api.post(`/requests/${r.id}/apply`);
-      toast.success("Candidatura enviada! Aguarde o aceite do contratante.", { action: { label: "Abrir chat", onClick: () => navigate(`/chat/${data.conversation_id}`) } });
-      setAvailable((a) => (a || []).filter((x) => x.id !== r.id));
-      setItems((prev) => [data.request, ...(prev || []).filter((x) => x.id !== r.id)]);
-      setTab("candidaturas");
-    } catch (e) {
-      toast.error(errMsg(e));
-      loadAvailable().catch(() => {});
-    } finally {
-      setAccepting(null);
-    }
-  };
 
   const applications = items?.filter((r) => r.my_application && r.professional_id !== me.user_id) ?? null;
   const mine = items?.filter((r) => r.professional_id === me.user_id) ?? null;
@@ -100,11 +79,7 @@ export const ProRequests = () => {
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
           <div className="grid gap-4 lg:grid-cols-2">
             {available?.map((r) => (
-              <RequestCard key={r.id} request={r} me={me}>
-                <Button onClick={() => accept(r)} disabled={!!accepting || !!r.my_application} className="h-11 flex-1 rounded-none text-base font-semibold" data-testid="apply-service-request-button">
-                  {accepting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {r.my_application ? applicationLabel(r.my_application.status) : "Candidatar-se à vaga"}
-                </Button>
-              </RequestCard>
+              <RequestCard key={r.id} request={r} me={me} />
             ))}
           </div>
         </TabsContent>
