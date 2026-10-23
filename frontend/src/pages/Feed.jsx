@@ -34,7 +34,6 @@ export default function Feed() {
   }, [load]);
 
   useEffect(() => {
-    if (me.role !== "profissional") return;
     const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
     loadVacancies();
     const timer = setInterval(loadVacancies, 15000);

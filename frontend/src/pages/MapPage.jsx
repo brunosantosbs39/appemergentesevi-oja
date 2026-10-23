@@ -115,7 +115,7 @@ export default function MapPage() {
           pros={pros || []}
           requests={reqs}
           className="h-[420px] sm:h-[560px]"
-          renderProPopup={(p) => <ProPopup p={p} canHire={me.role === "contratante"} onHire={setHire} />}
+          renderProPopup={(p) => <ProPopup p={p} canHire={true} onHire={setHire} />}
           renderRequestPopup={(r) => <ReqPopup r={r} />}
         />
         <div className="space-y-3 lg:max-h-[560px] lg:overflow-y-auto lg:pr-1" data-testid="map-pros-list">

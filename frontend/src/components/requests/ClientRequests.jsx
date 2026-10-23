@@ -41,7 +41,7 @@ export const ClientRequests = () => {
 
   return (
     <div>
-      <PageHeader eyebrow="Contratante" title="Meus pedidos" subtitle="Publique uma vaga, analise as candidaturas e aprove o profissional que irá atender.">{newBtn}</PageHeader>
+      <PageHeader eyebrow="Quero contratar" title="Meus pedidos" subtitle="Publique uma vaga, analise as candidaturas e aprove o profissional que irá atender.">{newBtn}</PageHeader>
       <Tabs defaultValue="ativos">
         <TabsList className="rounded-none bg-muted/70 p-1">
           <TabsTrigger value="ativos" className="rounded-none px-5" data-testid="client-tab-active">Ativos {active ? `(${active.length})` : ""}</TabsTrigger>

@@ -61,7 +61,7 @@ export const PostCard = ({ post, onDeleted, onHire }) => {
   const [burst, setBurst] = useState(false);
   const a = post.author || {};
   const mine = post.user_id === me.user_id;
-  const canHire = a.role === "profissional" && !mine && me.role === "contratante";
+  const canHire = (a.role === "profissional" || post.intent === "opportunity") && !mine;
 
   const toggleLike = async () => {
     setLiked(!liked);
@@ -91,6 +91,7 @@ export const PostCard = ({ post, onDeleted, onHire }) => {
 
   return (
     <article data-testid={`feed-post-${post.id}`} className="animate-fade-up overflow-hidden rounded-none border border-border bg-card shadow-sm">
+      {post.intent === "opportunity" && <p className="border-b border-border px-4 py-2 text-sm font-semibold">Busco uma oportunidade</p>}
       <PostHeader post={post} mine={mine} onDelete={remove} />
       <div className="relative aspect-square select-none bg-card" onDoubleClick={onDouble}>
         <img src={imgUrl(post.image)} alt={post.caption?.slice(0, 60) || "Postagem"} className="h-full w-full object-cover" loading="lazy" />

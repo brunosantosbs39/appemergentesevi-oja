@@ -97,7 +97,7 @@ export default function Onboarding() {
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-foreground">Bem-vindo(a)</p>
           <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
-          <p className="mt-2 text-muted-foreground">Você pode trocar depois no seu perfil.</p>
+          <p className="mt-2 text-muted-foreground">Essa é apenas sua preferência inicial. Na mesma conta você pode contratar e buscar oportunidades, sem precisar ser empresa.</p>
         </div>
         <RolePicker value={role} onChange={setRole} />
         {role && (

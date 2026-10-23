@@ -20,7 +20,7 @@ const Field = ({ label, children }) => (
   </div>
 );
 
-const RequestForm = ({ targetPro, onCreated, onClose }) => {
+export const RequestForm = ({ targetPro, onCreated, onClose }) => {
   const api = useApi();
   const { me } = useMe();
   const [f, setF] = useState({
@@ -102,7 +102,7 @@ export const CreateRequestDialog = ({ open, onOpenChange, targetPro, onCreated }
     <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-xl" data-testid="create-request-dialog">
       <DialogHeader>
         <DialogTitle className="font-heading text-2xl font-extrabold">Novo pedido de serviço</DialogTitle>
-        <DialogDescription>Profissionais podem candidatar-se pelo valor anunciado. Você escolhe quem aprovar.</DialogDescription>
+        <DialogDescription>Qualquer pessoa pode contratar, para casa ou empresa. Você recebe candidaturas e escolhe quem aprovar.</DialogDescription>
       </DialogHeader>
       {open && <RequestForm targetPro={targetPro} onCreated={onCreated} onClose={() => onOpenChange(false)} />}
     </DialogContent>

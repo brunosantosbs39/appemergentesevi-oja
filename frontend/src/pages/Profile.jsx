@@ -94,7 +94,7 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="profile-page">
-      <ProfileHeader user={user} isMe={isMe} canHire={isPro && me.role === "contratante"} onEdit={() => setEditOpen(true)} onHire={() => setHireOpen(true)} />
+      <ProfileHeader user={user} isMe={isMe} canHire={isPro && !isMe} onEdit={() => setEditOpen(true)} onHire={() => setHireOpen(true)} />
       {user.bio && (
         <section className="rounded-none border border-border bg-card p-6" data-testid="profile-bio">
           <p className="font-mono text-[10px] uppercase tracking-widest text-foreground">Sobre</p>

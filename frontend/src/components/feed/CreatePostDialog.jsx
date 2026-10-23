@@ -1,3 +1,4 @@
+import { RequestForm } from "@/components/requests/CreateRequestDialog";
 import { useEffect, useState } from "react";
 import { Crosshair, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import { ImageUpload } from "@/components/common/ImageUpload";
 export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "publication" }) => {
   const api = useApi();
   const { me } = useMe();
+  const [intent, setIntent] = useState("hire");
   const [image, setImage] = useState(null);
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState(me.categories?.[0] || "outros");
@@ -25,7 +27,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
   const [requestId, setRequestId] = useState("");
   const [requests, setRequests] = useState([]);
   useEffect(() => {
-    if (open && kind === "publication" && me.role === "contratante") api.get("/requests/mine").then(({ data }) => setRequests(data.filter((r) => r.client_id === me.user_id && ["pendente", "aceito"].includes(r.status)))).catch(() => {});
+    if (open && kind === "publication") api.get("/requests/mine").then(({ data }) => setRequests(data.filter((r) => r.client_id === me.user_id && ["pendente", "aceito"].includes(r.status)))).catch(() => {});
   }, [api, open, kind, me.role, me.user_id]);
 
   const locate = () =>
@@ -41,7 +43,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
     if (!image) return toast.error("Adicione uma foto");
     setBusy(true);
     try {
-      const { data } = await api.post("/posts", { kind, expires_at: kind === "publication" && expiry ? new Date(expiry).toISOString() : null, request_id: kind === "publication" ? requestId || null : null, image, caption, category, location_name: locName || null, ...(coords || {}) });
+      const { data } = await api.post("/posts", { kind, intent: kind === "publication" ? "opportunity" : null, expires_at: kind === "publication" && expiry ? new Date(expiry).toISOString() : null, request_id: kind === "publication" ? requestId || null : null, image, caption, category, location_name: locName || null, ...(coords || {}) });
       onCreated(data);
       toast.success(kind === "portfolio" ? "Trabalho adicionado ao portfólio!" : "Postagem publicada!");
       setImage(null);
@@ -61,12 +63,20 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
           <DialogTitle className="font-heading text-2xl font-extrabold">{kind === "portfolio" ? "Adicionar trabalho ao portfólio" : "Nova publicação"}</DialogTitle>
           <DialogDescription>{kind === "portfolio" ? "Apresente trabalhos realizados. Eles ficam disponíveis permanentemente no seu perfil." : "Defina a validade. Publicações vinculadas a vagas saem da divulgação no check-in ou no prazo definido."}</DialogDescription>
         </DialogHeader>
+        {kind === "publication" && <fieldset className="space-y-2">
+          <legend className="font-semibold">O que você quer publicar?</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {[{id: "hire", label: "Quero contratar"}, {id: "opportunity", label: "Busco uma oportunidade"}].map((option) => <Button key={option.id} type="button" variant={intent === option.id ? "default" : "outline"} aria-pressed={intent === option.id} onClick={() => setIntent(option.id)} className="h-auto min-h-12 whitespace-normal" data-testid={`publish-intent-${option.id}`}>{option.label}</Button>)}
+          </div>
+          <p className="text-sm text-muted-foreground">{intent === "hire" ? "Precisa de ajuda em casa ou na empresa? Publique o serviço e escolha quem contratar." : "Divulgue o serviço que você oferece, sua disponibilidade e sua região de atendimento."}</p>
+        </fieldset>}
+        {kind === "publication" && intent === "hire" ? <RequestForm onCreated={() => { toast.success("Veja candidaturas e acompanhe o serviço em Pedidos → Quero contratar."); }} onClose={() => onOpenChange(false)} /> : <>
         <div className="grid gap-5 sm:grid-cols-2">
           <ImageUpload value={image} onChange={setImage} className="aspect-square" testid="create-post-image" label="Escolher foto" />
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Legenda</Label>
-              <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={2200} placeholder="Conte sobre o serviço..." data-testid="create-post-caption-input" />
+              <Label>{kind === "portfolio" ? "Legenda" : "Qual serviço você oferece?"}</Label>
+              <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={2200} placeholder="Ex.: Sou pintor, tenho disponibilidade nesta semana. Atendo em Goiânia..." data-testid="create-post-caption-input" />
             </div>
             <div className="space-y-1.5">
               <Label>Categoria</Label>
@@ -91,11 +101,12 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
         </div>
         {kind === "publication" && <div className="space-y-3">
           <label className="block space-y-1.5"><span>Publicação válida até</span><Input type="datetime-local" value={expiry} onChange={(e) => setExpiry(e.target.value)} /><span className="text-xs text-muted-foreground">Horário local do seu aparelho. A publicação sai do feed quando vencer.</span></label>
-          {me.role === "contratante" && <label className="block space-y-1.5"><span>Vincular a uma vaga</span><select value={requestId} onChange={(e) => setRequestId(e.target.value)} className="w-full border border-border bg-background p-2 text-sm"><option value="">Sem vínculo</option>{requests.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select></label>}
+          {requests.length > 0 && <label className="block space-y-1.5"><span>Vincular a uma vaga</span><select value={requestId} onChange={(e) => setRequestId(e.target.value)} className="w-full border border-border bg-background p-2 text-sm"><option value="">Sem vínculo</option>{requests.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select></label>}
         </div>}
         <Button onClick={submit} disabled={busy || !image || kind === "publication" && !expiry} className="h-12 w-full rounded-none text-base font-semibold" data-testid="create-post-submit-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Publicar
         </Button>
+        </>}
       </DialogContent>
     </Dialog>
   );

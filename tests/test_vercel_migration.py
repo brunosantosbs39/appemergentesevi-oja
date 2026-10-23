@@ -206,7 +206,8 @@ def test_start_chat_from_available_vacancy_and_keep_inbox_private(monkeypatch):
     assert conversations.find.call_args.args[0] == {"participants": "pro"}
 
 
-def test_application_approval_is_required_for_attendance_and_only_owner_selects(monkeypatch):
+@pytest.mark.parametrize("worker_role,owner_role", [("profissional", "contratante"), ("contratante", "profissional")])
+def test_application_approval_is_required_for_attendance_and_only_owner_selects(monkeypatch, worker_role, owner_role):
     import copy
     from unittest.mock import AsyncMock
     server = importlib.import_module("backend.server")
@@ -246,9 +247,9 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
     monkeypatch.setattr(server, "add_message", AsyncMock())
     monkeypatch.setattr(server, "notify_request", AsyncMock())
     monkeypatch.setattr(server, "users_map", AsyncMock(return_value={}))
-    pro = {"user_id": "pro", "role": "profissional"}
+    pro = {"user_id": "pro", "role": worker_role}
     other = {"user_id": "other", "role": "profissional"}
-    owner = {"user_id": "owner", "role": "contratante"}
+    owner = {"user_id": "owner", "role": owner_role}
     result = asyncio.run(server.accept_request("job", pro))
     assert result["request"]["status"] == "pendente" and state["professional_id"] is None
     assert "applications" not in result["request"]
@@ -421,3 +422,21 @@ def test_read_receipts_only_mark_visible_messages_and_preserve_racing_unread(mon
     assert update.call_args.args[0] == {"id": "chat", "last_at": stamp}
     assert update.call_args.args[1]["$set"]["read_at.me"] == stamp
     assert update.call_args.args[1]["$set"]["unread.me"] == 0
+
+
+def test_professional_can_hire_without_changing_profile(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    requests = SimpleNamespace(insert_one=AsyncMock())
+    monkeypatch.setattr(server, "db", SimpleNamespace(requests=requests))
+    monkeypatch.setattr(server, "check_image", AsyncMock())
+    async def enrich(items, **kwargs):
+        return items
+    monkeypatch.setattr(server, "enrich_requests", enrich)
+    member = {"user_id": "plumber", "role": "profissional"}
+    result = asyncio.run(server.create_request(server.RequestCreate(category="pintor", title="Pintar minha casa", lat=-16.6, lng=-49.2), member))
+    assert result["client_id"] == "plumber"
+    assert result["professional_id"] is None
+    assert result["status"] == "pendente"
+    assert member["role"] == "profissional"
+    requests.insert_one.assert_awaited_once()

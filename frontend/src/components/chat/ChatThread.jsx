@@ -137,7 +137,7 @@ export const ChatThread = ({ id }) => {
   const jump = () => { const list = listRef.current; if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }); nearBottom.current = true; setAway(false); };
   if (conv === false) return <div className="sj-thread-empty"><p>Conversa não encontrada.</p><Link to="/chat">Voltar às conversas</Link></div>;
   if (!conv) return <div className="sj-thread-empty">{error ? <><p>Não foi possível abrir a conversa.</p><button type="button" onClick={() => pollRef.current?.()}>Tentar novamente</button><Link to="/chat">Voltar</Link></> : <Loader2 className="animate-spin" />}</div>;
-  const canCounter = !conv.request || me.role === "profissional" && conv.request.client_id !== me.user_id && conv.request.status === "pendente" && (!conv.request.expires_at || new Date(conv.request.expires_at) > new Date());
+  const canCounter = !conv.request || conv.request.client_id !== me.user_id && conv.request.status === "pendente" && (!conv.request.expires_at || new Date(conv.request.expires_at) > new Date());
   return <section className="sj-thread" data-testid="chat-thread" onKeyDown={(e) => { if (e.key === "Escape") setActionsOpen(false); }}>
     <header className="sj-thread-header">
       <Link to="/chat" className="sj-icon-button sj-mobile-back" aria-label="Voltar às conversas" data-testid="chat-back-button"><ArrowLeft size={22} /></Link>

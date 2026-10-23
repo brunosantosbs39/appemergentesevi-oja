@@ -136,6 +136,7 @@ class ProfileUpdate(BaseModel):
 
 
 class PostCreate(BaseModel):
+    intent: Optional[Literal["opportunity"]] = None
     kind: Literal["publication", "portfolio"] = "publication"
     expires_at: Optional[datetime] = None
     request_id: Optional[str] = None
@@ -500,13 +501,11 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 @api.post("/requests")
 async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
-    if me["role"] != "contratante":
-        raise HTTPException(403, "Apenas contratantes podem publicar pedidos")
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
     if body.target_pro_id:
         if body.target_pro_id == me["user_id"] or not await db.users.find_one(
-                {"user_id": body.target_pro_id, "role": "profissional"}, {"_id": 1}):
+                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante"]}}, {"_id": 1}):
             raise HTTPException(400, "Profissional inválido")
     await check_image(body.image, me["user_id"])
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
@@ -529,8 +528,6 @@ async def my_requests(me: dict = Depends(onboarded)):
 @api.get("/requests/available")
 async def available_requests(lat: Optional[float] = None, lng: Optional[float] = None, radius_km: float = 25,
                              category: Optional[str] = None, me: dict = Depends(onboarded)):
-    if me["role"] != "profissional":
-        raise HTTPException(403, "Apenas profissionais podem ver pedidos disponíveis")
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
@@ -551,7 +548,7 @@ async def get_request(rid: str, me: dict = Depends(onboarded)):
     uid = me["user_id"]
     r = await db.requests.find_one({"id": rid}, {"_id": 0})
     visible = r and (uid in (r["client_id"], r.get("professional_id")) or any(a["professional_id"] == uid for a in r.get("applications", [])) or (
-        r["status"] == "pendente" and me["role"] == "profissional" and r.get("target_pro_id") in (None, uid)))
+        r["status"] == "pendente" and r.get("target_pro_id") in (None, uid)))
     if not visible:
         raise HTTPException(404, "Pedido não encontrado")
     return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
@@ -560,8 +557,6 @@ async def get_request(rid: str, me: dict = Depends(onboarded)):
 @api.post("/requests/{rid}/accept")
 @api.post("/requests/{rid}/apply")
 async def accept_request(rid: str, me: dict = Depends(onboarded)):
-    if me["role"] != "profissional":
-        raise HTTPException(403, "Apenas profissionais podem candidatar-se")
     uid = me["user_id"]
     application = {"professional_id": uid, "status": "pending", "applied_at": now_iso()}
     r = await db.requests.find_one_and_update(
@@ -733,7 +728,7 @@ async def start_conversation(body: ConversationIn, me: dict = Depends(onboarded)
         request = await db.requests.find_one({"id": body.request_id}, {"_id": 0})
         uid = me["user_id"]
         visible = request and (uid in (request["client_id"], request.get("professional_id")) or (
-            request["status"] == "pendente" and me["role"] == "profissional" and request.get("target_pro_id") in (None, uid)))
+            request["status"] == "pendente" and request.get("target_pro_id") in (None, uid)))
         matching_pair = request and (body.user_id == request["client_id"] or (
             uid == request["client_id"] and body.user_id == request.get("professional_id")))
         if not visible or not matching_pair:
@@ -832,7 +827,7 @@ async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded
         raise HTTPException(400, "Descreva o serviço da proposta")
     if conv.get("request_id"):
         request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
-        if not request or me.get("role") != "profissional" or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
+        if not request or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
             raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
     return await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
                              request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
