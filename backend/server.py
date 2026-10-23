@@ -401,13 +401,24 @@ async def notify_request(r: dict, text: str):
 
 
 # ---------- service requests ----------
-async def enrich_requests(items: list, lat=None, lng=None) -> list:
-    um = await users_map(x for r in items for x in (r.get("client_id"), r.get("professional_id"), r.get("target_pro_id")))
+async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> list:
+    ids = [uid for r in items for uid in (r.get("client_id"), r.get("professional_id"), r.get("target_pro_id"))]
+    ids += [a["professional_id"] for r in items if r.get("client_id") == viewer_id for a in r.get("applications", [])]
+    um = await users_map(ids)
     for r in items:
         r["client"] = um.get(r.get("client_id"))
         r["professional"] = um.get(r.get("professional_id"))
         r["target_pro"] = um.get(r.get("target_pro_id"))
         r["distance_km"] = distance_km(lat, lng, r.get("lat"), r.get("lng"))
+        applications = r.pop("applications", [])
+        for application in applications:
+            if application["status"] == "pending" and r["status"] != "pendente":
+                application["status"] = "not_selected"
+            if application["status"] == "approved" and r.get("professional_id") != application["professional_id"]:
+                application["status"] = "withdrawn"
+        r["my_application"] = next((a for a in applications if a["professional_id"] == viewer_id), None)
+        if r["client_id"] == viewer_id:
+            r["applications"] = [{**a, "professional": um.get(a["professional_id"])} for a in applications]
     return items
 
 
@@ -427,15 +438,15 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
            "created_at": now_iso(), "updated_at": now_iso()}
     doc["title"] = doc["title"].strip()
     await db.requests.insert_one(dict(doc))
-    return (await enrich_requests([doc]))[0]
+    return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
 @api.get("/requests/mine")
 async def my_requests(me: dict = Depends(onboarded)):
     uid = me["user_id"]
-    items = await db.requests.find({"$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 0}) \
+    items = await db.requests.find({"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}]}, {"_id": 0}) \
         .sort("created_at", -1).to_list(500)
-    return await enrich_requests(items, me.get("lat"), me.get("lng"))
+    return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=me["user_id"])
 
 
 @api.get("/requests/available")
@@ -449,7 +460,7 @@ async def available_requests(lat: Optional[float] = None, lng: Optional[float] =
     query = {"status": "pendente", "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
     if category and category != "todos":
         query["category"] = category
-    items = await enrich_requests(await db.requests.find(query, {"_id": 0}).to_list(500), lat, lng)
+    items = await enrich_requests(await db.requests.find(query, {"_id": 0}).to_list(500), lat, lng, viewer_id=uid)
     if radius_km > 0 and lat is not None:
         items = [r for r in items if r.get("target_pro_id") == uid
                  or (r["distance_km"] is not None and r["distance_km"] <= radius_km)]
@@ -462,28 +473,53 @@ async def available_requests(lat: Optional[float] = None, lng: Optional[float] =
 async def get_request(rid: str, me: dict = Depends(onboarded)):
     uid = me["user_id"]
     r = await db.requests.find_one({"id": rid}, {"_id": 0})
-    visible = r and (uid in (r["client_id"], r.get("professional_id")) or (
+    visible = r and (uid in (r["client_id"], r.get("professional_id")) or any(a["professional_id"] == uid for a in r.get("applications", [])) or (
         r["status"] == "pendente" and me["role"] == "profissional" and r.get("target_pro_id") in (None, uid)))
     if not visible:
         raise HTTPException(404, "Pedido não encontrado")
-    return (await enrich_requests([r], me.get("lat"), me.get("lng")))[0]
+    return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
 
 
 @api.post("/requests/{rid}/accept")
+@api.post("/requests/{rid}/apply")
 async def accept_request(rid: str, me: dict = Depends(onboarded)):
     if me["role"] != "profissional":
-        raise HTTPException(403, "Apenas profissionais podem aceitar pedidos")
+        raise HTTPException(403, "Apenas profissionais podem candidatar-se")
     uid = me["user_id"]
+    application = {"professional_id": uid, "status": "pending", "applied_at": now_iso()}
     r = await db.requests.find_one_and_update(
         {"id": rid, "status": "pendente", "client_id": {"$ne": uid},
-         "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]},
-        {"$set": {"status": "aceito", "professional_id": uid, "accepted_at": now_iso(), "updated_at": now_iso()}},
+         "$or": [{"target_pro_id": None}, {"target_pro_id": uid}],
+         "applications.professional_id": {"$ne": uid}},
+        {"$push": {"applications": application}, "$set": {"updated_at": now_iso()}},
         projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not r:
-        raise HTTPException(409, "Este pedido não está mais disponível")
+        raise HTTPException(409, "Você já se candidatou ou esta vaga não está disponível")
     conv = await get_or_create_conversation(r["client_id"], uid, rid)
-    await add_message(conv, None, f"{me.get('name') or 'O profissional'} aceitou o pedido \"{r['title']}\". Combinem os detalhes por aqui.", system=True)
-    return {"request": (await enrich_requests([r], me.get("lat"), me.get("lng")))[0], "conversation_id": conv["id"]}
+    await add_message(conv, None, f"{me.get('name') or 'Um profissional'} se candidatou à vaga \"{r['title']}\". Aguardando aceite do contratante.", system=True)
+    return {"request": (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=uid))[0], "conversation_id": conv["id"]}
+
+
+class ApplicationDecision(BaseModel):
+    status: Literal["approved", "declined"]
+
+
+@api.post("/requests/{rid}/applications/{professional_id}")
+async def decide_application(rid: str, professional_id: str, body: ApplicationDecision, me: dict = Depends(onboarded)):
+    stamp = now_iso()
+    changes = {"applications.$.status": body.status, "applications.$.responded_at": stamp, "updated_at": stamp}
+    if body.status == "approved":
+        changes.update({"status": "aceito", "professional_id": professional_id, "accepted_at": stamp, "approved_by": me["user_id"]})
+    r = await db.requests.find_one_and_update(
+        {"id": rid, "client_id": me["user_id"], "status": "pendente",
+         "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}},
+        {"$set": changes}, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if not r:
+        raise HTTPException(409, "Candidatura indisponível ou ação não autorizada")
+    conv = await get_or_create_conversation(r["client_id"], professional_id, rid)
+    text = "Candidatura aprovada. O profissional poderá fazer check-in ao chegar e check-out ao sair." if body.status == "approved" else "O contratante recusou esta candidatura."
+    await add_message(conv, None, text, system=True)
+    return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
 
 
 @api.post("/requests/{rid}/status")
@@ -524,7 +560,7 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
         await notify_request(r, f"{event}. Horário registrado: {stamp} (UTC). Consulte os detalhes no pedido.")
     else:
         await notify_request(r, f"Status do pedido atualizado: {STATUS_LABELS[body.status]}.")
-    return (await enrich_requests([r], me.get("lat"), me.get("lng")))[0]
+    return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
 
 
 @api.post("/requests/{rid}/review")
@@ -717,6 +753,7 @@ async def startup():
     await db.conversations.create_index("pair_key", unique=True)
     await db.conversations.create_index("id", unique=True)
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+    await db.requests.create_index("applications.professional_id")
     await db.comments.create_index([("post_id", 1), ("created_at", 1)])
     await db.reviews.create_index("to_id")
     await db.files.create_index("storage_path")

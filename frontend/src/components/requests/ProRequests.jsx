@@ -1,3 +1,4 @@
+import { applicationLabel } from "@/components/requests/ApplicationsPanel";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2, Radar } from "lucide-react";
@@ -57,11 +58,11 @@ export const ProRequests = () => {
   const accept = async (r) => {
     setAccepting(r.id);
     try {
-      const { data } = await api.post(`/requests/${r.id}/accept`);
-      toast.success("Pedido aceito! Combine os detalhes no chat.", { action: { label: "Abrir chat", onClick: () => navigate(`/chat/${data.conversation_id}`) } });
+      const { data } = await api.post(`/requests/${r.id}/apply`);
+      toast.success("Candidatura enviada! Aguarde o aceite do contratante.", { action: { label: "Abrir chat", onClick: () => navigate(`/chat/${data.conversation_id}`) } });
       setAvailable((a) => (a || []).filter((x) => x.id !== r.id));
       setItems((prev) => [data.request, ...(prev || []).filter((x) => x.id !== r.id)]);
-      setTab("ativos");
+      setTab("candidaturas");
     } catch (e) {
       toast.error(errMsg(e));
       loadAvailable().catch(() => {});
@@ -70,6 +71,7 @@ export const ProRequests = () => {
     }
   };
 
+  const applications = items?.filter((r) => r.my_application && r.professional_id !== me.user_id) ?? null;
   const mine = items?.filter((r) => r.professional_id === me.user_id) ?? null;
   const active = mine?.filter((r) => ["aceito", "em_andamento"].includes(r.status)) ?? null;
   const history = mine?.filter((r) => ["concluido", "cancelado"].includes(r.status)) ?? null;
@@ -77,7 +79,7 @@ export const ProRequests = () => {
 
   return (
     <div>
-      <PageHeader eyebrow="Profissional" title="Pedidos" subtitle="Aceite pedidos próximos e acompanhe seus serviços.">
+      <PageHeader eyebrow="Profissional" title="Pedidos" subtitle="Candidate-se às vagas, aguarde aprovação e registre sua chegada e saída.">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -86,8 +88,9 @@ export const ProRequests = () => {
         </Select>
       </PageHeader>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="rounded-none bg-muted/70 p-1">
+        <TabsList className="h-auto flex-wrap justify-start rounded-none bg-muted/70 p-1">
           <TabsTrigger value="disponiveis" className="rounded-none px-4" data-testid="pro-tab-available">Disponíveis</TabsTrigger>
+          <TabsTrigger value="candidaturas" className="rounded-none px-3">Candidaturas {applications ? `(${applications.length})` : ""}</TabsTrigger>
           <TabsTrigger value="ativos" className="rounded-none px-4" data-testid="pro-tab-active">Meus serviços {active ? `(${active.length})` : ""}</TabsTrigger>
           <TabsTrigger value="historico" className="rounded-none px-4" data-testid="pro-tab-history">Histórico</TabsTrigger>
         </TabsList>
@@ -98,15 +101,18 @@ export const ProRequests = () => {
           <div className="grid gap-4 lg:grid-cols-2">
             {available?.map((r) => (
               <RequestCard key={r.id} request={r} me={me}>
-                <Button onClick={() => accept(r)} disabled={accepting === r.id} className="h-11 flex-1 rounded-none text-base font-semibold" data-testid="accept-service-request-button">
-                  {accepting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Aceitar pedido
+                <Button onClick={() => accept(r)} disabled={!!accepting || !!r.my_application} className="h-11 flex-1 rounded-none text-base font-semibold" data-testid="apply-service-request-button">
+                  {accepting === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {r.my_application ? applicationLabel(r.my_application.status) : "Candidatar-se à vaga"}
                 </Button>
               </RequestCard>
             ))}
           </div>
         </TabsContent>
+        <TabsContent value="candidaturas" className="mt-6">
+          {applications === null ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : applications.length === 0 ? <EmptyState icon={CheckCircle2} title="Nenhuma candidatura ainda" text="Candidate-se a uma vaga na aba Disponíveis." /> : <div className="grid gap-4 lg:grid-cols-2">{applications.map((r) => <RequestCard key={r.id} request={r} me={me}><p className="text-sm font-semibold">{applicationLabel(r.my_application.status)}</p></RequestCard>)}</div>}
+        </TabsContent>
         <TabsContent value="ativos" className="mt-6">
-          <RequestList items={active} {...props} empty={<EmptyState icon={CheckCircle2} title="Nenhum serviço em andamento" text="Aceite um pedido na aba Disponíveis." testid="pro-active-empty" />} />
+          <RequestList items={active} {...props} empty={<EmptyState icon={CheckCircle2} title="Nenhum serviço em andamento" text="Após o contratante aprovar sua candidatura, o serviço aparecerá aqui com check-in liberado." testid="pro-active-empty" />} />
         </TabsContent>
         <TabsContent value="historico" className="mt-6">
           <RequestList items={history} {...props} empty={<EmptyState icon={CheckCircle2} title="Sem histórico ainda" testid="pro-history-empty" />} />

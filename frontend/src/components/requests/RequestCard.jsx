@@ -65,7 +65,7 @@ export const RequestCard = ({ request: r, me, children }) => {
       ) : (
         iAmClient && r.status === "pendente" && (
           <p className="mt-4 flex items-center gap-2 rounded-none bg-amber-50 p-3 text-sm text-amber-800">
-            <span className="radar-dot" /> Aguardando um profissional aceitar...
+            <span className="radar-dot" /> Aguardando candidaturas. Você escolhe e aprova o profissional.
           </p>
         )
       )}

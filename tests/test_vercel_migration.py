@@ -151,7 +151,7 @@ def test_check_in_out_records_server_time_and_rejects_invalid_transitions(monkey
         return dict(state)
     users = SimpleNamespace(update_one=AsyncMock())
     monkeypatch.setattr(server, "db", SimpleNamespace(requests=SimpleNamespace(find_one=find_one, find_one_and_update=update), users=users))
-    async def enrich(items, *args):
+    async def enrich(items, *args, **kwargs):
         return items
     monkeypatch.setattr(server, "enrich_requests", enrich)
     monkeypatch.setattr(server, "notify_request", AsyncMock())
@@ -204,3 +204,66 @@ def test_start_chat_from_available_vacancy_and_keep_inbox_private(monkeypatch):
     monkeypatch.setattr(server, "conv_summaries", AsyncMock(return_value=[]))
     assert asyncio.run(server.list_conversations(member)) == []
     assert conversations.find.call_args.args[0] == {"participants": "pro"}
+
+
+def test_application_approval_is_required_for_attendance_and_only_owner_selects(monkeypatch):
+    import copy
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    state = {"id": "job", "title": "Pintura", "status": "pendente", "client_id": "owner", "professional_id": None, "applications": []}
+    async def find(query, projection):
+        if "$or" in query:
+            return copy.deepcopy(state) if any(state.get(k) == v for part in query["$or"] for k, v in part.items()) else None
+        if state["status"] in query["status"]["$in"] and state.get("professional_id") == query.get("professional_id"):
+            return copy.deepcopy(state)
+        return None
+    async def update(query, changes, **kwargs):
+        if isinstance(query.get("status"), str) and state["status"] != query["status"]:
+            return None
+        if "$push" in changes:
+            uid = query["applications.professional_id"]["$ne"]
+            if uid == state["client_id"] or any(a["professional_id"] == uid for a in state["applications"]):
+                return None
+            state["applications"].append(changes["$push"]["applications"])
+        elif "applications" in query:
+            if query["client_id"] != state["client_id"]:
+                return None
+            match = query["applications"]["$elemMatch"]
+            candidate = next((a for a in state["applications"] if all(a.get(k) == v for k, v in match.items())), None)
+            if not candidate:
+                return None
+            for key, value in changes["$set"].items():
+                if key.startswith("applications.$."):
+                    candidate[key.split(".")[-1]] = value
+        elif state["status"] not in query["status"]["$in"] or state.get("professional_id") != query.get("professional_id"):
+            return None
+        state.update({k: v for k, v in changes["$set"].items() if not k.startswith("applications.$.")})
+        return copy.deepcopy(state)
+    monkeypatch.setattr(server, "db", SimpleNamespace(requests=SimpleNamespace(find_one=find, find_one_and_update=update), users=SimpleNamespace(update_one=AsyncMock())))
+    monkeypatch.setattr(server, "get_or_create_conversation", AsyncMock(return_value={"id": "chat"}))
+    monkeypatch.setattr(server, "add_message", AsyncMock())
+    monkeypatch.setattr(server, "notify_request", AsyncMock())
+    monkeypatch.setattr(server, "users_map", AsyncMock(return_value={}))
+    pro = {"user_id": "pro", "role": "profissional"}
+    other = {"user_id": "other", "role": "profissional"}
+    owner = {"user_id": "owner", "role": "contratante"}
+    result = asyncio.run(server.accept_request("job", pro))
+    assert result["request"]["status"] == "pendente" and state["professional_id"] is None
+    assert "applications" not in result["request"]
+    assert result["request"]["my_application"]["status"] == "pending"
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.accept_request("job", pro))
+    asyncio.run(server.accept_request("job", other))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_in_service("job", pro))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.decide_application("job", "pro", server.ApplicationDecision(status="approved"), pro))
+    approved = asyncio.run(server.decide_application("job", "pro", server.ApplicationDecision(status="approved"), owner))
+    assert approved["professional_id"] == "pro" and approved["approved_by"] == "owner"
+    assert len(approved["applications"]) == 2
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.decide_application("job", "other", server.ApplicationDecision(status="approved"), owner))
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.check_in_service("job", other))
+    assert asyncio.run(server.check_in_service("job", pro))["check_in_by"] == "pro"
+    assert asyncio.run(server.check_out_service("job", pro))["check_out_by"] == "pro"

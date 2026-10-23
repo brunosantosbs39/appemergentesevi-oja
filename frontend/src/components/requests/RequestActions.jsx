@@ -1,3 +1,4 @@
+import { ApplicationsPanel } from "@/components/requests/ApplicationsPanel";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2, MessageCircle, Play, Star } from "lucide-react";
@@ -43,11 +44,13 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
 
   return (
     <>
+      {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
         </Button>
       )}
+      {isPro && r.status === "aceito" && <p className="w-full text-sm text-emerald-600">Serviço aprovado pelo contratante. Faça check-in ao chegar ao local.</p>}
       {isPro && r.status === "aceito" && (
         <Button disabled={!!busy} className="rounded-none bg-secondary hover:bg-secondary" onClick={() => run("em_andamento", "Check-in registrado: serviço iniciado")} data-testid="start-service-button">
           {spin("em_andamento") || <Play className="h-4 w-4" />} Check-in · Iniciar serviço
