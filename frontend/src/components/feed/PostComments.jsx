@@ -34,15 +34,15 @@ export const PostComments = ({ postId, onAdded }) => {
   };
 
   return (
-    <div className="mt-3 space-y-3 border-t border-slate-100 pt-3" data-testid="feed-post-comments">
+    <div className="mt-3 space-y-3 border-t border-border pt-3" data-testid="feed-post-comments">
       {items === null ? (
-        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
       ) : (
         items.map((c) => (
           <div key={c.id} className="flex items-start gap-2" data-testid="feed-comment-item">
             <UserAvatar user={c.author} className="h-7 w-7" />
-            <p className="text-sm text-slate-700">
-              <Link to={`/perfil/${c.user_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
+            <p className="text-sm text-foreground">
+              <Link to={`/perfil/${c.user_id}`} className="font-semibold text-foreground hover:text-foreground">
                 {c.author?.name || "Usuário"}
               </Link>{" "}
               {c.text}
@@ -56,10 +56,10 @@ export const PostComments = ({ postId, onAdded }) => {
           onChange={(e) => setText(e.target.value)}
           placeholder="Adicione um comentário..."
           maxLength={500}
-          className="rounded-full"
+          className="rounded-none"
           data-testid="feed-post-comment-input"
         />
-        <Button type="submit" size="sm" className="rounded-full" disabled={busy || !text.trim()} data-testid="feed-post-comment-submit">
+        <Button type="submit" size="sm" className="rounded-none" disabled={busy || !text.trim()} data-testid="feed-post-comment-submit">
           Enviar
         </Button>
       </form>

@@ -20,7 +20,7 @@ const Field = ({ label, children }) => (
   </div>
 );
 
-const RequestForm = ({ targetPro, onCreated, onClose }) => {
+export const RequestForm = ({ targetPro, onCreated, onClose }) => {
   const api = useApi();
   const { me } = useMe();
   const [f, setF] = useState({
@@ -28,6 +28,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
     title: "",
     description: "",
     budget: "",
+    expires_at: "",
     address: me.city || "",
   });
   const [pos, setPos] = useState(me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS);
@@ -40,7 +41,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
     if (f.title.trim().length < 3) return toast.error("Descreva o serviço no título");
     setBusy(true);
     try {
-      const body = { ...f, budget: f.budget === "" ? null : Number(f.budget), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
+      const body = { ...f, expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: f.budget === "" ? null : Number(f.budget), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
       const { data } = await api.post("/requests", body);
       toast.success(targetPro ? `Pedido enviado para ${targetPro.name}` : "Pedido publicado! Profissionais próximos já podem ver.");
       onCreated?.(data);
@@ -55,7 +56,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
   return (
     <form onSubmit={submit} className="space-y-4">
       {targetPro && (
-        <div className="flex items-center gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900" data-testid="request-target-banner">
+        <div className="flex items-center gap-2 rounded-none bg-amber-50 p-3 text-sm text-amber-900" data-testid="request-target-banner">
           <Target className="h-4 w-4" /> Pedido direto para <strong>{targetPro.name}</strong>
         </div>
       )}
@@ -78,6 +79,10 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
       <Field label="Detalhes">
         <Textarea value={f.description} onChange={set("description")} rows={3} maxLength={2000} placeholder="Conte mais sobre o serviço, horário preferido..." data-testid="request-description-input" />
       </Field>
+      <Field label="Receber candidaturas até (opcional)">
+        <Input type="datetime-local" value={f.expires_at} onChange={set("expires_at")} />
+        <p className="text-xs text-muted-foreground">Horário local do aparelho. A vaga sai da divulgação no prazo definido. Serviços aprovados continuam no histórico.</p>
+      </Field>
       <Field label="Endereço / bairro">
         <Input value={f.address} onChange={set("address")} maxLength={200} placeholder="Ex.: Rua das Flores, 120 - Pinheiros" data-testid="request-address-input" />
       </Field>
@@ -85,7 +90,7 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
       <Field label="Foto (opcional)">
         <ImageUpload value={image} onChange={setImage} className="h-32" testid="request-image" />
       </Field>
-      <Button type="submit" disabled={busy} className="h-12 w-full rounded-full text-base font-semibold" data-testid="request-submit-button">
+      <Button type="submit" disabled={busy} className="h-12 w-full rounded-none text-base font-semibold" data-testid="request-submit-button">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} {targetPro ? "Enviar pedido" : "Publicar pedido"}
       </Button>
     </form>
@@ -94,10 +99,10 @@ const RequestForm = ({ targetPro, onCreated, onClose }) => {
 
 export const CreateRequestDialog = ({ open, onOpenChange, targetPro, onCreated }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-xl" data-testid="create-request-dialog">
+    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-xl" data-testid="create-request-dialog">
       <DialogHeader>
         <DialogTitle className="font-heading text-2xl font-extrabold">Novo pedido de serviço</DialogTitle>
-        <DialogDescription>Profissionais próximos recebem seu pedido e podem aceitar na hora.</DialogDescription>
+        <DialogDescription>Qualquer pessoa pode contratar, para casa ou empresa. Você recebe candidaturas e escolhe quem aprovar.</DialogDescription>
       </DialogHeader>
       {open && <RequestForm targetPro={targetPro} onCreated={onCreated} onClose={() => onOpenChange(false)} />}
     </DialogContent>

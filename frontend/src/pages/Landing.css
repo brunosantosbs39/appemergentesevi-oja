@@ -1,0 +1,66 @@
+.lux-landing{--lux-line:#262626;background:#000;color:#fff;font-family:Georgia,'Times New Roman',serif}
+.lux-landing *{box-sizing:border-box}
+.lux-landing ::selection{background:#fff;color:#000}
+.lux-landing a:focus-visible{outline:2px solid #fff;outline-offset:6px}
+.lux-landing h1,.lux-landing h2,.lux-landing h3,.lux-landing nav,.lux-logo,.lux-eyebrow,.lux-button,.lux-text-link,.lux-categories,.lux-hero-bottom,.lux-footer,.lux-step-number{font-family:'Plus Jakarta Sans',Arial,sans-serif}
+.lux-landing h1,.lux-landing h2,.lux-landing h3{font-weight:400;text-transform:uppercase}
+.lux-skip{position:absolute;top:10px;left:10px;z-index:50;background:#fff;color:#000;padding:12px;transform:translateY(-160%)}
+.lux-skip:focus{transform:translateY(0)}
+.lux-header{height:104px;display:flex;align-items:center;justify-content:space-between;padding:0 5%;border-bottom:1px solid var(--lux-line)}
+.lux-logo{font-size:25px;letter-spacing:.12em;font-weight:600;color:#fff;text-decoration:none;white-space:nowrap}
+.lux-logo span{display:block;font-size:8px;font-weight:400;letter-spacing:.21em;margin-top:7px}
+.lux-header nav{display:flex;align-items:center;gap:36px;font-size:10px;letter-spacing:.15em;text-transform:uppercase}
+.lux-header nav a{min-height:44px;display:flex;align-items:center;gap:18px}
+.lux-nav-cta{border-bottom:1px solid #fff}
+.lux-hero{min-height:740px;height:calc(100svh - 104px);max-height:1100px;position:relative;display:flex;align-items:center;overflow:hidden}
+.lux-hero-photo,.lux-hero-shade{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.lux-hero-photo{object-position:center 45%}
+.lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.5) 52%,rgba(0,0,0,.12)),linear-gradient(0deg,rgba(0,0,0,.8),transparent 45%)}
+.lux-hero-copy{position:relative;padding:70px 5% 120px;width:100%}
+.lux-eyebrow{font-size:10px;letter-spacing:.22em;line-height:1.8;margin:0 0 28px;color:#ccc}
+.lux-hero h1{font-size:clamp(44px,5.8vw,92px);line-height:1.12;letter-spacing:.015em;margin:0;max-width:1000px}
+.lux-intro{font-size:19px;line-height:1.7;color:#ddd;margin:28px 0 38px}
+.lux-actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.lux-button{display:inline-flex;align-items:center;justify-content:space-between;gap:40px;min-height:58px;padding:18px 24px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;border:1px solid #fff;transition:background .2s,color .2s}
+.lux-button-white{background:#fff;color:#000}
+.lux-button-white:hover{background:#ddd;border-color:#ddd}
+.lux-button-outline{background:rgba(0,0,0,.25);color:#fff}
+.lux-button-outline:hover{background:#fff;color:#000}
+.lux-hero-bottom{position:absolute;bottom:32px;left:5%;right:5%;display:flex;justify-content:space-between;gap:20px;font-size:9px;letter-spacing:.18em;color:#ccc}
+.lux-hero-bottom a{display:flex;align-items:center;gap:20px;min-height:44px}
+.lux-categories{display:flex;justify-content:space-between;gap:25px;flex-wrap:wrap;padding:30px 5%;border-bottom:1px solid var(--lux-line);font-size:9px;letter-spacing:.18em;color:#bbb}
+.lux-section{padding:110px 5%}
+.lux-section-heading{display:grid;grid-template-columns:1fr 2fr;gap:35px}
+.lux-landing h2{font-size:clamp(32px,4vw,62px);line-height:1.2;letter-spacing:.025em;margin:0}
+.lux-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:80px}
+.lux-steps article{border-top:1px solid #555;padding-top:25px}
+.lux-step-number{color:#999;font-size:12px;letter-spacing:.12em}
+.lux-steps h3{font-size:15px;letter-spacing:.06em;margin:32px 0 16px}
+.lux-steps p,.lux-craft-copy>p:not(.lux-eyebrow){font-size:18px;line-height:1.8;color:#aaa;max-width:430px}
+.lux-craft{display:grid;grid-template-columns:1fr 1fr;background:#141414}
+.lux-craft-image{min-height:620px}
+.lux-craft-image img{width:100%;height:100%;object-fit:cover}
+.lux-craft-copy{padding:90px 12%;align-self:center}
+.lux-craft-copy>p:not(.lux-eyebrow){margin:28px 0 36px}
+.lux-text-link{display:inline-flex;align-items:center;gap:30px;min-height:48px;border-bottom:1px solid #777;font-size:10px;text-transform:uppercase;letter-spacing:.14em}
+.lux-text-link:hover{border-color:white}
+.lux-final{text-align:center;padding-top:130px;padding-bottom:130px}
+.lux-final h2{font-size:clamp(48px,7vw,104px)}
+.lux-final .lux-actions{justify-content:center;margin-top:45px;gap:32px}
+.lux-footer{border-top:1px solid var(--lux-line);padding:36px 5%;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.lux-footer .lux-logo{font-size:18px}
+.lux-footer p,.lux-footer>span{font-size:9px;letter-spacing:.1em;color:#aaa}
+@media(max-width:700px){
+.lux-header{height:88px;padding:0 6%}.lux-logo{font-size:18px}.lux-logo span{font-size:6px;letter-spacing:.12em}
+.lux-header nav{gap:16px;font-size:8px;letter-spacing:.08em}.lux-nav-cta svg{display:none}
+.lux-hero{min-height:650px;height:calc(100svh - 88px)}.lux-hero-copy{padding:60px 6% 110px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
+.lux-hero-photo{object-position:62% center}.lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.82),rgba(0,0,0,.4)),linear-gradient(0deg,#000,transparent 65%)}
+.lux-intro{font-size:17px;max-width:330px}.lux-desktop-break{display:none}.lux-eyebrow{font-size:8px}.lux-actions{gap:12px}
+.lux-button{font-size:9px;gap:20px;padding:16px 18px;min-height:54px}
+.lux-hero-bottom{left:6%;right:6%;font-size:7px;align-items:center}.lux-hero-bottom>span{max-width:160px;line-height:1.8}
+.lux-categories{padding:24px 6%;justify-content:flex-start;gap:20px;font-size:8px}
+.lux-section{padding:70px 6%}.lux-section-heading{grid-template-columns:1fr;gap:0}.lux-steps{grid-template-columns:1fr;margin-top:45px;gap:35px}.lux-steps h3{margin-top:18px}
+.lux-craft{grid-template-columns:1fr}.lux-craft-image{min-height:0;height:380px}.lux-craft-copy{padding:55px 6%}
+.lux-final .lux-actions{flex-direction:column}.lux-footer{padding:32px 6%;align-items:flex-start}.lux-footer>span{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.lux-landing *{transition:none!important;scroll-behavior:auto!important}}

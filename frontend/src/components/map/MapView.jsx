@@ -50,7 +50,7 @@ export function FixSize() {
 }
 
 export const MapView = ({ center, radiusKm = 0, pros = [], requests = [], renderProPopup, renderRequestPopup, className, zoom = 12 }) => (
-  <div data-testid="leaflet-map-container" className={cn("relative overflow-hidden rounded-3xl border border-slate-200 shadow-sm", className)}>
+  <div data-testid="leaflet-map-container" className={cn("relative overflow-hidden rounded-none border border-border shadow-sm", className)}>
     <MapContainer center={[center.lat, center.lng]} zoom={zoom} scrollWheelZoom className="z-0 h-full w-full">
       <TileLayer attribution={TILE_ATTR} url={TILE_URL} />
       <Recenter center={center} />

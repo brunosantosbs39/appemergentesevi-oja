@@ -1,3 +1,5 @@
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/react";
@@ -28,16 +30,16 @@ const RolePicker = ({ value, onChange }) => (
         onClick={() => onChange(id)}
         data-testid={`onboarding-role-${id}`}
         className={cn(
-          "relative rounded-3xl border-2 p-5 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5",
-          value === id ? "border-emerald-600 bg-emerald-50 shadow-lg" : "border-slate-200 bg-white hover:border-slate-300",
+          "relative rounded-none border-2 p-5 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5",
+          value === id ? "border-foreground bg-muted shadow-lg" : "border-border bg-card hover:border-border",
         )}
       >
-        {value === id && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-emerald-600" />}
-        <span className={cn("grid h-11 w-11 place-items-center rounded-2xl", value === id ? "bg-emerald-600 text-white" : "bg-slate-900 text-emerald-400")}>
+        {value === id && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-foreground" />}
+        <span className={cn("grid h-11 w-11 place-items-center rounded-none", value === id ? "bg-secondary text-secondary-foreground" : "bg-secondary text-foreground")}>
           <Icon className="h-5 w-5" />
         </span>
-        <p className="mt-4 font-heading text-lg font-bold text-slate-900">{title}</p>
-        <p className="mt-1 text-sm text-slate-600">{text}</p>
+        <p className="mt-4 font-heading text-lg font-bold text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-foreground">{text}</p>
       </button>
     ))}
   </div>
@@ -89,17 +91,17 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] px-4 py-10" data-testid="onboarding-page">
+    <div className="min-h-screen bg-background px-4 py-10" data-testid="onboarding-page">
       <form onSubmit={submit} className="mx-auto max-w-2xl space-y-8">
-        <Logo />
+        <div className="flex items-center justify-between gap-4"><Logo /><div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /></div></div>
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-emerald-700">Bem-vindo(a)</p>
-          <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
-          <p className="mt-2 text-slate-500">Você pode trocar depois no seu perfil.</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-foreground">Bem-vindo(a)</p>
+          <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
+          <p className="mt-2 text-muted-foreground">Essa é apenas sua preferência inicial. Na mesma conta você pode contratar e buscar oportunidades, sem precisar ser empresa.</p>
         </div>
         <RolePicker value={role} onChange={setRole} />
         {role && (
-          <div className="animate-fade-up space-y-5 rounded-3xl border border-slate-200 bg-white p-6">
+          <div className="animate-fade-up space-y-5 rounded-none border border-border bg-card p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Seu nome</Label>
@@ -132,20 +134,20 @@ export default function Onboarding() {
                 </div>
               </>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-none bg-card p-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Sua localização</p>
-                <p className="text-xs text-slate-500" data-testid="onboarding-location-status">
+                <p className="text-sm font-semibold text-foreground">Sua localização</p>
+                <p className="text-xs text-muted-foreground" data-testid="onboarding-location-status">
                   {pos ? "Localização capturada" : "Usada para mostrar profissionais e pedidos próximos"}
                 </p>
               </div>
-              <Button type="button" variant="outline" className="rounded-full" onClick={locate} data-testid="onboarding-locate-button">
+              <Button type="button" variant="outline" className="rounded-none" onClick={locate} data-testid="onboarding-locate-button">
                 <Crosshair className="h-4 w-4" /> {pos ? "Atualizar" : "Usar minha localização"}
               </Button>
             </div>
           </div>
         )}
-        <Button type="submit" disabled={busy || !role} className="h-12 w-full rounded-full text-base font-semibold" data-testid="onboarding-submit-button">
+        <Button type="submit" disabled={busy || !role} className="h-12 w-full rounded-none text-base font-semibold" data-testid="onboarding-submit-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Concluir cadastro
         </Button>
       </form>

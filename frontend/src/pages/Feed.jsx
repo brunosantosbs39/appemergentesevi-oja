@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { mergeItems } from "@/lib/pagination";
+import { Link } from "react-router-dom";
+import { RequestCard } from "@/components/requests/RequestCard";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
@@ -15,36 +18,71 @@ export default function Feed() {
   const { me } = useMe();
   const [cat, setCat] = useState("todos");
   const [posts, setPosts] = useState(null);
+  const [vacancies, setVacancies] = useState([]);
   const [open, setOpen] = useState(false);
   const [hire, setHire] = useState(null);
+  const catRef = useRef(cat);
+  catRef.current = cat;
+  const cursor = useRef(null);
+  const initialized = useRef(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = async () => {
+    if (!cursor.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { data, headers } = await api.get("/posts", { params: { ...(cat !== "todos" ? { category: cat } : {}), before: cursor.current } });
+      if (catRef.current !== cat) return;
+      setPosts((previous) => mergeItems(previous, data));
+      cursor.current = headers["x-next-cursor"] || null; setHasMore(!!cursor.current);
+    } finally { setLoadingMore(false); }
+  };
 
   const load = useCallback(async () => {
-    const { data } = await api.get("/posts", { params: cat !== "todos" ? { category: cat } : {} });
-    setPosts(data);
+    const { data, headers } = await api.get("/posts", { params: cat !== "todos" ? { category: cat } : {} });
+    if (catRef.current !== cat) return;
+    setPosts((previous) => {
+      const next = headers["x-next-cursor"];
+      const boundary = next ? JSON.parse(atob(next.replace(/-/g, "+").replace(/_/g, "/"))) : null;
+      const older = boundary ? (previous || []).filter((post) => post.created_at < boundary[0] || post.created_at === boundary[0] && post.id < boundary[1]) : [];
+      return mergeItems(older, data).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)).filter((post) => !post.expires_at || new Date(post.expires_at) > new Date());
+    });
+    if (!initialized.current) { initialized.current = true; cursor.current = headers["x-next-cursor"] || null; setHasMore(!!cursor.current); }
   }, [api, cat]);
 
   useEffect(() => {
-    setPosts(null);
+    cursor.current = null; initialized.current = false; setHasMore(false); setPosts(null);
     load().catch(() => setPosts([]));
+    const timer = setInterval(() => document.visibilityState === "visible" && load().catch(() => {}), 15000);
+    return () => clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, limit: 3, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
+    loadVacancies();
+    const timer = setInterval(() => document.visibilityState === "visible" && loadVacancies(), 30000);
+    return () => clearInterval(timer);
+  }, [api, me.role, cat]);
 
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       <section className="min-w-0">
         <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Trabalhos recentes de profissionais perto de você.">
-          <Button onClick={() => setOpen(true)} className="rounded-full" data-testid="create-post-trigger-button">
+          <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
             <ImagePlus className="h-4 w-4" /> Nova postagem
           </Button>
         </PageHeader>
         <CategoryChips value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 max-w-xl space-y-6">
-          {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-600" />}
+          {vacancies.length > 0 && <section className="space-y-4" aria-label="Vagas abertas"><div className="flex items-center justify-between"><h2 className="font-heading text-xl font-bold">Vagas abertas</h2><Link to="/pedidos" className="text-sm underline">Ver todas as vagas</Link></div>{vacancies.map((r) => <RequestCard key={r.id} request={r} me={me} />)}</section>}
+          {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {posts?.length === 0 && (
             <EmptyState icon={ImagePlus} title="Nada por aqui ainda" text="Seja o primeiro a publicar nesta categoria." testid="feed-empty-state" />
           )}
           {posts?.map((p) => (
             <PostCard key={p.id} post={p} onHire={setHire} onDeleted={(id) => setPosts((prev) => prev.filter((x) => x.id !== id))} />
           ))}
+          {hasMore && <Button variant="outline" disabled={loadingMore} onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar publicações anteriores"}</Button>}
         </div>
       </section>
       <aside className="hidden xl:block">

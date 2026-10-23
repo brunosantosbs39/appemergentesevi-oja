@@ -145,10 +145,15 @@ class TestRequests:
         a = pro_s.post(f"{API}/requests/{rid}/accept")
         assert a.status_code == 200, a.text
         conv_id = a.json()["conversation_id"]
-        assert a.json()["request"]["status"] == "aceito"
+        assert a.json()["request"]["status"] == "pendente"
+        assert a.json()["request"]["professional_id"] is None
+        assert pro_s.post(f"{API}/requests/{rid}/check-in").status_code in (404, 409)
+        selected = tokens["pro"]["user_id"]
+        approved = client_s.post(f"{API}/requests/{rid}/applications/{selected}", json={"status": "approved"})
+        assert approved.status_code == 200 and approved.json()["status"] == "aceito"
         assert pro_s.post(f"{API}/requests/{rid}/accept").status_code == 409
         msgs = client_s.get(f"{API}/conversations/{conv_id}/messages").json()
-        assert any(m["system"] and "aceitou" in m["text"] for m in msgs)
+        assert any(m["system"] and "Candidatura aprovada" in m["text"] for m in msgs)
         mine = client_s.get(f"{API}/requests/mine").json()
         assert any(x["id"] == rid and x["status"] == "aceito" for x in mine)
         # non-participant
@@ -160,11 +165,17 @@ class TestRequests:
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "cancelado"}).status_code == 409
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "foo"}).status_code == 422
         jobs_before = pro_s.get(f"{API}/me").json()["jobs_done"]
-        r = pro_s.post(f"{API}/requests/{rid}/status", json={"status": "em_andamento"})
+        assert pro_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
+        r = pro_s.post(f"{API}/requests/{rid}/check-in")
         assert r.status_code == 200 and r.json()["status"] == "em_andamento"
         assert pro_s.post(f"{API}/requests/{rid}/status", json={"status": "pendente"}).status_code == 409
-        r = client_s.post(f"{API}/requests/{rid}/status", json={"status": "concluido"})
+        assert r.json()["check_in_at"]
+        assert client_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
+        r = pro_s.post(f"{API}/requests/{rid}/check-out")
         assert r.status_code == 200 and r.json()["status"] == "concluido"
+        assert r.json()["check_out_at"]
+        assert r.json()["service_duration_seconds"] >= 0
+        assert pro_s.post(f"{API}/requests/{rid}/check-out").status_code == 409
         assert pro_s.get(f"{API}/me").json()["jobs_done"] == jobs_before + 1
         assert client_s.post(f"{API}/requests/{rid}/status", json={"status": "cancelado"}).status_code == 409
         # reviews
@@ -180,9 +191,11 @@ class TestRequests:
         pv = pro_s.post(f"{API}/requests/{rid}/review", json={"rating": 5, "comment": "TEST_client_ok"})
         assert pv.status_code == 200 and pv.json()["to_id"] == tokens["client"]["user_id"]
 
-    def test_give_up_and_cancel(self, client_s, pro_s):
+    def test_give_up_and_cancel(self, client_s, pro_s, tokens):
         rid = new_request(client_s)["id"]
         assert pro_s.post(f"{API}/requests/{rid}/accept").status_code == 200
+        selected = tokens["pro"]["user_id"]
+        assert client_s.post(f"{API}/requests/{rid}/applications/{selected}", json={"status": "approved"}).status_code == 200
         r = pro_s.post(f"{API}/requests/{rid}/status", json={"status": "pendente"})
         assert r.status_code == 200 and r.json()["status"] == "pendente" and r.json()["professional_id"] is None
         assert any(x["id"] == rid for x in pro_s.get(f"{API}/requests/available", params=PIN).json())

@@ -8,10 +8,10 @@ export const initials = (name) =>
 export const UserAvatar = ({ user, className, ring = false, testid }) => (
   <Avatar
     data-testid={testid}
-    className={cn("h-10 w-10 shrink-0", ring && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-white", className)}
+    className={cn("h-10 w-10 shrink-0", ring && "ring-2 ring-foreground ring-offset-2 ring-offset-white", className)}
   >
     {user?.avatar && <AvatarImage src={imgUrl(user.avatar)} alt={user?.name} className="object-cover" />}
-    <AvatarFallback className="bg-slate-900 font-heading text-xs font-bold text-emerald-300">
+    <AvatarFallback className="bg-secondary font-heading text-xs font-bold text-foreground">
       {initials(user?.name)}
     </AvatarFallback>
   </Avatar>

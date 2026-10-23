@@ -4,32 +4,56 @@
 
 @layer base {
     :root {
-        --background: 210 40% 98%;
-        --foreground: 222 47% 11%;
-        --card: 0 0% 100%;
-        --card-foreground: 222 47% 11%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 222 47% 11%;
-        --primary: 161 94% 30%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 222 47% 11%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 210 40% 96%;
-        --muted-foreground: 215 16% 47%;
-        --accent: 152 76% 91%;
-        --accent-foreground: 164 86% 16%;
+        color-scheme: dark;
+        --background: 0 0% 0%;
+        --foreground: 0 0% 100%;
+        --card: 0 0% 8%;
+        --card-foreground: 0 0% 100%;
+        --popover: 0 0% 8%;
+        --popover-foreground: 0 0% 100%;
+        --primary: 0 0% 100%;
+        --primary-foreground: 0 0% 0%;
+        --secondary: 0 0% 20%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 0 0% 14%;
+        --muted-foreground: 0 0% 70%;
+        --accent: 0 0% 20%;
+        --accent-foreground: 0 0% 100%;
         --destructive: 0 72% 51%;
         --destructive-foreground: 0 0% 100%;
-        --border: 214 32% 91%;
-        --input: 214 32% 91%;
-        --ring: 161 94% 30%;
+        --border: 0 0% 15%;
+        --input: 0 0% 26%;
+        --ring: 0 0% 100%;
         --chart-1: 161 94% 30%;
         --chart-2: 38 92% 50%;
         --chart-3: 222 47% 11%;
         --chart-4: 199 89% 48%;
         --chart-5: 0 72% 51%;
-        --radius: 0.9rem;
+        --radius: 0px;
     }
+    :root.light {
+        color-scheme: light;
+        --background: 216 24% 97%;
+        --foreground: 215 28% 13%;
+        --card: 0 0% 100%;
+        --card-foreground: 215 28% 13%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 215 28% 13%;
+        --primary: 215 28% 13%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 214 23% 92%;
+        --secondary-foreground: 215 28% 18%;
+        --muted: 214 23% 94%;
+        --muted-foreground: 215 15% 40%;
+        --accent: 214 25% 91%;
+        --accent-foreground: 215 28% 13%;
+        --destructive: 0 72% 45%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 20% 85%;
+        --input: 214 20% 82%;
+        --ring: 215 28% 18%;
+    }
+
 }
 
 @layer base {
@@ -186,3 +210,33 @@
         border-bottom-color: inherit;
     }
 }
+
+/* Shared monochrome theme for authenticated pages and portal content. */
+.brand-wordmark { color: hsl(var(--foreground)); font: 500 22px "Plus Jakarta Sans", sans-serif; letter-spacing: .13em; }
+h1.font-heading, h2.font-heading, h3.font-heading { font-weight: 400; text-transform: uppercase; letter-spacing: .04em; }
+button, input, textarea, select, [role="dialog"], [role="alertdialog"] { border-radius: 0; }
+a:focus-visible, button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+.leaflet-container { background: #141414; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #141414; color: #fff; border-radius: 0; }
+.leaflet-bar a { background: #141414; color: #fff; }
+.pin-pro { border-color: #fff; background: #141414; color: #fff; box-shadow: none; }
+.pin-req { background: #fff; border-color: #777; border-radius: 0; }
+.radar-dot { background: #fff; animation: none; box-shadow: none; }
+.radar-sweep::before { background: conic-gradient(from 0deg, #ffffff50, transparent 35%); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Keep the original radar treatment only in the professional search banner. */
+.legacy-radar-banner .radar-sweep::before { background: conic-gradient(from 0deg, rgba(16, 185, 129, 0.45), transparent 35%); }
+
+/* Light surfaces, including Leaflet's portal content. */
+.brand-wordmark.brand-on-photo { color: #fff; }
+.light ::selection { background: #18212b; color: #fff; }
+.light .bg-grid { background-image: linear-gradient(rgba(15,23,42,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(15,23,42,.04) 1px,transparent 1px); }
+.light .leaflet-container { background: #e9eef2; }
+.light .leaflet-popup-content-wrapper,.light .leaflet-popup-tip,.light .leaflet-bar a { background: #fff; color: #18212b; }
+.light .pin-pro { border-color: #18212b; background: #fff; color: #18212b; }
+.light .pin-req { background: #18212b; color: #fff; border-color: #fff; }
+.light .radar-dot { background: #18212b; }
+.light .legacy-radar-banner .radar-dot { background: #10b981; }
+.light .theme-toggle { color: #18212b; }
+@media(max-width:380px) { header .brand-wordmark { font-size: 17px; letter-spacing:.08em; } }

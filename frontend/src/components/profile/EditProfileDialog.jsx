@@ -24,10 +24,11 @@ const ProfileForm = ({ onSaved, onClose }) => {
   const { me, setMe } = useMe();
   const [f, setF] = useState({
     name: me.name || "", role: me.role, headline: me.headline || "", bio: me.bio || "", city: me.city || "",
-    categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null,
+    categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null, cover: me.cover || null,
   });
   const [pos, setPos] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v?.target ? v.target.value : v }));
 
   const locate = () =>
@@ -38,11 +39,13 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (uploading || busy) return;
     if (f.role === "profissional" && f.categories.length === 0) return toast.error("Escolha pelo menos uma categoria");
     setBusy(true);
     try {
       const body = { ...f, name: f.name.trim(), hourly_rate: f.hourly_rate === "" ? null : Number(f.hourly_rate), ...(pos || {}) };
       if (f.avatar === me.avatar) delete body.avatar;
+      if (f.cover === (me.cover || null)) delete body.cover;
       const { data } = await api.put("/me", body);
       setMe(data);
       toast.success("Perfil atualizado");
@@ -57,14 +60,18 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      <Field label="Imagem de capa">
+        <ImageUpload allowReplace value={f.cover} onChange={set("cover")} onBusyChange={setUploading} className="h-36 w-full sm:h-40" testid="edit-cover" label="Adicionar imagem de capa" />
+        <p className="text-xs text-muted-foreground">Escolha uma imagem horizontal de até 4 MB. Salve as alterações para atualizar sua capa.</p>
+      </Field>
       <div className="flex items-center gap-4">
-        <ImageUpload value={f.avatar} onChange={set("avatar")} className="h-24 w-24 shrink-0 rounded-full" testid="edit-avatar" label="Foto" />
+        <ImageUpload value={f.avatar} onChange={set("avatar")} className="h-24 w-24 shrink-0 rounded-none" testid="edit-avatar" label="Foto" />
         <div className="flex-1 space-y-1.5">
           <Label>Tipo de conta</Label>
           <div className="grid grid-cols-2 gap-2">
             {[["contratante", "Contratante"], ["profissional", "Profissional"]].map(([id, label]) => (
               <button key={id} type="button" onClick={() => set("role")(id)} data-testid={`edit-role-${id}`}
-                className={cn("rounded-2xl border-2 px-3 py-2 text-sm font-semibold transition-colors", f.role === id ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 text-slate-600")}>
+                className={cn("rounded-none border-2 px-3 py-2 text-sm font-semibold transition-colors", f.role === id ? "border-foreground bg-muted text-foreground" : "border-border text-foreground")}>
                 {label}
               </button>
             ))}
@@ -85,10 +92,10 @@ const ProfileForm = ({ onSaved, onClose }) => {
         </>
       )}
       <Field label="Sobre"><Textarea value={f.bio} onChange={set("bio")} rows={3} maxLength={1000} data-testid="edit-bio-input" /></Field>
-      <Button type="button" variant="outline" className="w-full rounded-full" onClick={locate} data-testid="edit-locate-button">
+      <Button type="button" variant="outline" className="w-full rounded-none" onClick={locate} data-testid="edit-locate-button">
         <Crosshair className="h-4 w-4" /> {pos ? "Localização atualizada" : "Atualizar minha localização no mapa"}
       </Button>
-      <Button type="submit" disabled={busy} className="h-12 w-full rounded-full text-base font-semibold" data-testid="edit-profile-submit-button">
+      <Button type="submit" disabled={busy || uploading} className="h-12 w-full rounded-none text-base font-semibold" data-testid="edit-profile-submit-button">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />} Salvar alterações
       </Button>
     </form>
@@ -97,7 +104,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
 
 export const EditProfileDialog = ({ open, onOpenChange, onSaved }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-3xl sm:max-w-xl" data-testid="edit-profile-dialog">
+    <DialogContent className="max-h-[92vh] overflow-y-auto rounded-none sm:max-w-xl" data-testid="edit-profile-dialog">
       <DialogHeader>
         <DialogTitle className="font-heading text-2xl font-extrabold">Editar perfil</DialogTitle>
         <DialogDescription>Essas informações aparecem para outros usuários.</DialogDescription>

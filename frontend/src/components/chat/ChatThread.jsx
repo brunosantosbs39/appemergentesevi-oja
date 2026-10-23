@@ -1,118 +1,220 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCrypto } from "@/context/CryptoContext";
+import { EncryptedText, ChatProtection } from "@/components/crypto/ChatProtection";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Send } from "lucide-react";
+import { ArrowDown, ArrowLeft, Check, CheckCheck, Clock3, FileText, Loader2, MoreVertical, Plus, RotateCw, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
-import { brl, catOf } from "@/lib/constants";
+import { brl } from "@/lib/constants";
 import { useMe } from "@/context/MeContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/common/UserAvatar";
-import { StatusBadge } from "@/components/common/Misc";
-import { cn } from "@/lib/utils";
+import { AudioRecorder } from "@/components/chat/AudioRecorder";
+import { AudioMessage } from "@/components/chat/AudioMessage";
+import { ProposalDialog } from "@/components/chat/ProposalDialog";
+import { ApplyButton } from "@/components/requests/ApplyButton";
 
 const time = (iso) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-const Bubble = ({ m, mine }) => {
-  if (m.system)
-    return (
-      <div className="flex justify-center" data-testid="chat-system-message">
-        <p className="max-w-[85%] rounded-full bg-slate-100 px-4 py-1.5 text-center text-xs text-slate-600">{m.text}</p>
-      </div>
-    );
-  return (
-    <div className={cn("flex", mine ? "justify-end" : "justify-start")} data-testid="chat-message">
-      <div className={cn("max-w-[78%] rounded-3xl px-4 py-2.5 text-sm", mine ? "rounded-br-md bg-emerald-600 text-white" : "rounded-bl-md border border-slate-200 bg-white text-slate-800")}>
-        <p className="whitespace-pre-wrap break-words">{m.text}</p>
-        <p className={cn("mt-1 text-right font-mono text-[10px]", mine ? "text-emerald-100" : "text-slate-400")}>{time(m.created_at)}</p>
-      </div>
-    </div>
-  );
+const dayKey = (iso) => new Date(iso).toLocaleDateString("pt-BR");
+const dayLabel = (iso) => {
+  const date = dayKey(iso);
+  if (date === dayKey(new Date())) return "Hoje";
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  return date === dayKey(yesterday) ? "Ontem" : date;
 };
-
-const ThreadHeader = ({ conv }) => (
-  <div className="border-b border-slate-100 px-4 py-3">
-    <div className="flex items-center gap-3">
-      <Link to="/chat" className="rounded-full p-1.5 hover:bg-slate-100 lg:hidden" data-testid="chat-back-button"><ArrowLeft className="h-5 w-5" /></Link>
-      <Link to={`/perfil/${conv.other.user_id}`} className="flex min-w-0 items-center gap-3" data-testid="chat-header-profile-link">
-        <UserAvatar user={conv.other} ring={conv.other.role === "profissional"} />
-        <div className="min-w-0">
-          <p className="truncate font-heading font-bold text-slate-900">{conv.other.name}</p>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">{conv.other.role === "profissional" ? "Profissional" : "Contratante"}</p>
-        </div>
-      </Link>
+const saved = (key, fallback) => { try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
+const Bubble = memo(({ message: m, mine, readAt, onRespond, responding, onRetry }) => {
+  if (m.system) return <div className="sj-system" data-testid="chat-system-message">{m.text}</div>;
+  const read = mine && !m._state && readAt && readAt >= m.created_at;
+  return <div className={`sj-message-row ${mine ? "mine" : ""}`} data-testid="chat-message">
+    <div className={`sj-bubble ${m._state === "error" ? "failed" : ""}`}>
+      {m.e2ee?.header.kind === "text" ? <EncryptedText message={m} /> : m.kind === "audio" || m.kind === "encrypted_audio" ? <AudioMessage message={m} /> : m.kind === "proposal" ? <div className="sj-proposal">
+        <div className="sj-proposal-title"><FileText size={18} /> Contraproposta</div>
+        <p className="sj-message-text">{m.proposal.description}</p><strong className="sj-proposal-value">{brl(m.proposal.amount)}</strong>
+        {m.proposal.deadline && <p>Prazo: {m.proposal.deadline}</p>}
+        <p className="sj-proposal-status">{{ pending: "Aguardando resposta", accepted: "Contraproposta aceita", declined: "Contraproposta recusada" }[m.proposal.status]}</p>
+        {!mine && m.proposal.status === "pending" && <div className="sj-proposal-actions"><button type="button" disabled={responding} onClick={() => onRespond(m.id, "accepted")}>Aceitar</button><button type="button" disabled={responding} onClick={() => onRespond(m.id, "declined")}>Recusar</button></div>}
+      </div> : <p className="sj-message-text">{m.text}</p>}
+      <small className="block text-[10px] opacity-70">{m.e2ee ? "Protegida ponta a ponta" : m.kind === "proposal" ? "Proposta processada pelo sistema" : "Anterior à proteção"}</small>
+      <div className="sj-message-meta"><time dateTime={m.created_at}>{time(m.created_at)}</time>{mine && <span title={m._state === "sending" ? "Enviando" : m._state === "error" ? "Não enviada" : read ? "Lida" : "Enviada"} aria-label={m._state === "sending" ? "Enviando" : m._state === "error" ? "Não enviada" : read ? "Lida" : "Enviada"}>{m._state === "sending" ? <Clock3 size={13} /> : m._state === "error" ? "!" : read ? <CheckCheck size={16} className="sj-read" /> : <Check size={15} />}</span>}</div>
+      {m._state === "error" && <button type="button" className="sj-retry" onClick={() => onRetry(m)}><RotateCw size={13} /> Não enviada. Tentar novamente</button>}
     </div>
-    {conv.request && (
-      <Link to="/pedidos" className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs" data-testid="chat-request-banner">
-        <StatusBadge status={conv.request.status} />
-        <span className="truncate font-semibold text-slate-900">{conv.request.title}</span>
-        <span className="ml-auto shrink-0 text-slate-500">{catOf(conv.request.category).label} • {brl(conv.request.budget)}</span>
-      </Link>
-    )}
-  </div>
-);
+  </div>;
+});
 
 export const ChatThread = ({ id }) => {
   const api = useApi();
   const { me } = useMe();
+  const protection = useCrypto();
+  const [peerReady, setPeerReady] = useState(false);
+  const [sealing, setSealing] = useState(false);
+  const draftKey = `sj-draft:${me.user_id}:${id}`;
+  const outboxKey = `sj-outbox:${me.user_id}:${id}`;
   const [conv, setConv] = useState(null);
-  const [msgs, setMsgs] = useState([]);
+  const [msgs, setMsgs] = useState(() => saved(outboxKey, []).filter((m) => m.e2ee).map((m) => ({ ...m, _state: "error" })));
   const [text, setText] = useState("");
-  const [sending, setSending] = useState(false);
-  const lastRef = useRef(null);
-  const endRef = useRef(null);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [responding, setResponding] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [audioActive, setAudioActive] = useState(false);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [away, setAway] = useState(false);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+  const nearBottom = useRef(true);
+  const firstScroll = useRef(true);
+  const typingTimer = useRef(null);
+  const typingAt = useRef(0);
+  const sendingIds = useRef(new Set());
+  const pollRef = useRef(null);
+  const cursorRef = useRef(null);
+  const historyRef = useRef(null);
+  const [hasHistory, setHasHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
+  useEffect(() => { try { sessionStorage.removeItem(draftKey); } catch {} }, [draftKey]);
+  useEffect(() => { try { sessionStorage.setItem(outboxKey, JSON.stringify(msgs.filter((m) => m._state && m.e2ee))); } catch {} }, [outboxKey, msgs]);
   const merge = useCallback((data) => {
-    if (!data.length) return;
-    lastRef.current = data[data.length - 1].created_at;
-    setMsgs((m) => [...m, ...data.filter((d) => !m.some((x) => x.id === d.id))]);
+    setMsgs((previous) => {
+      const clientIds = new Set(data.map((m) => m.client_id).filter(Boolean));
+      const byId = new Map(previous.filter((m) => !(m._state && clientIds.has(m.client_id))).map((m) => [m.id, m]));
+      data.forEach((m) => { if (JSON.stringify(byId.get(m.id)) !== JSON.stringify(m)) byId.set(m.id, m); });
+      return [...byId.values()].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+    });
   }, []);
 
   useEffect(() => {
-    api.get(`/conversations/${id}`).then((r) => setConv(r.data)).catch(() => setConv(false));
-    const poll = () => api.get(`/conversations/${id}/messages`, { params: lastRef.current ? { after: lastRef.current } : {} }).then((r) => merge(r.data)).catch(() => {});
-    poll();
-    const t = setInterval(poll, 3000);
-    return () => clearInterval(t);
+    let active = true;
+    let inFlight = false;
+    let timer;
+    let quiet = 0;
+    const poll = async () => {
+      clearTimeout(timer);
+      if (!active) return;
+      if (inFlight || document.visibilityState !== "visible" || !navigator.onLine) {
+        timer = setTimeout(poll, 15000); return;
+      }
+      inFlight = true;
+      let delay = 5000;
+      try {
+        const { data } = await api.get(`/conversations/${id}/sync`, { params: { after: cursorRef.current || undefined, mark_read: nearBottom.current } });
+        if (active) {
+          if (!cursorRef.current) { historyRef.current = data.history_cursor; setHasHistory(data.has_history); }
+          cursorRef.current = data.cursor;
+          setConv(data.conversation); merge(data.messages); setError(false);
+          quiet = data.messages.length || data.conversation.other_typing ? 0 : quiet + 1;
+          delay = data.has_more ? 100 : quiet > 3 ? 15000 : 5000;
+        }
+      } catch (err) {
+        if (active) { setError(true); if (err.response?.status === 404) setConv(false); }
+        const retry = Number(err.response?.headers?.["retry-after"]);
+        delay = Math.min(60000, Math.max(10000, (retry || 0) * 1000));
+      } finally {
+        inFlight = false;
+        if (active) { setLoading(false); clearTimeout(timer); timer = setTimeout(poll, delay); }
+      }
+    };
+    pollRef.current = poll; poll();
+    document.addEventListener("visibilitychange", poll);
+    window.addEventListener("online", poll);
+    window.addEventListener("chat-refresh", poll);
+    return () => { active = false; clearTimeout(timer); clearTimeout(typingTimer.current); document.removeEventListener("visibilitychange", poll); window.removeEventListener("online", poll); window.removeEventListener("chat-refresh", poll); api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {}); };
   }, [api, id, merge]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs.length]);
-
-  const send = async (e) => {
-    e.preventDefault();
-    const t = text.trim();
-    if (!t) return;
-    setSending(true);
+  const loadHistory = async () => {
+    if (loadingHistory || !historyRef.current) return;
+    setLoadingHistory(true);
+    const list = listRef.current;
+    const height = list?.scrollHeight || 0;
+    const top = list?.scrollTop || 0;
     try {
-      const { data } = await api.post(`/conversations/${id}/messages`, { text: t });
-      merge([data]);
-      setText("");
-    } catch (err) {
-      toast.error(errMsg(err));
-    } finally {
-      setSending(false);
-    }
+      const { data } = await api.get(`/conversations/${id}/messages`, { params: { before: historyRef.current, mark_read: false, limit: 50 } });
+      if (data.length) { const first = data[0]; historyRef.current = btoa(JSON.stringify([first.created_at, first.id])).replace(/\+/g, "-").replace(/\//g, "_"); }
+      nearBottom.current = false;
+      merge(data); setHasHistory(data.length === 50);
+      requestAnimationFrame(() => { if (list) list.scrollTop = top + list.scrollHeight - height; });
+    } catch (err) { toast.error(errMsg(err)); } finally { setLoadingHistory(false); }
   };
 
-  if (conv === false) return <p className="m-auto text-sm text-slate-500" data-testid="chat-not-found">Conversa não encontrada.</p>;
-  if (!conv) return <Loader2 className="m-auto h-6 w-6 animate-spin text-emerald-600" />;
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    if (firstScroll.current || nearBottom.current) { list.scrollTo({ top: list.scrollHeight, behavior: firstScroll.current ? "instant" : "smooth" }); firstScroll.current = false; setAway(false); }
+    else setAway(true);
+  }, [msgs.length]);
+  useEffect(() => { if (inputRef.current) { inputRef.current.style.height = "auto"; inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`; } }, [text]);
 
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white" data-testid="chat-thread">
-      <ThreadHeader conv={conv} />
-      <div className="flex-1 space-y-3 overflow-y-auto bg-[#F8FAFC] px-4 py-5" data-testid="chat-messages-list">
-        {msgs.length === 0 && <p className="text-center text-sm text-slate-400">Envie a primeira mensagem para {conv.other.name}.</p>}
-        {msgs.map((m) => <Bubble key={m.id} m={m} mine={m.sender_id === me.user_id} />)}
-        <div ref={endRef} />
+  const typing = (value) => {
+    setText(value);
+    clearTimeout(typingTimer.current);
+    if (value.trim() && Date.now() - typingAt.current > 3000) { typingAt.current = Date.now(); api.post(`/conversations/${id}/typing`, { typing: true }).catch(() => {}); }
+    typingTimer.current = setTimeout(() => api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {}), 2000);
+  };
+  const transmit = async (message) => {
+    if (sendingIds.current.has(message.client_id)) return;
+    sendingIds.current.add(message.client_id);
+    setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "sending" } : m));
+    try {
+      const { data } = await api.post(`/conversations/${id}/encrypted-messages`, message.e2ee);
+      merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh"));
+    } catch {
+      setMsgs((previous) => previous.map((m) => m.client_id === message.client_id ? { ...m, _state: "error" } : m));
+    } finally { sendingIds.current.delete(message.client_id); }
+  };
+  const send = async (event) => {
+    event?.preventDefault();
+    if (!text.trim() || audioActive || sealing || !protection.ready || !peerReady) return;
+    setSealing(true);
+    const content = text.trim();
+    try {
+      const clientId = crypto.randomUUID();
+      const { envelope } = await protection.encryptMessage(conv.other.user_id, id, clientId, "text", { text: content });
+      const message = { id: `local-${clientId}`, conversation_id: id, client_id: clientId, sender_id: me.user_id, e2ee: envelope, kind: "encrypted_text", text: "Mensagem protegida", created_at: new Date().toISOString(), _state: "sending" };
+      nearBottom.current = true;
+      setMsgs((previous) => [...previous, message]); setText((current) => current.trim() === content ? "" : current);
+      api.post(`/conversations/${id}/typing`, { typing: false }).catch(() => {});
+      clearTimeout(typingTimer.current); transmit(message); inputRef.current?.focus();
+    } catch (err) { toast.error(err.response ? errMsg(err) : err.message); }
+    finally { setSealing(false); }
+  };
+  const respond = async (mid, status) => {
+    if (responding) return;
+    setResponding(true);
+    try { const { data } = await api.patch(`/conversations/${id}/proposals/${mid}`, { status }); merge([data]); }
+    catch (err) { toast.error(errMsg(err)); } finally { setResponding(false); }
+  };
+  const jump = () => { const list = listRef.current; if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }); nearBottom.current = true; setAway(false); };
+  if (conv === false) return <div className="sj-thread-empty"><p>Conversa não encontrada.</p><Link to="/chat">Voltar às conversas</Link></div>;
+  if (!conv) return <div className="sj-thread-empty">{error ? <><p>Não foi possível abrir a conversa.</p><button type="button" onClick={() => pollRef.current?.()}>Tentar novamente</button><Link to="/chat">Voltar</Link></> : <Loader2 className="animate-spin" />}</div>;
+  const canCounter = !conv.request || conv.request.client_id !== me.user_id && conv.request.status === "pendente" && (!conv.request.expires_at || new Date(conv.request.expires_at) > new Date());
+  return <section className="sj-thread" data-testid="chat-thread" onKeyDown={(e) => { if (e.key === "Escape") setActionsOpen(false); }}>
+    <header className="sj-thread-header">
+      <Link to="/chat" className="sj-icon-button sj-mobile-back" aria-label="Voltar às conversas" data-testid="chat-back-button"><ArrowLeft size={22} /></Link>
+      <Link to={`/perfil/${conv.other.user_id}`} className="sj-contact" data-testid="chat-header-profile-link"><UserAvatar user={conv.other} /><span><strong>{conv.other.name}</strong><small className={conv.other_typing ? "sj-typing" : ""}>{conv.other_typing ? "digitando..." : conv.other.is_online ? "on-line" : "off-line"}</small></span></Link>
+      <ThemeToggle compact />
+      <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label="Opções da conversa" aria-expanded={actionsOpen}><MoreVertical size={22} /></button>
+    </header>
+    <ChatProtection peerId={conv.other.user_id} onReady={setPeerReady} />
+    {conv.request && <details className="sj-job"><summary><span className="sj-job-dot" /><span>{conv.request.title}</span><strong>{brl(conv.request.budget)}</strong></summary><div className="sj-job-body"><Link to="/pedidos">Ver vaga e acompanhar serviço</Link><ApplyButton key={conv.request.id} request={conv.request} /></div></details>}
+    {error && <button type="button" className="sj-connection" onClick={() => pollRef.current?.()}>Conexão interrompida. Tentando reconectar… Toque para tentar agora.</button>}
+    <div className="sj-message-area">
+      <div ref={listRef} className="sj-messages" data-testid="chat-messages-list" onScroll={() => { const list = listRef.current; nearBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 110; if (nearBottom.current) setAway(false); }}>
+        <div className="sj-conversation-note">Combine os detalhes por aqui. Candidatura, aprovação e registros do serviço ficam vinculados à vaga.</div>
+        {hasHistory && <button type="button" className="sj-history-button" disabled={loadingHistory} onClick={loadHistory}>{loadingHistory ? "Carregando..." : "Carregar mensagens anteriores"}</button>}
+        {!msgs.length && !loading && <div className="sj-system">Diga olá para {conv.other.name?.split(" ")[0]} 👋</div>}
+        {msgs.map((m, index) => <Fragment key={m.id}>{(index === 0 || dayKey(m.created_at) !== dayKey(msgs[index - 1].created_at)) && <div className="sj-date-divider">{dayLabel(m.created_at)}</div>}<Bubble message={m} mine={m.sender_id === me.user_id} readAt={conv.other_read_at} onRespond={respond} responding={responding} onRetry={transmit} /></Fragment>)}
+        {conv.other_typing && <div className="sj-typing-bubble" aria-label="Digitando"><i /><i /><i /></div>}
       </div>
-      <form onSubmit={send} className="flex gap-2 border-t border-slate-100 p-3">
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escreva uma mensagem..." maxLength={2000} className="h-11 rounded-full" data-testid="chat-message-input" />
-        <Button type="submit" size="icon" className="h-11 w-11 shrink-0 rounded-full" disabled={sending || !text.trim()} data-testid="chat-send-message-button" aria-label="Enviar">
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
-      </form>
+      {away && <button type="button" className="sj-jump" onClick={jump} aria-label="Ir para mensagens recentes"><ArrowDown size={20} /><span>Mensagens recentes</span></button>}
     </div>
-  );
+    {actionsOpen && <div className="sj-actions"><Link to={`/perfil/${conv.other.user_id}`} onClick={() => setActionsOpen(false)}>Ver perfil</Link>{canCounter && <button type="button" onClick={() => { setProposalOpen(true); setActionsOpen(false); }}><FileText size={18} /> Enviar contraproposta</button>}{conv.request && <Link to="/pedidos">Ver vaga e check-in/check-out</Link>}</div>}
+    <ProposalDialog open={proposalOpen} onOpenChange={setProposalOpen} conversationId={id} onSent={(data) => { nearBottom.current = true; merge([data]); }} />
+    <form onSubmit={send} className={`sj-composer ${audioActive ? "audio-active" : ""}`}>
+      {!audioActive && <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label={actionsOpen ? "Fechar opções" : "Mais opções"}>{actionsOpen ? <X size={24} /> : <Plus size={24} />}</button>}
+      {!audioActive && <textarea disabled={!protection.ready || !peerReady || sealing} ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
+      <AudioRecorder peerId={conv.other.user_id} disabled={!protection.ready || !peerReady || sealing} conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh")); }} />
+      {text.trim() && !audioActive && <button type="submit" disabled={sealing || !protection.ready || !peerReady} className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
+    </form>
+  </section>;
 };
