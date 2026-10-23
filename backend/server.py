@@ -3,7 +3,7 @@ import math
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Literal, Optional
 
@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.cors import CORSMiddleware
 
@@ -147,6 +148,7 @@ class PostCreate(BaseModel):
 
 
 class TextIn(BaseModel):
+    client_id: Optional[str] = Field(None, min_length=8, max_length=80)
     text: str = Field(..., min_length=1, max_length=2000)
 
 
@@ -696,6 +698,7 @@ async def conv_summaries(convs: list, uid: str) -> list:
         other = next((p for p in c["participants"] if p != uid), uid)
         out.append({"id": c["id"], "other": um.get(other) or {"user_id": other, "name": "Usuário"},
                     "last_message": c.get("last_message", ""), "last_at": c.get("last_at"),
+                    "other_read_at": (c.get("read_at") or {}).get(other), "other_typing": bool(((c.get("typing_until") or {}).get(other) or "") > now_iso()),
                     "unread": (c.get("unread") or {}).get(uid, 0), "request": rm.get(c.get("request_id"))})
     return out
 
@@ -746,15 +749,18 @@ async def get_conversation(cid: str, me: dict = Depends(onboarded)):
 
 
 @api.get("/conversations/{cid}/messages")
-async def list_messages(cid: str, after: Optional[str] = None, me: dict = Depends(onboarded)):
+async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool = True, me: dict = Depends(onboarded)):
     conv = await my_conversation(cid, me["user_id"])
     query = {"conversation_id": cid}
     if after:
         query["created_at"] = {"$gt": after}
     msgs = await db.messages.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     msgs.reverse()
-    if (conv.get("unread") or {}).get(me["user_id"], 0):
-        await db.conversations.update_one({"id": cid}, {"$set": {f"unread.{me['user_id']}": 0}})
+    if mark_read:
+        # Do not clear a new message that arrived after the conversation snapshot.
+        seen = msgs[-1]["created_at"] if msgs else now_iso()
+        await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
+            {"$set": {f"unread.{me['user_id']}": 0, f"read_at.{me['user_id']}": seen}})
     return msgs
 
 
@@ -764,7 +770,32 @@ async def send_message(cid: str, body: TextIn, me: dict = Depends(onboarded)):
     text = body.text.strip()
     if not text:
         raise HTTPException(400, "Mensagem vazia")
-    return await add_message(conv, me["user_id"], text)
+    dedupe = {"conversation_id": cid, "sender_id": me["user_id"], "client_id": body.client_id}
+    if body.client_id:
+        existing = await db.messages.find_one(dedupe, {"_id": 0})
+        if existing:
+            return existing
+    try:
+        return await add_message(conv, me["user_id"], text, **({"client_id": body.client_id} if body.client_id else {}))
+    except DuplicateKeyError:
+        if not body.client_id:
+            raise
+        existing = await db.messages.find_one(dedupe, {"_id": 0})
+        if not existing:
+            raise
+        return existing
+
+
+class TypingIn(BaseModel):
+    typing: bool
+
+
+@api.post("/conversations/{cid}/typing")
+async def update_typing(cid: str, body: TypingIn, me: dict = Depends(onboarded)):
+    await my_conversation(cid, me["user_id"])
+    expires = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat() if body.typing else ""
+    await db.conversations.update_one({"id": cid}, {"$set": {f"typing_until.{me['user_id']}": expires}})
+    return {"ok": True}
 
 
 @api.post("/conversations/{cid}/audio")
@@ -863,6 +894,8 @@ async def startup():
     await db.conversations.create_index("pair_key", unique=True)
     await db.conversations.create_index("id", unique=True)
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+    await db.messages.create_index([("conversation_id", 1), ("sender_id", 1), ("client_id", 1)], unique=True,
+                                   partialFilterExpression={"client_id": {"$type": "string"}})
     await db.requests.create_index("applications.professional_id")
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.push_subscriptions.create_index("endpoint", unique=True)

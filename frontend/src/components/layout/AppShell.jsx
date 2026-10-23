@@ -1,6 +1,6 @@
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { Navigate, NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { UserButton } from "@clerk/react";
 import { ClipboardList, Home, Map, MessageCircle, User } from "lucide-react";
 import { useMe } from "@/context/MeContext";
@@ -92,18 +92,19 @@ const BottomNav = ({ unread }) => (
 export default function AppShell() {
   const { me } = useMe();
   const unread = useUnread();
+  const isChat = useLocation().pathname.startsWith("/chat");
   if (!me.role) return <Navigate to="/onboarding" replace />;
   return (
     <div className="min-h-screen bg-background">
       <Sidebar me={me} unread={unread} />
-      <MobileTop />
-      <main className="pb-28 lg:pb-10 lg:pl-72">
-        <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10">
-          <div className="mb-4 flex justify-end"><NotificationCenter /></div>
+      {!isChat && <MobileTop />}
+      <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
+        <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
+          {!isChat && <div className="mb-4 flex justify-end"><NotificationCenter /></div>}
           <Outlet />
         </div>
       </main>
-      <BottomNav unread={unread} />
+      {!isChat && <BottomNav unread={unread} />}
     </div>
   );
 }

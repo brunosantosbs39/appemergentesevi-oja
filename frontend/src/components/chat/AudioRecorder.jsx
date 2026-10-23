@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
-export const AudioRecorder = ({ conversationId, onSent }) => {
+export const AudioRecorder = ({ conversationId, onSent, compact = false, hideTrigger = false, onStateChange }) => {
   const api = useApi();
   const recorder = useRef(null);
   const stream = useRef(null);
@@ -27,7 +27,9 @@ export const AudioRecorder = ({ conversationId, onSent }) => {
     setUrl(preview);
     return () => URL.revokeObjectURL(preview);
   }, [clip]);
+  useEffect(() => { onStateChange?.(recording || !!clip || starting || busy); }, [recording, clip, starting, busy, onStateChange]);
   const start = async () => {
+    if (starting || recording || busy) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast.error("Seu navegador não permite gravar áudio. Use um navegador atualizado.");
     setStarting(true);
     try {
@@ -60,6 +62,7 @@ export const AudioRecorder = ({ conversationId, onSent }) => {
     } finally { if (mounted.current) setStarting(false); }
   };
   const send = async () => {
+    if (!clip || busy) return;
     setBusy(true);
     try {
       const form = new FormData();
@@ -70,8 +73,8 @@ export const AudioRecorder = ({ conversationId, onSent }) => {
       setClip(null);
     } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
   };
-  return <div className="flex flex-wrap items-center gap-2">
-    {!recording && !clip && <Button type="button" variant="outline" onClick={start} disabled={starting} aria-label="Gravar áudio"><Mic className="h-4 w-4" /> Áudio</Button>}
+  return <div className={compact ? "sj-audio-controls" : "flex flex-wrap items-center gap-2"}>
+    {!recording && !clip && !hideTrigger && <Button type="button" variant="outline" className={compact ? "sj-mic" : undefined} onClick={start} disabled={starting} aria-label="Gravar áudio">{starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}{!compact && " Áudio"}</Button>}
     {recording && <><span role="status" className="text-sm text-red-500">Gravando {seconds}s / 120s</span><Button type="button" variant="outline" onClick={() => recorder.current?.stop()} aria-label="Parar gravação"><Square className="h-4 w-4" /> Parar</Button></>}
     {clip && <><audio controls src={url || undefined} className="h-9 max-w-full" aria-label="Ouvir antes de enviar" /><Button type="button" variant="outline" disabled={busy} onClick={() => setClip(null)} aria-label="Descartar áudio"><Trash2 className="h-4 w-4" /></Button><Button type="button" disabled={busy} onClick={send}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar áudio</Button></>}
   </div>;

@@ -1,73 +1,54 @@
-import { PresenceBadge } from "@/components/common/PresenceBadge";
 import { useEffect, useState } from "react";
-import { NavLink, useParams } from "react-router-dom";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Link, NavLink, useParams } from "react-router-dom";
+import { ArrowLeft, Loader2, MessageCircle, Search, X } from "lucide-react";
 import { useApi } from "@/lib/api";
-import { ago } from "@/lib/constants";
 import { UserAvatar } from "@/components/common/UserAvatar";
-import { StatusBadge } from "@/components/common/Misc";
-import { cn } from "@/lib/utils";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
+const normalize = (value) => (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const shortTime = (iso) => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+};
 export const ConversationList = () => {
   const api = useApi();
   const [items, setItems] = useState(null);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [search, setSearch] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const { id } = useParams();
-
   useEffect(() => {
     let active = true;
-    const load = () => api.get("/conversations").then((r) => { if (active) { setItems(r.data); setError(false); } }).catch(() => { if (active) setError(true); });
-    load();
-    const t = setInterval(load, 5000);
-    window.addEventListener("conversations-changed", load);
-    return () => { active = false; clearInterval(t); window.removeEventListener("conversations-changed", load); };
+    let loading = false;
+    const load = async () => {
+      if (loading || document.visibilityState !== "visible") return;
+      loading = true;
+      try { const { data } = await api.get("/conversations"); if (active) { setItems(data); setError(false); } }
+      catch { if (active) setError(true); }
+      finally { loading = false; }
+    };
+    load(); const timer = setInterval(load, 4000);
+    window.addEventListener("conversations-changed", load); window.addEventListener("online", load); document.addEventListener("visibilitychange", load);
+    return () => { active = false; clearInterval(timer); window.removeEventListener("conversations-changed", load); window.removeEventListener("online", load); document.removeEventListener("visibilitychange", load); };
   }, [api, id, attempt]);
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden rounded-none border border-border bg-card">
-      <div className="border-b border-border px-5 py-4">
-        <h1 className="font-heading text-2xl font-extrabold tracking-tight text-foreground">Conversas</h1>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2" data-testid="chat-conversations-list">
-        {items === null && !error && <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin text-foreground" />}
-        {error && <div className="p-4 text-sm" role="alert"><p>Não foi possível atualizar suas conversas.</p><button type="button" className="mt-2 underline" onClick={() => setAttempt((n) => n + 1)}>Tentar novamente</button></div>}
-        {!error && items?.length === 0 && (
-          <div className="px-6 py-12 text-center text-sm text-muted-foreground" data-testid="chat-empty-state">
-            <MessageCircle className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-            Nenhuma conversa ainda. Abra um perfil ou uma vaga e toque em Conversar.
-          </div>
-        )}
-        {items?.map((c) => (
-          <NavLink
-            key={c.id}
-            to={`/chat/${c.id}`}
-            data-testid={`chat-conversation-item-${c.id}`}
-            className={({ isActive }) => cn("flex items-center gap-3 rounded-none p-3 transition-colors", isActive ? "bg-muted" : "hover:bg-card")}
-          >
-            <UserAvatar user={c.other} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-sm font-bold text-foreground">{c.other?.name}</p>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{ago(c.last_at)}</span>
-              </div>
-              <PresenceBadge user={c.other} />
-              <p className={cn("truncate text-xs", c.unread ? "font-semibold text-foreground" : "text-muted-foreground")}>{c.last_message || "Diga olá!"}</p>
-              {c.request && (
-                <div className="mt-1 flex items-center gap-1.5">
-                  <StatusBadge status={c.request.status} testid="chat-item-status-badge" />
-                  <span className="truncate text-[11px] text-muted-foreground">{c.request.title}</span>
-                </div>
-              )}
-            </div>
-            {c.unread > 0 && (
-              <span className="grid h-5 min-w-[20px] place-items-center rounded-none bg-secondary px-1.5 text-[10px] font-bold text-white" data-testid="chat-item-unread-badge">
-                {c.unread}
-              </span>
-            )}
-          </NavLink>
-        ))}
-      </div>
+  const filtered = items?.filter((c) => (!unreadOnly || c.unread > 0) && normalize(`${c.other?.name} ${c.last_message} ${c.request?.title || ""}`).includes(normalize(search))) || [];
+  const unread = items?.filter((c) => c.unread > 0).length || 0;
+  return <section className="sj-inbox">
+    <header className="sj-inbox-header"><Link to="/feed" className="sj-icon-button sj-mobile-back" aria-label="Voltar ao feed"><ArrowLeft size={21} /></Link><h1>Conversas</h1><NotificationCenter compact /></header>
+    <div className="sj-inbox-tools">
+      <label className="sj-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar conversa" aria-label="Buscar conversa por nome ou mensagem" />{search && <button type="button" onClick={() => setSearch("")} aria-label="Limpar busca"><X size={16} /></button>}</label>
+      <div className="sj-inbox-filters"><button type="button" className={!unreadOnly ? "active" : ""} aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>Todas</button><button type="button" className={unreadOnly ? "active" : ""} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>Não lidas {unread > 0 && <span>{unread}</span>}</button></div>
     </div>
-  );
+    <div className="sj-conversations" data-testid="chat-conversations-list">
+      {!items && !error && <Loader2 className="mx-auto mt-10 h-6 w-6 animate-spin" />}
+      {error && <button type="button" className="sj-inbox-error" onClick={() => setAttempt((n) => n + 1)}>Não foi possível atualizar. Toque para tentar novamente.</button>}
+      {items && !filtered.length && <div className="sj-inbox-empty"><MessageCircle size={38} /><strong>{search ? "Nenhuma conversa encontrada" : unreadOnly ? "Tudo em dia" : "Suas conversas começam aqui"}</strong><p>{search ? "Tente outro nome ou trecho de mensagem." : unreadOnly ? "Você não tem conversas não lidas." : "Abra um perfil ou uma vaga e toque em Conversar."}</p>{!search && !unreadOnly && <Link to="/feed">Encontrar pessoas e vagas</Link>}</div>}
+      {filtered.map((c) => <NavLink key={c.id} to={`/chat/${c.id}`} data-testid={`chat-conversation-item-${c.id}`} className={({ isActive }) => `sj-conversation ${isActive ? "active" : ""}`}>
+        <div className="sj-list-avatar"><UserAvatar user={c.other} className="h-12 w-12" />{c.other?.is_online && <span title="On-line" />}</div>
+        <div className="sj-conversation-content"><div className="sj-conversation-top"><strong>{c.other?.name || "Usuário"}</strong><time className={c.unread ? "unread" : ""}>{shortTime(c.last_at)}</time></div><div className="sj-conversation-preview"><p className={c.other_typing ? "sj-typing" : c.unread ? "unread" : ""}>{c.other_typing ? "digitando..." : c.last_message || "Conversa iniciada. Diga olá!"}</p>{c.unread > 0 && <span className="sj-unread" aria-label={`${c.unread} mensagens não lidas`}>{c.unread > 99 ? "99+" : c.unread}</span>}</div>{c.request && <span className="sj-conversation-job">{c.request.title}</span>}</div>
+      </NavLink>)}
+    </div>
+  </section>;
 };

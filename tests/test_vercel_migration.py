@@ -366,3 +366,58 @@ def test_checked_in_vacancy_disappears_from_publications_but_not_portfolio(monke
     posts_cursor.to_list.return_value = [{"id": "work", "kind": "portfolio"}]
     assert asyncio.run(server.list_posts(kind="portfolio", me=member))[0]["id"] == "work"
     assert posts.find.call_args.args[0] == {"kind": "portfolio"}
+
+
+def test_retrying_chat_message_uses_same_id_without_duplicates(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    existing = {"id": "persisted", "client_id": "retry-12345", "sender_id": "me", "text": "Olá"}
+    monkeypatch.setattr(server, "my_conversation", AsyncMock(return_value={"id": "chat", "participants": ["me", "other"]}))
+    lookup = AsyncMock(return_value=existing)
+    monkeypatch.setattr(server, "db", SimpleNamespace(messages=SimpleNamespace(find_one=lookup)))
+    insert = AsyncMock()
+    monkeypatch.setattr(server, "add_message", insert)
+    body = server.TextIn(text="Olá", client_id="retry-12345")
+    assert asyncio.run(server.send_message("chat", body, {"user_id": "me"}))["id"] == "persisted"
+    insert.assert_not_awaited()
+    assert lookup.call_args.args[0] == {"conversation_id": "chat", "sender_id": "me", "client_id": "retry-12345"}
+    lookup.side_effect = [None, existing]
+    insert.side_effect = server.DuplicateKeyError("race")
+    assert asyncio.run(server.send_message("chat", body, {"user_id": "me"}))["id"] == "persisted"
+
+
+def test_typing_expires_and_is_scoped_to_conversation_participant(monkeypatch):
+    from unittest.mock import AsyncMock
+    from datetime import datetime, timezone
+    server = importlib.import_module("backend.server")
+    membership = AsyncMock(return_value={"id": "chat"})
+    update = AsyncMock()
+    monkeypatch.setattr(server, "my_conversation", membership)
+    monkeypatch.setattr(server, "db", SimpleNamespace(conversations=SimpleNamespace(update_one=update)))
+    asyncio.run(server.update_typing("chat", server.TypingIn(typing=True), {"user_id": "me"}))
+    expiry = update.call_args.args[1]["$set"]["typing_until.me"]
+    assert 0 < (datetime.fromisoformat(expiry) - datetime.now(timezone.utc)).total_seconds() <= 5
+    asyncio.run(server.update_typing("chat", server.TypingIn(typing=False), {"user_id": "me"}))
+    assert update.call_args.args[1]["$set"]["typing_until.me"] == ""
+    membership.side_effect = server.HTTPException(404, "Conversa não encontrada")
+    update.reset_mock()
+    with pytest.raises(server.HTTPException):
+        asyncio.run(server.update_typing("private", server.TypingIn(typing=True), {"user_id": "stranger"}))
+    update.assert_not_awaited()
+
+
+def test_read_receipts_only_mark_visible_messages_and_preserve_racing_unread(monkeypatch):
+    from unittest.mock import AsyncMock
+    server = importlib.import_module("backend.server")
+    stamp = server.now_iso()
+    conv = {"id": "chat", "last_at": stamp, "unread": {"me": 1}}
+    monkeypatch.setattr(server, "my_conversation", AsyncMock(return_value=conv))
+    cursor = Mock(); cursor.sort.return_value = cursor; cursor.to_list = AsyncMock(return_value=[{"id": "msg", "created_at": stamp}])
+    update = AsyncMock()
+    monkeypatch.setattr(server, "db", SimpleNamespace(messages=SimpleNamespace(find=Mock(return_value=cursor)), conversations=SimpleNamespace(update_one=update)))
+    asyncio.run(server.list_messages("chat", mark_read=False, me={"user_id": "me"}))
+    update.assert_not_awaited()
+    asyncio.run(server.list_messages("chat", mark_read=True, me={"user_id": "me"}))
+    assert update.call_args.args[0] == {"id": "chat", "last_at": stamp}
+    assert update.call_args.args[1]["$set"]["read_at.me"] == stamp
+    assert update.call_args.args[1]["$set"]["unread.me"] == 0

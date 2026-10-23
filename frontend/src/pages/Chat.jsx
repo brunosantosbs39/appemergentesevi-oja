@@ -1,27 +1,22 @@
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatThread } from "@/components/chat/ChatThread";
-import { cn } from "@/lib/utils";
+import "@/components/chat/chat.css";
 
 export default function Chat() {
   const { id } = useParams();
-  return (
-    <div className="grid h-[calc(100dvh-10.5rem)] gap-4 lg:h-[calc(100dvh-5rem)] lg:grid-cols-[340px_minmax(0,1fr)]" data-testid="chat-page">
-      <div className={cn("min-h-0", id && "hidden lg:block")}>
-        <ConversationList />
-      </div>
-      <div className={cn("min-h-0", id ? "flex" : "hidden lg:flex")}>
-        {id ? (
-          <ChatThread key={id} id={id} />
-        ) : (
-          <div className="flex w-full flex-col items-center justify-center rounded-none border border-dashed border-border bg-card text-center">
-            <MessageCircle className="h-8 w-8 text-foreground" />
-            <p className="mt-3 font-heading text-lg font-bold text-foreground">Selecione uma conversa</p>
-            <p className="text-sm text-muted-foreground">Combine detalhes, valores e horários direto por aqui.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const [height, setHeight] = useState(() => window.visualViewport?.height || window.innerHeight);
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const resize = () => setHeight(window.visualViewport?.height || window.innerHeight);
+    window.visualViewport?.addEventListener("resize", resize); window.addEventListener("resize", resize);
+    return () => { document.body.style.overflow = previous; window.visualViewport?.removeEventListener("resize", resize); window.removeEventListener("resize", resize); };
+  }, []);
+  return <div className={`sj-chat ${id ? "thread-open" : ""}`} style={{ height }} data-testid="chat-page">
+    <div className="sj-inbox-pane"><ConversationList /></div>
+    <div className="sj-thread-pane">{id ? <ChatThread key={id} id={id} /> : <div className="sj-welcome"><div className="sj-welcome-icon"><MessageCircle size={48} strokeWidth={1.3} /></div><h2>Uma boa conversa resolve.</h2><p>Selecione uma conversa para combinar o serviço,<br />negociar valores e acompanhar cada etapa.</p><span>ServiçoJá · Pessoas perto de você</span></div>}</div>
+  </div>;
 }
