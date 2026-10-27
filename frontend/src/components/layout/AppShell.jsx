@@ -3,7 +3,7 @@ import { NotificationCenter } from "@/components/notifications/NotificationCente
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { UserButton } from "@clerk/react";
-import { ClipboardList, Home, Map, MessageCircle, User } from "lucide-react";
+import { ClipboardList, Home, Map, MessageCircle, User, Wallet } from "lucide-react";
 import { useMe } from "@/context/MeContext";
 import { useUnread } from "@/hooks/useUnread";
 import { Logo } from "@/components/common/Misc";
@@ -15,6 +15,7 @@ const NAV = [
   { to: "/mapa", label: "Mapa", icon: Map, id: "mapa" },
   { to: "/pedidos", label: "Pedidos", icon: ClipboardList, id: "pedidos" },
   { to: "/chat", label: "Chat", icon: MessageCircle, id: "chat" },
+  { to: "/carteira", label: "Carteira", icon: Wallet, id: "carteira" },
   { to: "/perfil/me", label: "Perfil", icon: User, id: "perfil" },
 ];
 
@@ -69,7 +70,7 @@ const MobileTop = () => (
 );
 
 const BottomNav = ({ unread }) => (
-  <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-none border border-border/60 bg-card/85 p-1.5 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl lg:hidden">
+  <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-6 rounded-none border border-border/60 bg-card/85 p-1.5 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl lg:hidden">
     {NAV.map(({ to, label, icon: Icon, id }) => (
       <NavLink
         key={id}
@@ -109,3 +110,4 @@ export default function AppShell() {
     </div>
   );
 }
+

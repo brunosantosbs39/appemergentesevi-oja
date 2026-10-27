@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
@@ -29,6 +30,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
@@ -721,6 +723,12 @@ async def check_out_service(rid: str, me: dict = Depends(onboarded)):
     return await change_status(rid, StatusIn(status="concluido"), me)
 
 
+@api.post("/requests/{rid}/confirm-completion")
+async def confirm_service_completion(rid: str, me: dict = Depends(onboarded)):
+    result = await confirm_completion(db.requests, rid, me["user_id"], now_iso())
+    return (await enrich_requests([result], viewer_id=me["user_id"]))[0]
+
+
 # ---------- conversations ----------
 async def conv_summaries(convs: list, uid: str) -> list:
     um = await users_map(p for c in convs for p in c["participants"] if p != uid)
@@ -1051,3 +1059,4 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+

@@ -32,6 +32,16 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       setBusy(null);
     }
   };
+  const confirm = async () => {
+    if (busy) return;
+    setBusy("confirm");
+    try {
+      const { data } = await api.post(`/requests/${r.id}/confirm-completion`, {});
+      onUpdated(data);
+      toast.success("Sua confirmação foi registrada. Nenhum pagamento foi movimentado.");
+    } catch (e) { toast.error(errMsg(e)); }
+    finally { setBusy(null); }
+  };
   const chat = async () => {
     try {
       const { data } = await api.post("/conversations", { user_id: otherId, request_id: r.id });
@@ -71,6 +81,15 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
           Cancelar
         </Button>
       )}
+      {r.status === "concluido" && r.check_out_at && (isClient || isPro) && (
+        <div className="w-full border border-border bg-card p-4 space-y-3">
+          <p className="text-sm">{r.completion_confirmed_at ? "Conclusão confirmada pelos dois." : "A conclusão precisa da confirmação das duas pessoas."}</p>
+          {(r.completion_confirmations || []).includes(me.user_id)
+            ? <p className="text-sm text-muted-foreground">Sua confirmação já foi registrada.</p>
+            : <Button disabled={!!busy} variant="outline" onClick={confirm} data-testid="confirm-completion-button">{spin("confirm")} Confirmar conclusão</Button>}
+          <p className="text-xs text-muted-foreground">Pagamentos ainda não estão ativos. Esta confirmação não libera dinheiro.</p>
+        </div>
+      )}
       {r.status === "concluido" && otherId && !reviewed && (
         <Button disabled={!!busy} className="rounded-none bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">
           <Star className="h-4 w-4" /> Avaliar
@@ -84,3 +103,4 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
     </>
   );
 };
+
