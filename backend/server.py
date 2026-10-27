@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.sandbox_wallet import build_router as wallet_router
     from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
@@ -30,6 +31,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from sandbox_wallet import build_router as wallet_router
     from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
@@ -997,13 +999,14 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/crypto/", "/api/conversations")):
+    if request.url.path.startswith(("/api/crypto/", "/api/conversations", "/api/wallet")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Vary"] = "Authorization, Cookie"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
+app.include_router(wallet_router(db, onboarded))
 app.include_router(api)
 app.include_router(clerk_router)
 
