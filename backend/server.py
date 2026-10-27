@@ -22,7 +22,6 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
-    from backend.asaas import check_sandbox_connection
     from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
@@ -31,7 +30,6 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
-    from asaas import check_sandbox_connection
     from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
@@ -1004,11 +1002,6 @@ async def private_api_cache(request, call_next):
         response.headers["Vary"] = "Authorization, Cookie"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
-
-
-@api.get("/payments/connection")
-async def payment_connection(me: dict = Depends(onboarded)):
-    return await run_in_threadpool(check_sandbox_connection)
 
 
 app.include_router(api)

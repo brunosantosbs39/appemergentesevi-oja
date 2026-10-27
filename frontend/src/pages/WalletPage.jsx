@@ -13,19 +13,6 @@ export default function WalletPage() {
     queryKey: ["wallet-services", me.user_id],
     queryFn: async () => (await api.get("/requests/mine")).data,
   });
-  const connection = useQuery({
-    queryKey: ["asaas-connection", me.user_id],
-    queryFn: async () => (await api.get("/payments/connection")).data,
-    staleTime: 60000,
-    retry: false,
-  });
-  const connectionLabels = {
-    connected: "Asaas Sandbox conectado. Movimentações ainda desativadas.",
-    not_configured: "Chave de testes ainda não configurada nesta versão.",
-    credentials_rejected: "O Asaas recusou a credencial. Revise a chave do Sandbox.",
-    unavailable: "Asaas indisponível para verificação. Tente novamente mais tarde.",
-    disabled: "Conexão de testes disponível somente na versão de teste do app.",
-  };
   const active = requests.filter(r => (r.client_id === me.user_id || r.professional_id === me.user_id) && (["aceito", "em_andamento"].includes(r.status) || (r.status === "concluido" && r.check_out_at)));
   return <div data-testid="wallet-page" className="space-y-6">
     <PageHeader eyebrow="Seus pagamentos" title="Carteira" subtitle="Acompanhe a preparação do pagamento por serviço." />
@@ -33,11 +20,6 @@ export default function WalletPage() {
       <div className="flex items-center gap-3"><AlertCircle className="h-5 w-5 shrink-0" /><h2 className="font-heading text-lg">Pagamentos em configuração</h2></div>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">O ServiçoJá ainda não recebe depósitos, guarda saldo ou realiza saques. A integração financeira está em preparação. As confirmações abaixo registram somente a conclusão do serviço; não movimentam dinheiro.</p>
     </div>
-    <section className="border border-border bg-card p-5" aria-live="polite">
-      <h2 className="font-heading text-lg">Conexão Asaas</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{connection.isPending ? "Verificando conexão de testes..." : connection.isError ? "Não foi possível verificar a conexão." : connectionLabels[connection.data?.status] || "Conexão não verificada."}</p>
-      <Button className="mt-3" variant="outline" disabled={connection.isFetching} onClick={() => connection.refetch()}>Verificar novamente</Button>
-    </section>
     <div className="grid gap-4 md:grid-cols-3">
       {["Saldo disponível", "Reservado em serviços", "Pendente de liberação"].map(label => <section key={label} className="border border-border bg-card p-6"><p className="text-sm text-muted-foreground">{label}</p><p className="my-4 text-3xl" aria-label="Saldo indisponível">—</p><p className="text-xs text-muted-foreground">Disponível após ativação dos pagamentos</p></section>)}
     </div>
