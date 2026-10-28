@@ -1,6 +1,6 @@
 import { ApplicationsPanel } from "@/components/requests/ApplicationsPanel";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2, MessageCircle, Play, Star } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
@@ -54,6 +54,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
 
   return (
     <>
+      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={`/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
       {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
@@ -87,7 +88,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
           {(r.completion_confirmations || []).includes(me.user_id)
             ? <p className="text-sm text-muted-foreground">Sua confirmação já foi registrada.</p>
             : <Button disabled={!!busy} variant="outline" onClick={confirm} data-testid="confirm-completion-button">{spin("confirm")} Confirmar conclusão</Button>}
-          <p className="text-xs text-muted-foreground">Pagamentos ainda não estão ativos. Esta confirmação não libera dinheiro.</p>
+          <p className="text-xs text-muted-foreground">Esta confirmação registra a conclusão do serviço. Na carteira de testes, os dois também confirmam a liberação do saldo simulado. Nenhum dinheiro real é movimentado.</p>
         </div>
       )}
       {r.status === "concluido" && otherId && !reviewed && (

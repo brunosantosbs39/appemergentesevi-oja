@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wallet, ArrowDownToLine, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +25,8 @@ export default function WalletPage() {
   const [amount, setAmount] = useState("25,00");
   const [pixKey, setPixKey] = useState("");
   const [pixType, setPixType] = useState("EMAIL");
-  const [requestId, setRequestId] = useState("");
+  const [searchParams] = useSearchParams();
+  const [requestId, setRequestId] = useState(() => searchParams.get("servico") || "");
   const [reserveAmount, setReserveAmount] = useState("10,00");
   const intent = useRef(null);
   const lock = useRef(false);
@@ -61,17 +62,18 @@ export default function WalletPage() {
       <h2 className="flex items-center gap-2 font-heading text-lg"><ShieldCheck className="h-5 w-5" />{w?.enabled ? "Ambiente de testes — sem dinheiro real" : "Pagamentos em preparação"}</h2>
       <p className="mt-2 text-sm text-muted-foreground">{w?.enabled ? "Depósitos e saques são simulados. Não envie Pix real. Os valores desta carteira só existem nesta rodada de testes." : "Depósitos e saques ainda não estão disponíveis nesta versão."}</p>
     </div>
+    {w?.enabled && <a href="#adicionar-saldo" className="flex min-h-12 w-full items-center justify-center gap-2 border border-primary bg-primary px-4 py-3 font-semibold text-primary-foreground sm:w-fit" data-testid="wallet-add-balance-link"><Wallet className="h-5 w-5" aria-hidden="true" />Adicionar saldo</a>}
     <div className="grid gap-4 md:grid-cols-3">{[["Disponível",w?.available_cents],["Reservado em serviços",w?.reserved_cents],["Pendente de liberação",w?.pending_cents]].map(([label,value])=><section className="border border-border bg-card p-6" key={label}><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 text-3xl">{w?.enabled ? money(value) : "—"}</p></section>)}</div>
     {w?.enabled && <>
-      <section className="space-y-4 border border-border bg-card p-5">
-        <h2 className="font-heading text-xl">Movimentar saldo de teste</h2>
+      <section id="adicionar-saldo" className="scroll-mt-24 space-y-4 border border-border bg-card p-4 sm:p-5">
+        <h2 className="font-heading text-xl">Adicionar saldo para pagar serviços</h2>
         <label className="block text-sm">Valor em reais<input className={input} inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)} disabled={!!busy} aria-label="Valor da movimentação" /></label>
-        <p className="text-xs text-muted-foreground">Entre R$ 5 e R$ 100 por operação. O depósito credita o valor líquido confirmado pelo provedor, após eventuais tarifas de teste.</p>
-        <Button disabled={!!busy} onClick={()=>run("deposit",()=>financial("deposits"))}>{busy==="deposit" ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wallet className="h-4 w-4"/>}Adicionar saldo de teste</Button>
+        <p className="text-xs text-muted-foreground">Adicione saldo e use-o para reservar o pagamento de um serviço aceito. Nesta versão, o saldo é de teste. Entre R$ 5 e R$ 100 por operação. O depósito credita o valor líquido confirmado pelo provedor, após eventuais tarifas de teste.</p>
+        <Button className="min-h-12 w-full sm:w-auto" data-testid="wallet-deposit-button" disabled={!!busy} onClick={()=>run("deposit",()=>financial("deposits"))}>{busy==="deposit" ? <Loader2 className="h-4 w-4 animate-spin"/> : <Wallet className="h-4 w-4"/>}Adicionar saldo de teste</Button>
         <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-3"><label className="text-sm">Tipo de chave<select className={input} value={pixType} onChange={e=>setPixType(e.target.value)} disabled={!!busy}>{["EMAIL","CPF","CNPJ","PHONE","EVP"].map(v=><option key={v} value={v}>{({EMAIL:"E-mail",PHONE:"Telefone",EVP:"Aleatória"})[v] || v}</option>)}</select></label><label className="text-sm sm:col-span-2">Chave Pix de outra conta Sandbox<input className={input} value={pixKey} onChange={e=>setPixKey(e.target.value)} disabled={!!busy} autoComplete="off" aria-label="Chave Pix de testes" /></label></div>
         <Button variant="outline" disabled={!!busy || !pixKey.trim()} onClick={()=>run("withdraw",()=>financial("withdrawals"))}><ArrowDownToLine className="h-4 w-4"/>Solicitar saque de teste</Button>
       </section>
-      <section className="border border-border p-5 space-y-4"><h2 className="font-heading text-xl">Reservar pagamento de um serviço</h2>
+      <section className="border border-border p-5 space-y-4"><h2 id="reservar-pagamento" className="scroll-mt-24 font-heading text-xl">Reservar pagamento de um serviço</h2>
         <p className="text-sm text-muted-foreground">A reserva é descontada do seu saldo. Após o check-in ela aparece pendente para o profissional. Após o check-out, os dois precisam confirmar o pagamento aqui.</p>
         {jobs.error ? <p role="alert">Não foi possível carregar os pedidos.</p> : availableJobs.length ? <><label className="block text-sm">Serviço<select className={input} value={requestId} onChange={e=>setRequestId(e.target.value)}><option value="">Selecione um serviço</option>{availableJobs.map(r=><option key={r.id} value={r.id}>{r.title}</option>)}</select></label><label className="block text-sm">Valor combinado<input className={input} inputMode="decimal" value={reserveAmount} onChange={e=>setReserveAmount(e.target.value)} /></label><Button disabled={!!busy || !requestId} onClick={()=>run("reserve",async()=>{await api.post(`/wallet/services/${requestId}/reserve`,{amount_cents:parseAmount(reserveAmount),idempotency_key:crypto.randomUUID()});toast.success("Valor de teste reservado");})}>Reservar valor de teste</Button></> : <p className="text-sm text-muted-foreground">Nenhum serviço aceito disponível para reservar entre os 100 pedidos mais recentes. <Link to="/pedidos" className="underline">Ver pedidos</Link></p>}
       </section>
