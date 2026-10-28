@@ -49,11 +49,11 @@ const Sidebar = ({ me, unread }) => (
       ))}
     </nav>
     <div className="mt-auto flex items-center gap-3 rounded-none border border-border bg-card p-3">
-      <UserAvatar user={me} ring={me.role === "profissional"} />
+      <UserAvatar user={me} ring={false} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-foreground" data-testid="sidebar-user-name">{me.name}</p>
         <p className="font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="sidebar-user-role">
-          {me.role === "profissional" ? "Profissional" : "Contratante"}
+          Conta única
         </p>
       </div>
       <UserButton />

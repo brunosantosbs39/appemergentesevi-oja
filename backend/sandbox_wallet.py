@@ -194,6 +194,12 @@ async def snapshot(db,uid):
             'funds':funds,'ledger':[e for e in s['ledger'] if e['user_id']==uid][-50:][::-1]}
 
 def build_router(db, onboarded):
+    try:
+        from backend import production_wallet
+    except ModuleNotFoundError:
+        import production_wallet
+    if production_wallet.selected():
+        return production_wallet.build_router(db, onboarded)
     router=APIRouter(prefix='/api/wallet')
     @router.get('')
     async def wallet(me=Depends(onboarded)):
@@ -302,3 +308,4 @@ def build_router(db, onboarded):
             except ProviderError: raise HTTPException(503,'Tente novamente')
         return {'received':True}
     return router
+

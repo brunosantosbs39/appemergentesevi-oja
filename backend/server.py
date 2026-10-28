@@ -145,7 +145,7 @@ async def check_image(path: Optional[str], uid: str):
 # ---------- models ----------
 class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=80)
-    role: Optional[Literal["profissional", "contratante"]] = None
+    role: Optional[Literal["profissional", "contratante", "membro"]] = None
     headline: Optional[str] = Field(None, max_length=120)
     bio: Optional[str] = Field(None, max_length=1000)
     categories: Optional[List[str]] = None
@@ -317,8 +317,8 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
         await check_image(data["cover"], me["user_id"])
     if data.get("avatar"):
         await check_image(data["avatar"], me["user_id"])
-    if not data.get("role") and not me.get("role"):
-        raise HTTPException(400, "Escolha se você é Profissional ou Contratante")
+    # Legacy role values remain readable; all completed profiles have both capabilities.
+    data["role"] = "membro"
     if data:
         await db.users.update_one({"user_id": me["user_id"]}, {"$set": data})
     return await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
@@ -356,7 +356,7 @@ async def download(path: str):
 async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(0, ge=0, le=20000),
                         category: Optional[str] = None, q: Optional[str] = Query(None, max_length=100), sort: str = "distance",
                         limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
-    query = {"role": "profissional", "user_id": {"$ne": me["user_id"]}}
+    query = {"role": {"$in": ["profissional", "contratante", "membro"]}, "categories.0": {"$exists": True}, "user_id": {"$ne": me["user_id"]}}
     if category and category != "todos":
         query["categories"] = category
     if q:
@@ -374,7 +374,7 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
     if not doc:
         raise HTTPException(404, "Usuário não encontrado")
     lat, lng = doc.pop("lat", None), doc.pop("lng", None)
-    if doc.get("role") == "profissional":
+    if doc.get("role"):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
     doc["posts_count"] = await db.posts.count_documents({"user_id": uid})
     doc["requests_count"] = await db.requests.count_documents({"client_id": uid})
@@ -430,8 +430,6 @@ async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
     await check_image(body.image, me["user_id"])
     if body.category and body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
-    if body.kind == "portfolio" and me["role"] != "profissional":
-        raise HTTPException(403, "O portfólio é exclusivo de profissionais")
     if body.request_id and not await db.requests.find_one({"id": body.request_id, "client_id": me["user_id"]}):
         raise HTTPException(400, "Escolha uma vaga publicada por você")
     expiry = expiration_iso(body.expires_at) if body.kind == "publication" else None
@@ -555,7 +553,7 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
         raise HTTPException(400, "Categoria inválida")
     if body.target_pro_id:
         if body.target_pro_id == me["user_id"] or not await db.users.find_one(
-                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante"]}}, {"_id": 1}):
+                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante", "membro"]}}, {"_id": 1}):
             raise HTTPException(400, "Profissional inválido")
     await check_image(body.image, me["user_id"])
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),

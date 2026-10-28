@@ -1,3 +1,4 @@
+import ProductionWallet from "@/components/wallet/ProductionWallet";
 import { useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,6 +57,7 @@ export default function WalletPage() {
   const input="mt-2 w-full border border-border bg-background px-3 py-3 text-sm text-foreground";
   if(wallet.isPending) return <p role="status">Carregando carteira...</p>;
   if(wallet.error) return <div role="alert"><p>{errMsg(wallet.error)}</p><Button onClick={()=>wallet.refetch()}>Tentar novamente</Button></div>;
+  if (w?.mode === "production") return <ProductionWallet wallet={w} userId={me.user_id} />;
   return <div className="space-y-6" data-testid="wallet-page">
     <PageHeader eyebrow="Seus pagamentos" title="Carteira" subtitle="Saldo, pagamentos por serviço e movimentações." />
     <div className="border border-border bg-card p-5" role="status">

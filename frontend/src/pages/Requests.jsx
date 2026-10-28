@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useMe } from "@/context/MeContext";
 import { ClientRequests } from "@/components/requests/ClientRequests";
 import { ProRequests } from "@/components/requests/ProRequests";
 import { Button } from "@/components/ui/button";
 
 export default function Requests() {
-  const { me } = useMe();
-  const [mode, setMode] = useState(me.role === "profissional" ? "opportunity" : "hire");
+  const [mode, setMode] = useState("hire");
   return <div>
     <div className="mb-6 grid grid-cols-2 gap-2" aria-label="Como você quer usar os pedidos?">
       <Button variant={mode === "hire" ? "default" : "outline"} aria-pressed={mode === "hire"} className="h-auto min-h-12 whitespace-normal" onClick={() => setMode("hire")}>Quero contratar</Button>

@@ -79,7 +79,7 @@ export default function MapPage() {
   const [pros, setPros] = useState(null);
   const [reqs, setReqs] = useState([]);
   const [hire, setHire] = useState(null);
-  const isPro = me.role === "profissional";
+  const isPro = true;
 
   useEffect(() => {
     if (!fromLink) locate();
