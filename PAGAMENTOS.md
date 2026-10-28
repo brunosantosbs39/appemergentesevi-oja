@@ -43,9 +43,10 @@ Uma intenção é persistida no navegador até resposta para recuperar timeout; 
 ## Operação e homologação
 Antes de habilitar: conta Asaas de produção aprovada, chave Pix/configuração compatível, variáveis secretas, webhook de produção funcional, Mongo com transações e testes de recebimento supervisionados. Nenhuma chave real foi adicionada ao código. O preview desta entrega mantém o Sandbox porque as credenciais de produção não estão configuradas.
 
-Testes unitários cobrem criação/reuso de cliente, QR, ausência de crédito na criação, token incorreto, reconsulta do provedor, divergências, duplicatas, rollback, confirmação cautelar, expiração, estorno, seleção de ambiente e bloqueio de saques. Use:
+35 testes unitários de carteira (20 reais com provedor simulado + 15 Sandbox) cobrem criação/reuso de cliente, QR, ausência de crédito na criação, token incorreto, reconsulta do provedor, divergências, duplicatas, rollback, confirmação cautelar, expiração, estorno, seleção de ambiente e bloqueio de saques. Use:
 ```sh
 python -m unittest discover -s tests -p 'test_*wallet.py' -v
+node tests/production_wallet_ui.cjs
 cd frontend && yarn build
 ```
 Os testes em memória simulam transações e falhas. Não substituem teste concorrente com Mongo real nem pagamento Pix real. Não foram movimentados valores reais para validar esta entrega.

@@ -188,7 +188,7 @@ async def reconcile(db, oid):
         if not re.fullmatch(r"pay_[A-Za-z0-9_-]+", pid):
             return
     payment = await call("GET", "/payments/" + pid)
-    valid = (payment.get("id") == pid and payment.get("externalReference") == oid
+    valid = (not payment.get("deleted") and payment.get("id") == pid and payment.get("externalReference") == oid
         and payment.get("customer") == op.get("customer_id") and payment.get("billingType") == "PIX"
         and money(payment.get("value")) == op["amount_cents"])
     status = payment.get("status")

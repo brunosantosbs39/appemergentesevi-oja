@@ -147,7 +147,7 @@ class PixTests(unittest.TestCase):
         self.assertFalse(self.db.pix_balances.docs)
     def test_mismatched_fields_require_review(self):
         for fields in ({"value": 11}, {"customer": "other"}, {"externalReference": "other"},
-                       {"id": "pay_wrong"}, {"billingType": "BOLETO"}, {"netValue": 11}, {"netValue": -1}):
+                       {"id": "pay_wrong"}, {"billingType": "BOLETO"}, {"netValue": 11}, {"netValue": -1}, {"deleted": True}):
             self.db = database(); self.seed(); self.reconcile(**fields)
             self.assertEqual(self.db.pix_deposits.docs["op"]["status"], "review")
             self.assertFalse(self.db.pix_balances.docs)
@@ -201,6 +201,23 @@ class PixTests(unittest.TestCase):
             with self.assertRaises(ValidationError): self.body.model_validate({**self.body.model_dump(), "cpf_cnpj": cpf})
         for amount in (True, 499, 10001, 5.5):
             with self.assertRaises(ValidationError): self.body.model_validate({**self.body.model_dump(), "amount_cents": amount})
+    def test_mode_selection_keeps_sandbox_when_off(self):
+        from backend import sandbox_wallet
+        with patch.dict(os.environ, {"ASAAS_PRODUCTION_ENABLED": "false"}), patch.object(w, "build_router") as real:
+            sandbox_wallet.build_router(self.db, lambda: self.me)
+            real.assert_not_called()
+        with patch.dict(os.environ, {"ASAAS_PRODUCTION_ENABLED": "true", "ASAAS_API_KEY": ""}), patch.object(w, "build_router") as real:
+            sandbox_wallet.build_router(self.db, lambda: self.me)
+            real.assert_called_once()
+    def test_second_tab_cannot_create_another_charge(self):
+        replies = [{"data": [{"id": "cus_1", "cpfCnpj": "24971563792"}]}, {"id": "pay_123"},
+                   {"encodedImage": "YWJj", "payload": "PIX", "expirationDate": "2026-12-31"}]
+        with patch.object(w, "call", AsyncMock(side_effect=replies)) as api:
+            run(w.create_deposit(self.db, self.me, self.body))
+            other = self.body.model_copy(update={"idempotency_key": "another-intent-123"})
+            with self.assertRaises(HTTPException) as error: run(w.create_deposit(self.db, self.me, other))
+            self.assertEqual(error.exception.status_code, 409)
+            self.assertEqual(api.await_count, 3)
     def test_withdrawals_always_forbidden(self):
         router = w.build_router(self.db, lambda: self.me)
         route = next(r for r in router.routes if r.path.endswith("/withdrawals"))
