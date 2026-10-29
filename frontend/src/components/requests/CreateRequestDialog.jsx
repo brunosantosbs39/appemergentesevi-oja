@@ -25,6 +25,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
   const api = useApi();
   const { me } = useMe();
   const [f, setF] = useState({
+    billing_type: "fixed", quantity: "1",
     company_id: "", branch_id: "", service_date: "", daily_count: "1",
     category: targetPro?.categories?.[0] || "eletricista",
     title: "",
@@ -44,7 +45,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
     if (f.title.trim().length < 3) return toast.error("Descreva o serviço no título");
     setBusy(true);
     try {
-      const body = { ...f, company_id:f.company_id||null, branch_id:f.branch_id||null, service_date:f.service_date||null, daily_count:Number(f.daily_count), expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: f.budget === "" ? null : Number(f.budget), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
+      const body = { ...f, company_id:f.company_id||null, branch_id:f.branch_id||null, service_date:f.service_date||null, daily_count:Number(f.daily_count), expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: null, unit_cents:f.budget===""?null:Math.round(Number(f.budget)*100), quantity:f.billing_type==="fixed"?1:Number(f.quantity), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
       const { data } = await api.post("/requests", body);
       toast.success(targetPro ? `Pedido enviado para ${targetPro.name}` : "Pedido publicado! Profissionais próximos já podem ver.");
       onCreated?.(data);
@@ -72,14 +73,17 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Orçamento estimado (R$)">
-          <Input type="number" min="0" step="1" inputMode="decimal" value={f.budget} onChange={set("budget")} placeholder="A combinar" data-testid="request-budget-input" />
+        <Field label="Tipo de contratação"><select className="w-full border border-border bg-background p-3" value={f.billing_type} onChange={e=>setF(s=>({...s,billing_type:e.target.value,quantity:"1"}))}><option value="daily">Diária</option><option value="hourly">Por hora</option><option value="fixed">Orçamento fechado</option></select></Field>
+        <Field label={f.billing_type==="daily"?"Valor da diária (R$)":f.billing_type==="hourly"?"Valor por hora (R$)":"Orçamento total (R$)"}>
+          <Input type="number" min="0" step="0.01" inputMode="decimal" value={f.budget} onChange={set("budget")} placeholder="A combinar" data-testid="request-budget-input" />
         </Field>
       </div>
+      {f.billing_type!=="fixed"&&<label className="block text-sm">{f.billing_type==="hourly"?"Quantidade de horas":"Quantidade de diárias"}<Input type="number" min={f.billing_type==="hourly"?"0.01":"1"} max="10000" step={f.billing_type==="hourly"?"0.01":"1"} value={f.quantity} onChange={set("quantity")} required/></label>}
+      <p className="text-sm">Total previsto: {f.budget===""?"A combinar":(Number(f.budget)*(f.billing_type==="fixed"?1:Number(f.quantity))).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</p>
       <fieldset className="space-y-3 border border-border p-3"><legend>Empresa / filial (opcional)</legend>
         <label className="block text-sm">Empresa<select className="mt-1 w-full border border-border bg-background p-2" value={f.company_id} onChange={e=>setF(s=>({...s,company_id:e.target.value,branch_id:""}))}><option value="">Pedido pessoal</option>{companyList.data?.companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         {companyList.error&&<p role="alert">Não foi possível carregar empresas. Reabra o formulário para tentar novamente.</p>}
-        {f.company_id&&<><label className="block text-sm">Unidade<select className="mt-1 w-full border border-border bg-background p-2" value={f.branch_id} onChange={set("branch_id")}><option value="">Matriz</option>{companyList.data?.branches.filter(b=>b.company_id===f.company_id).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="block text-sm">Data de competência<Input type="date" value={f.service_date} onChange={set("service_date")} required/></label><label className="block text-sm">Quantidade de diárias<Input type="number" min="1" max="366" step="1" value={f.daily_count} onChange={set("daily_count")}/></label><p className="text-xs">Informe no orçamento o valor total de todas as diárias. O painel acompanha alterações do valor combinado e do andamento do pedido.</p></>}
+        {f.company_id&&<><label className="block text-sm">Unidade<select className="mt-1 w-full border border-border bg-background p-2" value={f.branch_id} onChange={set("branch_id")}><option value="">Matriz</option>{companyList.data?.branches.filter(b=>b.company_id===f.company_id).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="block text-sm">Data de competência<Input type="date" value={f.service_date} onChange={set("service_date")} required/></label><p className="text-xs">O total é calculado conforme o tipo de contratação. O painel acompanha alterações do valor combinado e do andamento do pedido.</p></>}
       </fieldset>
       <Field label="O que você precisa?">
         <Input value={f.title} onChange={set("title")} maxLength={100} placeholder="Ex.: Trocar chuveiro queimado" data-testid="request-title-input" />

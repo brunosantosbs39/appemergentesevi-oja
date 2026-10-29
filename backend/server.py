@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.pricing import Pricing
     from backend.companies import build_router as companies_router, owned as owned_company
     from backend.sandbox_wallet import build_router as wallet_router
     from backend.completion import confirm_completion
@@ -32,6 +33,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from pricing import Pricing
     from companies import build_router as companies_router, owned as owned_company
     from sandbox_wallet import build_router as wallet_router
     from completion import confirm_completion
@@ -187,7 +189,7 @@ class ProposalStatusIn(BaseModel):
     status: Literal["accepted", "declined"]
 
 
-class RequestCreate(BaseModel):
+class RequestCreate(Pricing):
     company_id: Optional[str] = None
     branch_id: Optional[str] = None
     service_date: Optional[str] = Field(None, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
@@ -572,6 +574,9 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc["quantity"] = float(body.quantity)
+    if body.unit_cents is not None:
+        doc["budget"] = body.total_cents() / 100
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
     await db.requests.insert_one(dict(doc))

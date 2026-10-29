@@ -11,12 +11,18 @@ class CompanyIn(BaseModel):
     name: str = Field(min_length=2, max_length=100)
 class BranchIn(CompanyIn):
     city: str = Field(default="", max_length=100)
-class DailyIn(BaseModel):
+try:
+    from backend.pricing import Pricing
+except ModuleNotFoundError:
+    from pricing import Pricing
+
+class DailyIn(Pricing):
+    billing_type: Literal["daily", "hourly", "fixed"] = "daily"
     branch_id: Optional[str] = None
     worker: str = Field(min_length=2, max_length=100)
     service_date: date
-    daily_cents: int = Field(strict=True, ge=1, le=100000000)
-    days: int = Field(strict=True, ge=1, le=366)
+    daily_cents: int = Field(default=1, strict=True, ge=1, le=100000000)
+    days: int = Field(default=1, strict=True, ge=1, le=366)
     status: Literal["planned", "completed", "paid"] = "planned"
     note: str = Field(default="", max_length=500)
     idempotency_key: str = Field(min_length=16, max_length=80, pattern=r"^[a-zA-Z0-9-]+$")
@@ -43,7 +49,7 @@ def request_row(r):
     return {"id":r["id"], "source":"request", "branch_id":r.get("branch_id"), "worker":r.get("title", "Pedido"),
         "service_date":r.get("service_date") or r["created_at"][:10], "days":r.get("daily_count", 1),
         "amount_cents":int((Decimal(str(r.get("budget") or 0))*100).quantize(Decimal("1"))),
-        "unpriced":r.get("budget") is None, "status":status}
+        "billing_type":r.get("billing_type","fixed"), "quantity":r.get("quantity",1), "unpriced":r.get("budget") is None, "status":status}
 
 def build_router(db, onboarded):
     router=APIRouter(prefix="/api/companies")
@@ -75,6 +81,8 @@ def build_router(db, onboarded):
         await owned(db,cid,me["user_id"],body.branch_id)
         if len(body.worker.strip())<2: raise HTTPException(400,"Informe o trabalhador")
         data=body.model_dump(exclude={"idempotency_key"})
+        data["quantity"]=float(body.quantity)
+        amount=body.total_cents() if body.unit_cents is not None else body.daily_cents*body.days
         data["service_date"]=body.service_date.isoformat()
         data["worker"]=body.worker.strip()
         ident=me["user_id"]+":"+body.idempotency_key
@@ -83,7 +91,7 @@ def build_router(db, onboarded):
             if old["company_id"]!=cid or old["original"]!=data: raise HTTPException(409,"Solicitação já utilizada")
             return {"id":old["_id"]}
         doc={**data,"_id":ident,"original":data,"company_id":cid,"owner_id":me["user_id"],
-             "amount_cents":body.daily_cents*body.days,"source":"manual","created_at":datetime.now(timezone.utc).isoformat()}
+             "amount_cents":amount,"source":"manual","created_at":datetime.now(timezone.utc).isoformat()}
         try: await db.company_daily.insert_one(doc)
         except DuplicateKeyError:
             old=await db.company_daily.find_one({"_id":ident})
