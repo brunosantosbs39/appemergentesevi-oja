@@ -1,0 +1,12 @@
+.vacancy-marker { background:transparent; border:0; }
+.vacancy-pin { width:128px; height:68px; display:flex; flex-direction:column; align-items:center; cursor:pointer; }
+.vacancy-price { max-width:160px; white-space:nowrap; padding:9px 14px; background:#111; color:#fff; border:2px solid #fff; border-radius:24px; box-shadow:0 4px 14px #0005; font:700 13px/18px system-ui,sans-serif; transition:transform .18s,background .18s; }
+.vacancy-stem { width:2px; height:10px; background:#111; }
+.vacancy-dot { position:relative; width:14px; height:14px; border-radius:50%; background:#111; border:3px solid white; box-shadow:0 1px 6px #0006; }
+.vacancy-dot span { position:absolute; inset:-9px; border:2px solid #1118; border-radius:50%; animation:vacancy-pulse 2.4s ease-out infinite; pointer-events:none; }
+.vacancy-marker:hover .vacancy-price,.vacancy-marker:focus .vacancy-price { background:#333; transform:translateY(-3px); }
+.vacancy-marker:focus-visible { outline:3px solid #2563eb; outline-offset:3px; border-radius:24px; }
+.vacancy-popup-list { max-height:300px; overflow-y:auto; overscroll-behavior:contain; }
+.vacancy-popup-list>div+div { margin-top:14px; padding-top:14px; border-top:1px solid #9995; }
+@keyframes vacancy-pulse { 0% {transform:scale(.5);opacity:.8} 85%,100% {transform:scale(1.7);opacity:0} }
+@media(prefers-reduced-motion:reduce) { .vacancy-dot span {animation:none;opacity:.3} .vacancy-price {transition:none} }

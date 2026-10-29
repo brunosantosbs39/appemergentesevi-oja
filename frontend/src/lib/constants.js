@@ -19,6 +19,18 @@ export const CATEGORIES = [
   { slug: "professor", label: "Aulas", icon: GraduationCap },
   { slug: "mecanico", label: "Mecânico", icon: Wrench },
   { slug: "montador", label: "Montador", icon: Sofa },
+  { slug: "producao_eventos", label: "Produção de eventos", icon: Briefcase },
+  { slug: "tecnico_som", label: "Técnico de som", icon: Briefcase },
+  { slug: "iluminacao", label: "Iluminação de shows", icon: Briefcase },
+  { slug: "montagem_palco", label: "Montagem de palco", icon: Briefcase },
+  { slug: "roadie", label: "Roadie", icon: Briefcase },
+  { slug: "dj", label: "DJ", icon: Briefcase },
+  { slug: "musico", label: "Músico / Banda", icon: Briefcase },
+  { slug: "seguranca_eventos", label: "Segurança de eventos", icon: Briefcase },
+  { slug: "recepcao_eventos", label: "Recepção e credenciamento", icon: Briefcase },
+  { slug: "garcom", label: "Garçom / Buffet", icon: Briefcase },
+  { slug: "tecnico_led", label: "Técnico de LED e vídeo", icon: Briefcase },
+  { slug: "carregador_eventos", label: "Carga e descarga de eventos", icon: Briefcase },
   { slug: "outros", label: "Outros", icon: Briefcase },
 ];
 

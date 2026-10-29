@@ -1,9 +1,9 @@
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { UserButton } from "@clerk/react";
-import { ClipboardList, Home, Map, MessageCircle, User } from "lucide-react";
+import { ClipboardList, Home, Map, MessageCircle, User, Wallet, Building2 } from "lucide-react";
 import { useMe } from "@/context/MeContext";
 import { useUnread } from "@/hooks/useUnread";
 import { Logo } from "@/components/common/Misc";
@@ -15,6 +15,8 @@ const NAV = [
   { to: "/mapa", label: "Mapa", icon: Map, id: "mapa" },
   { to: "/pedidos", label: "Pedidos", icon: ClipboardList, id: "pedidos" },
   { to: "/chat", label: "Chat", icon: MessageCircle, id: "chat" },
+  { to: "/carteira", label: "Carteira", icon: Wallet, id: "carteira" },
+  { to: "/empresas", label: "Empresas", icon: Building2, id: "empresas" },
   { to: "/perfil/me", label: "Perfil", icon: User, id: "perfil" },
 ];
 
@@ -48,11 +50,11 @@ const Sidebar = ({ me, unread }) => (
       ))}
     </nav>
     <div className="mt-auto flex items-center gap-3 rounded-none border border-border bg-card p-3">
-      <UserAvatar user={me} ring={me.role === "profissional"} />
+      <UserAvatar user={me} ring={false} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-foreground" data-testid="sidebar-user-name">{me.name}</p>
         <p className="font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="sidebar-user-role">
-          {me.role === "profissional" ? "Profissional" : "Contratante"}
+          Conta única
         </p>
       </div>
       <UserButton />
@@ -69,7 +71,7 @@ const MobileTop = () => (
 );
 
 const BottomNav = ({ unread }) => (
-  <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-none border border-border/60 bg-card/85 p-1.5 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl lg:hidden">
+  <nav aria-label="Navegação principal no celular" className="fixed inset-x-2 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 grid grid-cols-7 rounded-none border border-border/60 bg-card/85 p-1.5 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.35)] backdrop-blur-xl lg:hidden">
     {NAV.map(({ to, label, icon: Icon, id }) => (
       <NavLink
         key={id}
@@ -77,7 +79,7 @@ const BottomNav = ({ unread }) => (
         data-testid={`bottom-nav-${id}`}
         className={({ isActive }) =>
           cn(
-            "relative flex flex-col items-center gap-0.5 rounded-none py-2 text-[10px] font-semibold transition-colors duration-200",
+            "relative flex min-h-12 min-w-0 flex-col items-center gap-0.5 rounded-none py-2 text-[10px] font-semibold transition-colors duration-200",
             isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground",
           )
         }
@@ -101,7 +103,7 @@ export default function AppShell() {
       {!isChat && <MobileTop />}
       <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
         <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
-          {!isChat && <div className="mb-4 flex justify-end"><NotificationCenter /></div>}
+          {!isChat && <div className="mb-4 flex items-center justify-between gap-3 lg:justify-end"><Link to="/carteira#adicionar-saldo" aria-label="Abrir carteira e adicionar saldo" data-testid="mobile-wallet-button" className="flex min-h-11 items-center gap-2 border border-border px-3 text-sm font-semibold lg:hidden"><Wallet className="h-4 w-4" aria-hidden="true" />Carteira · Adicionar saldo</Link><NotificationCenter /></div>}
           <Outlet />
         </div>
       </main>
@@ -109,3 +111,4 @@ export default function AppShell() {
     </div>
   );
 }
+

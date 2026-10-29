@@ -3,7 +3,7 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/react";
-import { Briefcase, CheckCircle2, Crosshair, Loader2, UserSearch } from "lucide-react";
+import { Crosshair, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
 import { DEFAULT_POS } from "@/lib/constants";
@@ -14,43 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-
-const ROLES = [
-  { id: "contratante", title: "Quero contratar", text: "Publique pedidos e encontre profissionais perto de você.", icon: UserSearch },
-  { id: "profissional", title: "Sou profissional", text: "Receba pedidos próximos, publique seu portfólio e seja avaliado.", icon: Briefcase },
-];
-
-const RolePicker = ({ value, onChange }) => (
-  <div className="grid gap-3 sm:grid-cols-2">
-    {ROLES.map(({ id, title, text, icon: Icon }) => (
-      <button
-        key={id}
-        type="button"
-        onClick={() => onChange(id)}
-        data-testid={`onboarding-role-${id}`}
-        className={cn(
-          "relative rounded-none border-2 p-5 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5",
-          value === id ? "border-foreground bg-muted shadow-lg" : "border-border bg-card hover:border-border",
-        )}
-      >
-        {value === id && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-foreground" />}
-        <span className={cn("grid h-11 w-11 place-items-center rounded-none", value === id ? "bg-secondary text-secondary-foreground" : "bg-secondary text-foreground")}>
-          <Icon className="h-5 w-5" />
-        </span>
-        <p className="mt-4 font-heading text-lg font-bold text-foreground">{title}</p>
-        <p className="mt-1 text-sm text-foreground">{text}</p>
-      </button>
-    ))}
-  </div>
-);
 
 export default function Onboarding() {
   const { me, setMe } = useMe();
   const { user } = useUser();
   const api = useApi();
   const navigate = useNavigate();
-  const [role, setRole] = useState(null);
+  const role = "membro";
   const [name, setName] = useState(user?.fullName || user?.firstName || "");
   const [city, setCity] = useState("");
   const [cats, setCats] = useState([]);
@@ -71,13 +41,11 @@ export default function Onboarding() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!role) return toast.error("Escolha como você vai usar o ServiçoJá");
     if (name.trim().length < 2) return toast.error("Informe seu nome");
-    if (role === "profissional" && cats.length === 0) return toast.error("Escolha pelo menos uma categoria");
     setBusy(true);
     const p = pos || DEFAULT_POS;
     const body = { role, name: name.trim(), city, lat: p.lat, lng: p.lng };
-    if (role === "profissional") Object.assign(body, { categories: cats, headline, bio, hourly_rate: rate === "" ? null : Number(rate) });
+    Object.assign(body, { categories: cats, headline, bio, hourly_rate: rate === "" ? null : Number(rate) });
     try {
       const { data } = await api.put("/me", body);
       setMe(data);
@@ -96,10 +64,10 @@ export default function Onboarding() {
         <div className="flex items-center justify-between gap-4"><Logo /><div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /></div></div>
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-foreground">Bem-vindo(a)</p>
-          <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
-          <p className="mt-2 text-muted-foreground">Essa é apenas sua preferência inicial. Na mesma conta você pode contratar e buscar oportunidades, sem precisar ser empresa.</p>
+          <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Complete seu perfil</h1>
+          <p className="mt-2 text-muted-foreground">Uma única conta para contratar e trabalhar. Os dados dos serviços que você oferece são opcionais e podem ser preenchidos depois.</p>
         </div>
-        <RolePicker value={role} onChange={setRole} />
+        
         {role && (
           <div className="animate-fade-up space-y-5 rounded-none border border-border bg-card p-6">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -112,10 +80,10 @@ export default function Onboarding() {
                 <Input value={city} onChange={(e) => setCity(e.target.value)} maxLength={80} placeholder="Ex.: Moema, São Paulo" data-testid="onboarding-city-input" />
               </div>
             </div>
-            {role === "profissional" && (
+            {(
               <>
                 <div className="space-y-2">
-                  <Label>Categorias que você atende</Label>
+                  <Label>Serviços que você oferece (opcional)</Label>
                   <CategoryChips value={cats} onChange={setCats} includeAll={false} multiple testid="onboarding-category" />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
@@ -147,7 +115,7 @@ export default function Onboarding() {
             </div>
           </div>
         )}
-        <Button type="submit" disabled={busy || !role} className="h-12 w-full rounded-none text-base font-semibold" data-testid="onboarding-submit-button">
+        <Button type="submit" disabled={busy} className="h-12 w-full rounded-none text-base font-semibold" data-testid="onboarding-submit-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Concluir cadastro
         </Button>
       </form>

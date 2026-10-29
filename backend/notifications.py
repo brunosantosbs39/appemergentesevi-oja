@@ -45,12 +45,18 @@ def validate_subscription(subscription):
         raise HTTPException(400, "Inscrição de notificações inválida")
 
 
-async def send_notice(db, user_id, title, body, url):
+async def send_notice(db, user_id, title, body, url, dedup_key=None):
     """Store first; push-provider failures must never roll back the user action."""
     notice = {"id": str(uuid.uuid4()), "user_id": user_id, "title": title, "body": body[:240],
               "url": url, "read": False, "created_at": datetime.now(timezone.utc).isoformat()}
     try:
-        await db.notifications.insert_one(dict(notice))
+        if dedup_key:
+            notice["_id"] = dedup_key
+            result = await db.notifications.update_one({"_id": dedup_key}, {"$setOnInsert": notice}, upsert=True)
+            if result.upserted_id is None:
+                return
+        else:
+            await db.notifications.insert_one(dict(notice))
         if not os.environ.get("VAPID_PRIVATE_KEY"):
             return
         tasks = _request_tasks.get()

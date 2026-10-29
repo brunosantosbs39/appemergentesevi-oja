@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form, BackgroundTasks
 from fastapi.responses import Response, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -22,6 +22,11 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.opportunities import notify_opportunity
+    from backend.pricing import Pricing
+    from backend.companies import build_router as companies_router, owned as owned_company
+    from backend.sandbox_wallet import build_router as wallet_router
+    from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
@@ -29,6 +34,11 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from opportunities import notify_opportunity
+    from pricing import Pricing
+    from companies import build_router as companies_router, owned as owned_company
+    from sandbox_wallet import build_router as wallet_router
+    from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
@@ -57,7 +67,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("servicoja")
 
 CATEGORIES = {"eletricista", "encanador", "pintor", "pedreiro", "marceneiro", "diarista", "jardineiro", "beleza",
-              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros"}
+              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros", "producao_eventos", "tecnico_som", "iluminacao", "montagem_palco", "roadie", "dj", "musico", "seguranca_eventos", "recepcao_eventos", "garcom", "tecnico_led", "carregador_eventos"}
 STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em andamento",
                  "concluido": "Concluído", "cancelado": "Cancelado"}
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -141,7 +151,7 @@ async def check_image(path: Optional[str], uid: str):
 # ---------- models ----------
 class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=80)
-    role: Optional[Literal["profissional", "contratante"]] = None
+    role: Optional[Literal["profissional", "contratante", "membro"]] = None
     headline: Optional[str] = Field(None, max_length=120)
     bio: Optional[str] = Field(None, max_length=1000)
     categories: Optional[List[str]] = None
@@ -181,7 +191,11 @@ class ProposalStatusIn(BaseModel):
     status: Literal["accepted", "declined"]
 
 
-class RequestCreate(BaseModel):
+class RequestCreate(Pricing):
+    company_id: Optional[str] = None
+    branch_id: Optional[str] = None
+    service_date: Optional[str] = Field(None, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    daily_count: int = Field(1, ge=1, le=366)
     expires_at: Optional[datetime] = None
     category: str
     title: str = Field(..., min_length=3, max_length=100)
@@ -313,8 +327,8 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
         await check_image(data["cover"], me["user_id"])
     if data.get("avatar"):
         await check_image(data["avatar"], me["user_id"])
-    if not data.get("role") and not me.get("role"):
-        raise HTTPException(400, "Escolha se você é Profissional ou Contratante")
+    # Legacy role values remain readable; all completed profiles have both capabilities.
+    data["role"] = "membro"
     if data:
         await db.users.update_one({"user_id": me["user_id"]}, {"$set": data})
     return await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
@@ -352,7 +366,7 @@ async def download(path: str):
 async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(0, ge=0, le=20000),
                         category: Optional[str] = None, q: Optional[str] = Query(None, max_length=100), sort: str = "distance",
                         limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
-    query = {"role": "profissional", "user_id": {"$ne": me["user_id"]}}
+    query = {"role": {"$in": ["profissional", "contratante", "membro"]}, "categories.0": {"$exists": True}, "user_id": {"$ne": me["user_id"]}}
     if category and category != "todos":
         query["categories"] = category
     if q:
@@ -370,7 +384,7 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
     if not doc:
         raise HTTPException(404, "Usuário não encontrado")
     lat, lng = doc.pop("lat", None), doc.pop("lng", None)
-    if doc.get("role") == "profissional":
+    if doc.get("role"):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
     doc["posts_count"] = await db.posts.count_documents({"user_id": uid})
     doc["requests_count"] = await db.requests.count_documents({"client_id": uid})
@@ -426,8 +440,6 @@ async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
     await check_image(body.image, me["user_id"])
     if body.category and body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
-    if body.kind == "portfolio" and me["role"] != "profissional":
-        raise HTTPException(403, "O portfólio é exclusivo de profissionais")
     if body.request_id and not await db.requests.find_one({"id": body.request_id, "client_id": me["user_id"]}):
         raise HTTPException(400, "Escolha uma vaga publicada por você")
     expiry = expiration_iso(body.expires_at) if body.kind == "publication" else None
@@ -546,20 +558,31 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 
 @api.post("/requests")
-async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
+async def create_request(body: RequestCreate, background_tasks: BackgroundTasks, me: dict = Depends(onboarded)):
+    if body.branch_id and not body.company_id:
+        raise HTTPException(400, "Selecione a empresa da filial")
+    if body.company_id:
+        await owned_company(db, body.company_id, me["user_id"], body.branch_id)
+    if body.service_date:
+        try: datetime.strptime(body.service_date, "%Y-%m-%d")
+        except ValueError: raise HTTPException(400, "Data de serviço inválida")
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
     if body.target_pro_id:
         if body.target_pro_id == me["user_id"] or not await db.users.find_one(
-                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante"]}}, {"_id": 1}):
+                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante", "membro"]}}, {"_id": 1}):
             raise HTTPException(400, "Profissional inválido")
     await check_image(body.image, me["user_id"])
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc["quantity"] = float(body.quantity)
+    if body.unit_cents is not None:
+        doc["budget"] = body.total_cents() / 100
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
     await db.requests.insert_one(dict(doc))
+    background_tasks.add_task(notify_opportunity, db, dict(doc))
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
@@ -574,13 +597,34 @@ async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = Non
     return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=uid)
 
 
+@api.get("/requests/feed")
+async def feed_requests(category: Optional[str] = None, before: Optional[str] = None,
+                        limit: int = Query(20, ge=1, le=50), me: dict = Depends(onboarded)):
+    query = {"status": "pendente", "target_pro_id": None, "$and": [vacancy_open_query()]}
+    if category and category != "todos":
+        query["category"] = category
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$and"].append({"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]})
+    rows = await db.requests.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(limit + 1)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {"items": await enrich_requests(rows, me.get("lat"), me.get("lng"), viewer_id=me["user_id"]),
+            "next_cursor": page_cursor(rows[-1]["created_at"], rows[-1]["id"]) if more else None}
+
+
 @api.get("/requests/available")
 async def available_requests(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(25, ge=0, le=20000),
-                             category: Optional[str] = None, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
+                             category: Optional[str] = None, my_categories: bool = False, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
     query = {"status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
+    if my_categories:
+        categories = [c for c in me.get("categories", []) if c in CATEGORIES]
+        if not categories or (category and category != "todos" and category not in categories):
+            return []
+        query["category"] = {"$in": categories}
     if category and category != "todos":
         query["category"] = category
     pipeline = nearby_pipeline(query, lat, lng, radius_km, "distance", limit, offset, target_uid=uid)
@@ -719,6 +763,12 @@ async def check_in_service(rid: str, me: dict = Depends(onboarded)):
 @api.post("/requests/{rid}/check-out")
 async def check_out_service(rid: str, me: dict = Depends(onboarded)):
     return await change_status(rid, StatusIn(status="concluido"), me)
+
+
+@api.post("/requests/{rid}/confirm-completion")
+async def confirm_service_completion(rid: str, me: dict = Depends(onboarded)):
+    result = await confirm_completion(db.requests, rid, me["user_id"], now_iso())
+    return (await enrich_requests([result], viewer_id=me["user_id"]))[0]
 
 
 # ---------- conversations ----------
@@ -989,13 +1039,15 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/crypto/", "/api/conversations")):
+    if request.url.path.startswith(("/api/crypto/", "/api/conversations", "/api/wallet", "/api/companies")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Vary"] = "Authorization, Cookie"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
+app.include_router(companies_router(db, onboarded))
+app.include_router(wallet_router(db, onboarded))
 app.include_router(api)
 app.include_router(clerk_router)
 
@@ -1011,6 +1063,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    await db.companies.create_index("owner_id")
+    await db.company_branches.create_index([("owner_id", 1), ("company_id", 1)])
+    await db.company_daily.create_index([("owner_id", 1), ("company_id", 1), ("service_date", 1)])
     await db.e2ee_identities.create_index("user_id", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.posts.create_index("id", unique=True)
@@ -1051,3 +1106,4 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+

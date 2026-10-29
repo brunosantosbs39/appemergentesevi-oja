@@ -104,7 +104,7 @@ export default function Profile() {
 
   if (user === false) return <EmptyState icon={UserX} title="Perfil não encontrado" testid="profile-not-found" />;
   if (!user) return <Loader2 className="mx-auto mt-16 h-6 w-6 animate-spin text-foreground" />;
-  const isPro = user.role === "profissional";
+  const isPro = !!user.role;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="profile-page">
