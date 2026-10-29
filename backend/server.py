@@ -594,13 +594,34 @@ async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = Non
     return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=uid)
 
 
+@api.get("/requests/feed")
+async def feed_requests(category: Optional[str] = None, before: Optional[str] = None,
+                        limit: int = Query(20, ge=1, le=50), me: dict = Depends(onboarded)):
+    query = {"status": "pendente", "target_pro_id": None, "$and": [vacancy_open_query()]}
+    if category and category != "todos":
+        query["category"] = category
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$and"].append({"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]})
+    rows = await db.requests.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(limit + 1)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {"items": await enrich_requests(rows, me.get("lat"), me.get("lng"), viewer_id=me["user_id"]),
+            "next_cursor": page_cursor(rows[-1]["created_at"], rows[-1]["id"]) if more else None}
+
+
 @api.get("/requests/available")
 async def available_requests(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(25, ge=0, le=20000),
-                             category: Optional[str] = None, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
+                             category: Optional[str] = None, my_categories: bool = False, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
     query = {"status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
+    if my_categories:
+        categories = [c for c in me.get("categories", []) if c in CATEGORIES]
+        if not categories or (category and category != "todos" and category not in categories):
+            return []
+        query["category"] = {"$in": categories}
     if category and category != "todos":
         query["category"] = category
     pipeline = nearby_pipeline(query, lat, lng, radius_km, "distance", limit, offset, target_uid=uid)

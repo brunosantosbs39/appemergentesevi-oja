@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { mergeItems } from "@/lib/pagination";
 import { Button } from "@/components/ui/button";
 import { applicationLabel } from "@/components/requests/ApplicationsPanel";
@@ -32,6 +33,9 @@ export const ProRequests = () => {
   const { me } = useMe();
   const { pos, locate } = useGeo(me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS);
   const [radius, setRadius] = useState(25);
+  const filterKey = JSON.stringify([pos.lat, pos.lng, radius, me.categories]);
+  const filterRef = useRef(filterKey);
+  filterRef.current = filterKey;
   const [tab, setTab] = useState("disponiveis");
   const [available, setAvailable] = useState(null);
   const availableOffset = useRef(0);
@@ -41,8 +45,9 @@ export const ProRequests = () => {
     if (loadingAvailable) return;
     setLoadingAvailable(true);
     try {
-      const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius, limit: 50, offset: availableOffset.current } });
-      setAvailable((previous) => mergeItems(previous, data)); availableOffset.current += data.length; setMoreAvailable(data.length === 50);
+      const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, my_categories: true, radius_km: radius, limit: 50, offset: availableOffset.current } });
+      if(filterRef.current !== filterKey)return;
+    setAvailable((previous) => mergeItems(previous, data)); availableOffset.current += data.length; setMoreAvailable(data.length === 50);
     } finally { setLoadingAvailable(false); }
   };
   const [reviewReq, setReviewReq] = useState(null);
@@ -53,10 +58,10 @@ export const ProRequests = () => {
   }, [locate]);
 
   const loadAvailable = useCallback(async () => {
-    const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius } });
+    const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, my_categories: true, radius_km: radius } });
     setAvailable((previous) => availableOffset.current > 50 ? mergeItems(previous, data).filter((r) => !r.expires_at || new Date(r.expires_at) > new Date()) : data);
     if (!availableOffset.current) { availableOffset.current = data.length; setMoreAvailable(data.length === 50); }
-  }, [api, pos.lat, pos.lng, radius]);
+  }, [api, pos.lat, pos.lng, radius, filterKey]);
 
   useEffect(() => {
     availableOffset.current = 0; setAvailable(null); setMoreAvailable(false);
@@ -73,7 +78,7 @@ export const ProRequests = () => {
 
   return (
     <div>
-      <PageHeader eyebrow="Profissional" title="Pedidos" subtitle="Candidate-se às vagas, aguarde aprovação e registre sua chegada e saída.">
+      <PageHeader eyebrow="Profissional" title="Pedidos das suas categorias" subtitle="Oportunidades filtradas pelas categorias do seu perfil. Suas candidaturas e serviços continuam nas outras abas.">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -90,6 +95,7 @@ export const ProRequests = () => {
         </TabsList>
         <TabsContent value="disponiveis" className="mt-6">
           <RadarBanner count={available?.length ?? null} />
+          {!me.categories?.length && <p className="mb-4">Selecione suas categorias no <Link to="/perfil/me" className="underline">perfil</Link> para receber oportunidades aqui. No feed você pode ver todas as categorias.</p>}
           {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
           <div className="grid gap-4 lg:grid-cols-2">

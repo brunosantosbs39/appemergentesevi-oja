@@ -4,7 +4,7 @@ import { ProRequests } from "@/components/requests/ProRequests";
 import { Button } from "@/components/ui/button";
 
 export default function Requests() {
-  const [mode, setMode] = useState("hire");
+  const [mode, setMode] = useState("opportunity");
   return <div>
     <div className="mb-6 grid grid-cols-2 gap-2" aria-label="Como você quer usar os pedidos?">
       <Button variant={mode === "hire" ? "default" : "outline"} aria-pressed={mode === "hire"} className="h-auto min-h-12 whitespace-normal" onClick={() => setMode("hire")}>Quero contratar</Button>

@@ -19,6 +19,11 @@ export default function Feed() {
   const [cat, setCat] = useState("todos");
   const [posts, setPosts] = useState(null);
   const [vacancies, setVacancies] = useState([]);
+  const [vacancyCursor, setVacancyCursor] = useState(null);
+  const [vacancyBusy, setVacancyBusy] = useState(false);
+  const [vacancyError, setVacancyError] = useState(false);
+  const vacancyPages = useRef(1);
+  const vacancyLoading = useRef(false);
   const [open, setOpen] = useState(false);
   const [hire, setHire] = useState(null);
   const catRef = useRef(cat);
@@ -57,24 +62,51 @@ export default function Feed() {
     return () => clearInterval(timer);
   }, [load]);
 
+  const moreVacancies = async () => {
+    if (!vacancyCursor || vacancyBusy || vacancyLoading.current) return;
+    vacancyLoading.current = true;
+    setVacancyBusy(true);
+    try {
+      const {data} = await api.get("/requests/feed", {params:{before:vacancyCursor, ...(cat!=="todos"?{category:cat}:{})}});
+      if(catRef.current!==cat)return;
+      setVacancies(previous=>mergeItems(previous,data.items));setVacancyCursor(data.next_cursor);vacancyPages.current++;
+    } catch { setVacancyError(true); }
+    finally { vacancyLoading.current = false; setVacancyBusy(false); }
+  };
   useEffect(() => {
-    const loadVacancies = () => api.get("/requests/available", { params: { radius_km: 0, limit: 3, ...(cat !== "todos" ? { category: cat } : {}) } }).then(({ data }) => setVacancies(data.slice(0, 3))).catch(() => {});
+    let active=true; vacancyPages.current=1;setVacancies([]);setVacancyCursor(null);setVacancyError(false);
+    const loadVacancies = async () => {
+      if(vacancyLoading.current)return;
+      vacancyLoading.current=true;
+      try {
+        let all=[], next=null;
+        for(let page=0;page<vacancyPages.current;page++){
+          const {data}=await api.get("/requests/feed",{params:{...(cat!=="todos"?{category:cat}:{}),...(next?{before:next}:{})}});
+          if(!active)return;
+          all=mergeItems(all,data.items);next=data.next_cursor;
+          if(!next)break;
+        }
+        setVacancies(all);setVacancyCursor(next);setVacancyError(false);
+      } catch { if(active)setVacancyError(true); }
+      finally { vacancyLoading.current=false; }
+    };
     loadVacancies();
-    const timer = setInterval(() => document.visibilityState === "visible" && loadVacancies(), 30000);
-    return () => clearInterval(timer);
-  }, [api, me.role, cat]);
+    const timer=setInterval(()=>document.visibilityState==="visible"&&loadVacancies(),15000);
+    return ()=>{active=false;clearInterval(timer);};
+  }, [api,cat]);
 
   return (
     <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_320px]">
       <section className="min-w-0">
-        <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Trabalhos recentes de profissionais perto de você.">
+        <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Pedidos públicos para se candidatar e publicações da comunidade.">
           <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
             <ImagePlus className="h-4 w-4" /> Nova postagem
           </Button>
         </PageHeader>
         <CategoryChips value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 max-w-xl space-y-6">
-          {vacancies.length > 0 && <section className="space-y-4" aria-label="Vagas abertas"><div className="flex items-center justify-between"><h2 className="font-heading text-xl font-bold">Vagas abertas</h2><Link to="/pedidos" className="text-sm underline">Ver todas as vagas</Link></div>{vacancies.map((r) => <RequestCard key={r.id} request={r} me={me} />)}</section>}
+          {vacancies.length > 0 && <section className="space-y-4" aria-label="Vagas abertas"><div className="flex items-center justify-between"><h2 className="font-heading text-xl font-bold">Vagas abertas</h2><Link to="/pedidos" className="text-sm underline">Vagas das minhas categorias</Link></div>{vacancies.map((r) => <RequestCard key={r.id} request={r} me={me} />)}{vacancyCursor && <Button variant="outline" disabled={vacancyBusy} onClick={moreVacancies}>{vacancyBusy?"Carregando...":"Ver mais pedidos"}</Button>}</section>}
+          {vacancyError && <p role="alert">Não foi possível atualizar os pedidos. Tentaremos novamente automaticamente.</p>}
           {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {posts?.length === 0 && (
             <EmptyState icon={ImagePlus} title="Nada por aqui ainda" text="Seja o primeiro a publicar nesta categoria." testid="feed-empty-state" />
