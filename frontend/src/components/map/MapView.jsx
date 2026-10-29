@@ -49,7 +49,7 @@ export function FixSize() {
   return null;
 }
 
-export const MapView = ({ center, radiusKm = 0, pros = [], requests = [], renderProPopup, renderRequestPopup, className, zoom = 12 }) => (
+export const MapView = ({ center, radiusKm = 0, accuracyMeters = null, showMe = true, pros = [], requests = [], renderProPopup, renderRequestPopup, className, zoom = 12 }) => (
   <div data-testid="leaflet-map-container" className={cn("relative overflow-hidden rounded-none border border-border shadow-sm", className)}>
     <MapContainer center={[center.lat, center.lng]} zoom={zoom} scrollWheelZoom className="z-0 h-full w-full">
       <TileLayer attribution={TILE_ATTR} url={TILE_URL} />
@@ -58,16 +58,17 @@ export const MapView = ({ center, radiusKm = 0, pros = [], requests = [], render
       {radiusKm > 0 && (
         <Circle center={[center.lat, center.lng]} radius={radiusKm * 1000} pathOptions={{ color: "#059669", weight: 1.5, fillOpacity: 0.05 }} />
       )}
-      <Marker position={[center.lat, center.lng]} icon={meIcon} />
+      {showMe && <Marker position={[center.lat, center.lng]} icon={meIcon} />}
+      {accuracyMeters != null && <Circle center={[center.lat, center.lng]} radius={accuracyMeters} pathOptions={{color:"#3b82f6",fillOpacity:0.12,weight:1}} />}
       {pros
-        .filter((p) => p.lat != null)
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat)<=90 && Math.abs(p.lng)<=180)
         .map((p) => (
           <Marker key={p.user_id} position={[p.lat, p.lng]} icon={proIcon(p)}>
             {renderProPopup && <Popup>{renderProPopup(p)}</Popup>}
           </Marker>
         ))}
       {requests
-        .filter((r) => r.lat != null)
+        .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng) && Math.abs(r.lat)<=90 && Math.abs(r.lng)<=180)
         .map((r) => (
           <Marker key={r.id} position={[r.lat, r.lng]} icon={reqIcon(r)}>
             {renderRequestPopup && <Popup>{renderRequestPopup(r)}</Popup>}

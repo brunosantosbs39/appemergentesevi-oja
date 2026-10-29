@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.companies import build_router as companies_router, owned as owned_company
     from backend.sandbox_wallet import build_router as wallet_router
     from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
@@ -31,6 +32,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from companies import build_router as companies_router, owned as owned_company
     from sandbox_wallet import build_router as wallet_router
     from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
@@ -61,7 +63,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("servicoja")
 
 CATEGORIES = {"eletricista", "encanador", "pintor", "pedreiro", "marceneiro", "diarista", "jardineiro", "beleza",
-              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros"}
+              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros", "producao_eventos", "tecnico_som", "iluminacao", "montagem_palco", "roadie", "dj", "musico", "seguranca_eventos", "recepcao_eventos", "garcom", "tecnico_led", "carregador_eventos"}
 STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em andamento",
                  "concluido": "Concluído", "cancelado": "Cancelado"}
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
@@ -186,6 +188,10 @@ class ProposalStatusIn(BaseModel):
 
 
 class RequestCreate(BaseModel):
+    company_id: Optional[str] = None
+    branch_id: Optional[str] = None
+    service_date: Optional[str] = Field(None, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    daily_count: int = Field(1, ge=1, le=366)
     expires_at: Optional[datetime] = None
     category: str
     title: str = Field(..., min_length=3, max_length=100)
@@ -549,6 +555,13 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 @api.post("/requests")
 async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
+    if body.branch_id and not body.company_id:
+        raise HTTPException(400, "Selecione a empresa da filial")
+    if body.company_id:
+        await owned_company(db, body.company_id, me["user_id"], body.branch_id)
+    if body.service_date:
+        try: datetime.strptime(body.service_date, "%Y-%m-%d")
+        except ValueError: raise HTTPException(400, "Data de serviço inválida")
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
     if body.target_pro_id:
@@ -997,13 +1010,14 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/crypto/", "/api/conversations", "/api/wallet")):
+    if request.url.path.startswith(("/api/crypto/", "/api/conversations", "/api/wallet", "/api/companies")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Vary"] = "Authorization, Cookie"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
+app.include_router(companies_router(db, onboarded))
 app.include_router(wallet_router(db, onboarded))
 app.include_router(api)
 app.include_router(clerk_router)
@@ -1020,6 +1034,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    await db.companies.create_index("owner_id")
+    await db.company_branches.create_index([("owner_id", 1), ("company_id", 1)])
+    await db.company_daily.create_index([("owner_id", 1), ("company_id", 1), ("service_date", 1)])
     await db.e2ee_identities.create_index("user_id", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.posts.create_index("id", unique=True)

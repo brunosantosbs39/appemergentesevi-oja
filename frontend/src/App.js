@@ -9,6 +9,7 @@ import Landing from "@/pages/Landing";
 import { SignInPage, SignUpPage } from "@/pages/AuthPages";
 import Onboarding from "@/pages/Onboarding";
 import WalletPage from "@/pages/WalletPage";
+import Companies from "@/pages/Companies";
 import Feed from "@/pages/Feed";
 import MapPage from "@/pages/MapPage";
 import Requests from "@/pages/Requests";
@@ -41,6 +42,7 @@ function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route element={<AppShell />}>
               <Route path="/feed" element={<Feed />} />
+              <Route path="/empresas" element={<Companies />} />
               <Route path="/mapa" element={<MapPage />} />
               <Route path="/carteira" element={<WalletPage />} />
               <Route path="/pedidos" element={<Requests />} />

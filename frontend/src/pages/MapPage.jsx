@@ -71,13 +71,15 @@ export default function MapPage() {
   const api = useApi();
   const { me } = useMe();
   const [params] = useSearchParams();
-  const fromLink = params.has("lat");
-  const initial = fromLink ? { lat: Number(params.get("lat")), lng: Number(params.get("lng")) } : me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS;
-  const { pos, status, locate } = useGeo(initial);
+  const valid = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const fromLink = params.has("lat") && params.has("lng") && valid(Number(params.get("lat")), Number(params.get("lng")));
+  const initial = fromLink ? { lat: Number(params.get("lat")), lng: Number(params.get("lng")) } : valid(me.lat, me.lng) ? { lat: me.lat, lng: me.lng } : DEFAULT_POS;
+  const { pos, status, locate, accuracy, updatedAt } = useGeo(initial);
   const [cat, setCat] = useState("todos");
   const [radius, setRadius] = useState(25);
   const [pros, setPros] = useState(null);
   const [reqs, setReqs] = useState([]);
+  const [mapError, setMapError] = useState(false);
   const [hire, setHire] = useState(null);
   const isPro = true;
 
@@ -87,8 +89,11 @@ export default function MapPage() {
 
   useEffect(() => {
     const params = { lat: pos.lat, lng: pos.lng, radius_km: radius, ...(cat !== "todos" ? { category: cat } : {}) };
-    api.get("/professionals", { params }).then((r) => setPros(r.data)).catch(() => setPros([]));
-    if (isPro) api.get("/requests/available", { params }).then((r) => setReqs(r.data)).catch(() => setReqs([]));
+    let current = true; setPros(null); setReqs([]); setMapError(false);
+    Promise.all([api.get("/professionals", { params }), api.get("/requests/available", { params })])
+      .then(([p, r]) => { if (current) { setPros(p.data); setReqs(r.data); } })
+      .catch(() => { if (current) { setPros([]); setMapError(true); } });
+    return () => { current = false; };
   }, [api, pos.lat, pos.lng, cat, radius, isPro]);
 
   return (
@@ -105,12 +110,16 @@ export default function MapPage() {
         </Button>
       </PageHeader>
       <CategoryChips value={cat} onChange={setCat} testid="map-category-chip" />
-      {status === "denied" && (
-        <p className="mt-3 text-xs text-muted-foreground" data-testid="map-location-denied">Não conseguimos acessar sua localização — mostrando a partir do seu perfil ou de São Paulo.</p>
+      {["denied","timeout","unavailable","unsupported"].includes(status) && (
+        <p className="mt-3 text-xs text-muted-foreground" data-testid="map-location-denied">Não foi possível obter sua localização atual. O mapa está usando o local salvo ou uma região inicial. Ative a localização no aparelho e tente novamente.</p>
       )}
+      <p className="mt-3 text-xs text-muted-foreground" role="status">{accuracy != null ? `Localização do aparelho: precisão aproximada de ${Math.round(accuracy)} m · atualizada às ${new Date(updatedAt).toLocaleTimeString("pt-BR")}` : fromLink ? "Centro definido pelo link; não representa sua localização atual." : "Centro do perfil ou região inicial; use Minha localização para atualizar."} As distâncias são em linha reta. Os profissionais aparecem no local cadastrado.</p>
+      {mapError && <p role="alert">Não foi possível carregar os resultados. Altere o raio ou tente atualizar sua localização.</p>}
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <MapView
           center={pos}
+          accuracyMeters={accuracy}
+          showMe={accuracy != null}
           radiusKm={radius}
           pros={pros || []}
           requests={reqs}
@@ -122,7 +131,7 @@ export default function MapPage() {
           <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground" data-testid="map-results-count">
             {pros === null ? "Buscando..." : `${pros.length} profissionais${isPro ? ` • ${reqs.length} pedidos` : ""}`}
           </p>
-          {pros?.length === 0 && (
+          {pros?.length === 0 && !mapError && (
             <div className="rounded-none border border-dashed border-border bg-card p-6 text-center" data-testid="map-empty-state">
               <MapPinOff className="mx-auto h-6 w-6 text-muted-foreground" />
               <p className="mt-2 text-sm font-semibold text-foreground">Ninguém neste raio</p>
