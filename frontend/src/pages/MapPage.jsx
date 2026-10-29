@@ -78,7 +78,7 @@ export default function MapPage() {
   const valid = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
   const fromLink = params.has("lat") && params.has("lng") && valid(Number(params.get("lat")), Number(params.get("lng")));
   const initial = fromLink ? { lat: Number(params.get("lat")), lng: Number(params.get("lng")) } : valid(me.lat, me.lng) ? { lat: me.lat, lng: me.lng } : DEFAULT_POS;
-  const { pos, status, locate, accuracy, updatedAt } = useGeo(initial);
+  const { pos, status, locate, accuracy, updatedAt, locationVersion } = useGeo(initial);
   const [cat, setCat] = useState("todos");
   const [radius, setRadius] = useState(25);
   const [pros, setPros] = useState(null);
@@ -121,14 +121,19 @@ export default function MapPage() {
             {RADIUS_OPTIONS.map((o) => <SelectItem key={o.v} value={String(o.v)}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" className="rounded-none bg-card" onClick={locate} data-testid="map-locate-me-button">
-          {status === "locating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} Minha localização
+        <Button variant="outline" className="rounded-none bg-card" onClick={locate} disabled={status === "locating"} data-testid="map-locate-me-button">
+          {status === "locating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} {status === "locating" ? "Localizando..." : "Minha localização"}
         </Button>
       </PageHeader>
       <CategoryChips value={cat} onChange={setCat} testid="map-category-chip" />
       {["denied","timeout","unavailable","unsupported"].includes(status) && (
-        <p className="mt-3 text-xs text-muted-foreground" data-testid="map-location-denied">Não foi possível obter sua localização atual. O mapa está usando o local salvo ou uma região inicial. Ative a localização no aparelho e tente novamente.</p>
+        <div className="mt-3 border border-border bg-card p-4 text-sm" role="alert" data-testid="map-location-denied">
+          <p className="font-semibold">{status === "denied" ? "A localização está bloqueada." : status === "timeout" ? "O aparelho não informou sua localização a tempo." : "O aparelho não conseguiu informar sua localização."}</p>
+          <p className="mt-1">No computador, permita Localização nas permissões deste site, ao lado do endereço do navegador. No Windows, confira Configurações → Privacidade e segurança → Localização e o acesso dos aplicativos da área de trabalho. Depois, tente novamente.</p>
+          <p className="mt-1 text-muted-foreground">O mapa continua na região anterior; ela não é uma confirmação de onde você está.</p>
+        </div>
       )}
+      {status === "approximate" && <p role="status" className="mt-3 text-sm">O computador forneceu apenas uma posição aproximada (margem de {Math.round(accuracy)} m). Para maior precisão, tente no celular com a localização ativada.</p>}
       <p className="mt-3 text-xs text-muted-foreground" role="status">{accuracy != null ? `Localização do aparelho: precisão aproximada de ${Math.round(accuracy)} m · atualizada às ${new Date(updatedAt).toLocaleTimeString("pt-BR")}` : fromLink ? "Centro definido pelo link; não representa sua localização atual." : "Centro do perfil ou região inicial; use Minha localização para atualizar."} As distâncias são em linha reta. Os profissionais aparecem no local cadastrado.</p>
       {mapError && <p role="alert">Não foi possível carregar os resultados. Altere o raio ou tente atualizar sua localização.</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground" aria-label="Legenda do mapa">
@@ -140,6 +145,7 @@ export default function MapPage() {
         <MapView
           center={pos}
           accuracyMeters={accuracy}
+          locationVersion={locationVersion}
           showMe={accuracy != null}
           radiusKm={radius}
           pros={pros || []}

@@ -36,11 +36,16 @@ const reqIcon = (group) => {
 
 export const meIcon = L.divIcon({ className: "", html: '<div class="pin-me" data-testid="map-marker-me"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
 
-export function Recenter({ center }) {
+export function Recenter({ center, locationVersion = 0, accuracyMeters }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
-  }, [center.lat, center.lng, map]);
+    if (locationVersion > 0 && accuracyMeters != null) {
+      const bounds = L.latLng(center.lat, center.lng).toBounds(Math.max(accuracyMeters * 2, 200));
+      map.fitBounds(bounds, {padding:[35,35],maxZoom:17,animate:true});
+    } else {
+      map.setView([center.lat, center.lng], map.getZoom(), { animate: true });
+    }
+  }, [center.lat, center.lng, locationVersion, accuracyMeters, map]);
   return null;
 }
 
@@ -53,11 +58,11 @@ export function FixSize() {
   return null;
 }
 
-export const MapView = ({ center, radiusKm = 0, accuracyMeters = null, showMe = true, pros = [], requests = [], renderProPopup, renderRequestPopup, className, zoom = 12 }) => (
+export const MapView = ({ center, radiusKm = 0, accuracyMeters = null, locationVersion = 0, showMe = true, pros = [], requests = [], renderProPopup, renderRequestPopup, className, zoom = 12 }) => (
   <div data-testid="leaflet-map-container" className={cn("relative overflow-hidden rounded-none border border-border shadow-sm", className)}>
     <MapContainer center={[center.lat, center.lng]} zoom={zoom} scrollWheelZoom className="z-0 h-full w-full">
       <TileLayer attribution={TILE_ATTR} url={TILE_URL} />
-      <Recenter center={center} />
+      <Recenter center={center} locationVersion={locationVersion} accuracyMeters={accuracyMeters} />
       <FixSize />
       {radiusKm > 0 && (
         <Circle center={[center.lat, center.lng]} radius={radiusKm * 1000} pathOptions={{ color: "#059669", weight: 1.5, fillOpacity: 0.05 }} />
