@@ -1,3 +1,4 @@
+import { requestPrice } from "@/components/map/requestMarkers.mjs";
 import { ApplyButton } from "@/components/requests/ApplyButton";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -45,7 +46,10 @@ const ReqPopup = ({ r }) => (
   <div className="w-52" data-testid="map-request-popup">
     <p className="font-mono text-[10px] uppercase tracking-widest text-amber-700">{catOf(r.category).label} • {km(r.distance_km)}</p>
     <p className="mt-1 font-heading text-sm font-bold text-foreground">{r.title}</p>
-    <p className="text-xs font-semibold text-foreground">{brl(r.budget)}</p>
+    <p className="text-xs font-semibold text-foreground">{requestPrice(r)} <span className="font-normal text-muted-foreground">· valor total</span></p>
+    {r.description && <p className="mt-2 text-xs text-foreground">{r.description}</p>}
+    {r.billing_type === "hourly" && <p className="text-xs text-muted-foreground">Contratação por hora</p>}
+    {r.billing_type === "daily" && <p className="text-xs text-muted-foreground">Contratação por diária</p>}
     <Link to="/pedidos" className="mt-2 block rounded-none bg-primary py-1.5 text-center text-xs font-semibold !text-primary-foreground" data-testid="map-popup-request-link">
       Ver pedido
     </Link>
@@ -79,6 +83,7 @@ export default function MapPage() {
   const [radius, setRadius] = useState(25);
   const [pros, setPros] = useState(null);
   const [reqs, setReqs] = useState([]);
+  const [lastRefresh, setLastRefresh] = useState(null);
   const [mapError, setMapError] = useState(false);
   const [hire, setHire] = useState(null);
   const isPro = true;
@@ -90,15 +95,26 @@ export default function MapPage() {
   useEffect(() => {
     const params = { lat: pos.lat, lng: pos.lng, radius_km: radius, ...(cat !== "todos" ? { category: cat } : {}) };
     let current = true; setPros(null); setReqs([]); setMapError(false);
-    Promise.all([api.get("/professionals", { params }), api.get("/requests/available", { params })])
-      .then(([p, r]) => { if (current) { setPros(p.data); setReqs(r.data); } })
-      .catch(() => { if (current) { setPros([]); setMapError(true); } });
-    return () => { current = false; };
+    let loading = false;
+    const refresh = async () => {
+      if(loading)return;
+      loading = true;
+      try {
+        const [p,r] = await Promise.all([api.get("/professionals", {params}), api.get("/requests/available", {params})]);
+        if(current){setPros(p.data);setReqs(r.data);setMapError(false);setLastRefresh(Date.now());}
+      } catch { if(current){setPros(previous=>previous || []);setMapError(true);} }
+      finally {loading=false;}
+    };
+    refresh();
+    const interval = setInterval(()=>{if(document.visibilityState==="visible")refresh();},15000);
+    const visible = ()=>{if(document.visibilityState==="visible")refresh();};
+    document.addEventListener("visibilitychange",visible);
+    return () => { current = false;clearInterval(interval);document.removeEventListener("visibilitychange",visible); };
   }, [api, pos.lat, pos.lng, cat, radius, isPro]);
 
   return (
     <div>
-      <PageHeader eyebrow="Radar" title="Profissionais no mapa" subtitle={isPro ? "Veja colegas e pedidos abertos (R$) perto de você." : "Encontre quem pode te atender agora."}>
+      <PageHeader eyebrow="Radar" title="Oportunidades no mapa" subtitle="Pontos pulsantes mostram vagas abertas. Toque no valor para ver os detalhes e se candidatar.">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="map-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -115,6 +131,11 @@ export default function MapPage() {
       )}
       <p className="mt-3 text-xs text-muted-foreground" role="status">{accuracy != null ? `Localização do aparelho: precisão aproximada de ${Math.round(accuracy)} m · atualizada às ${new Date(updatedAt).toLocaleTimeString("pt-BR")}` : fromLink ? "Centro definido pelo link; não representa sua localização atual." : "Centro do perfil ou região inicial; use Minha localização para atualizar."} As distâncias são em linha reta. Os profissionais aparecem no local cadastrado.</p>
       {mapError && <p role="alert">Não foi possível carregar os resultados. Altere o raio ou tente atualizar sua localização.</p>}
+      <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground" aria-label="Legenda do mapa">
+        <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-foreground" /> Vagas abertas · valor total</span>
+        <span>Fotos: profissionais</span>
+        {lastRefresh && <span>Atualizado às {new Date(lastRefresh).toLocaleTimeString("pt-BR")} · atualização a cada 15 s</span>}
+      </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <MapView
           center={pos}
@@ -123,7 +144,7 @@ export default function MapPage() {
           radiusKm={radius}
           pros={pros || []}
           requests={reqs}
-          className="h-[420px] sm:h-[560px]"
+          className="h-[60svh] min-h-[360px] sm:h-[560px]"
           renderProPopup={(p) => <ProPopup p={p} canHire={true} onHire={setHire} />}
           renderRequestPopup={(r) => <ReqPopup r={r} />}
         />
@@ -131,10 +152,10 @@ export default function MapPage() {
           <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground" data-testid="map-results-count">
             {pros === null ? "Buscando..." : `${pros.length} profissionais${isPro ? ` • ${reqs.length} pedidos` : ""}`}
           </p>
-          {pros?.length === 0 && !mapError && (
+          {pros?.length === 0 && reqs.length === 0 && !mapError && (
             <div className="rounded-none border border-dashed border-border bg-card p-6 text-center" data-testid="map-empty-state">
               <MapPinOff className="mx-auto h-6 w-6 text-muted-foreground" />
-              <p className="mt-2 text-sm font-semibold text-foreground">Ninguém neste raio</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">Nenhuma vaga ou profissional neste raio</p>
               {radius > 0 && (
                 <Button variant="outline" size="sm" className="mt-3 rounded-none" onClick={() => setRadius(0)} data-testid="map-show-all-button">
                   Ver todos
