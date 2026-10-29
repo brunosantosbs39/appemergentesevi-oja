@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form, BackgroundTasks
 from fastapi.responses import Response, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.opportunities import notify_opportunity
     from backend.pricing import Pricing
     from backend.companies import build_router as companies_router, owned as owned_company
     from backend.sandbox_wallet import build_router as wallet_router
@@ -33,6 +34,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from opportunities import notify_opportunity
     from pricing import Pricing
     from companies import build_router as companies_router, owned as owned_company
     from sandbox_wallet import build_router as wallet_router
@@ -556,7 +558,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 
 @api.post("/requests")
-async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
+async def create_request(body: RequestCreate, background_tasks: BackgroundTasks, me: dict = Depends(onboarded)):
     if body.branch_id and not body.company_id:
         raise HTTPException(400, "Selecione a empresa da filial")
     if body.company_id:
@@ -580,6 +582,7 @@ async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
     await db.requests.insert_one(dict(doc))
+    background_tasks.add_task(notify_opportunity, db, dict(doc))
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
