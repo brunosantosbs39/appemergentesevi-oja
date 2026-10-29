@@ -55,6 +55,10 @@ export default function ProductionWallet({ wallet, userId }) {
       <p>Saldo disponível</p><p className="mt-3 text-3xl">{money(wallet.available_cents)}</p>
       <p className="mt-3 text-sm text-muted-foreground">Saques ainda não estão disponíveis. Os pagamentos de serviços com saldo real serão liberados em uma próxima etapa.</p>
     </section>
+    <nav aria-label="Ações da carteira" className="grid grid-cols-2 gap-3">
+      <a href="#adicionar-saldo" className="flex min-h-12 items-center justify-center border border-primary bg-primary p-3 font-semibold text-primary-foreground">Adicionar saldo</a>
+      <a href="#sacar-saldo" className="flex min-h-12 items-center justify-center border border-border bg-card p-3 font-semibold">Sacar</a>
+    </nav>
     {!wallet.enabled ? <p role="status">Depósitos Pix temporariamente indisponíveis.</p> : <form onSubmit={deposit} id="adicionar-saldo" className="space-y-4 border border-border bg-card p-5">
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
       <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || !!active} required /></label>
@@ -63,6 +67,12 @@ export default function ProductionWallet({ wallet, userId }) {
       <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || !!active}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
       {active && <p role="status" className="text-sm">Acompanhe o depósito abaixo antes de gerar outro.</p>}
     </form>}
+    <section id="sacar-saldo" aria-labelledby="titulo-saque" className="scroll-mt-24 space-y-3 border border-border bg-card p-5">
+      <h2 id="titulo-saque" className="text-xl">Sacar via Pix</h2>
+      <p>Saldo disponível: {money(wallet.available_cents)}</p>
+      <p id="saque-indisponivel" className="text-sm text-muted-foreground">O saque real ainda não está disponível no ServiçoJá. Esta opção será liberada após a implementação e validação das transferências.</p>
+      <Button type="button" disabled aria-describedby="saque-indisponivel" className="min-h-12 w-full sm:w-auto">Sacar — indisponível</Button>
+    </section>
     <section className="space-y-4" aria-live="polite">
       <h2 className="text-xl">Depósitos</h2>
       {!wallet.operations.length && <p>Nenhum depósito.</p>}
