@@ -59,6 +59,7 @@ export const ProRequests = () => {
 
   const loadAvailable = useCallback(async () => {
     const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, my_categories: true, radius_km: radius } });
+    if(filterRef.current !== filterKey)return;
     setAvailable((previous) => availableOffset.current > 50 ? mergeItems(previous, data).filter((r) => !r.expires_at || new Date(r.expires_at) > new Date()) : data);
     if (!availableOffset.current) { availableOffset.current = data.length; setMoreAvailable(data.length === 50); }
   }, [api, pos.lat, pos.lng, radius, filterKey]);
