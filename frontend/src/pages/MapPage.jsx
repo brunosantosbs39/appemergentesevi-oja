@@ -1,3 +1,4 @@
+import { startPolling } from "@/lib/polling.mjs";
 import { requestPrice } from "@/components/map/requestMarkers.mjs";
 import { ApplyButton } from "@/components/requests/ApplyButton";
 import { useEffect, useState } from "react";
@@ -102,14 +103,11 @@ export default function MapPage() {
       try {
         const [p,r] = await Promise.all([api.get("/professionals", {params}), api.get("/requests/available", {params})]);
         if(current){setPros(p.data);setReqs(r.data);setMapError(false);setLastRefresh(Date.now());}
-      } catch { if(current){setPros(previous=>previous || []);setMapError(true);} }
+      } catch (error) { if(current){setPros(previous=>previous || []);setMapError(true);} throw error; }
       finally {loading=false;}
     };
-    refresh();
-    const interval = setInterval(()=>{if(document.visibilityState==="visible")refresh();},15000);
-    const visible = ()=>{if(document.visibilityState==="visible")refresh();};
-    document.addEventListener("visibilitychange",visible);
-    return () => { current = false;clearInterval(interval);document.removeEventListener("visibilitychange",visible); };
+    const stop = startPolling(refresh);
+    return () => { current = false;stop(); };
   }, [api, pos.lat, pos.lng, cat, radius, isPro]);
 
   return (

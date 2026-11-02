@@ -56,3 +56,24 @@ Os testes em memória simulam transações e falhas. Não substituem teste conco
 - [Criar cobrança](https://docs.asaas.com/reference/criar-nova-cobranca)
 - [QR Code](https://docs.asaas.com/reference/obter-qr-code-para-pagamentos-via-pix)
 - [Webhooks](https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook)
+
+
+## Recuperação de interrupções (novembro de 2026)
+
+O depósito e sua trava são criados na mesma transação MongoDB. A etapa
+preparing ainda não enviou cobrança; falhas nessa etapa encerram a tentativa sem
+saldo e permitem outra. Se a instância parar, após dois minutos o trabalhador
+pode encerrá-la. Uma atualização condicional impede que o criador antigo envie
+a cobrança depois dessa recuperação.
+
+Antes do POST ao Asaas, o estado passa para submitting. Uma resposta incerta
+nessa etapa continua em review, mesmo se uma consulta retornar uma lista vazia:
+o sistema nunca repete o POST nem presume que não existe cobrança. Operações
+antigas sem indicação de etapa continuam conservadoramente em análise. Precisam
+de verificação operacional com o provedor; esta migração não apaga travas antigas
+de forma indiscriminada.
+
+A leitura da carteira retorna o último estado salvo e agenda reconciliação
+persistente. Webhooks continuam autenticados e consultam diretamente o Asaas
+antes de atualizar o saldo. Saques reais continuam proibidos. Consulte
+OPERACAO_FILAS.md para retomadas e agendamento independente de usuários.

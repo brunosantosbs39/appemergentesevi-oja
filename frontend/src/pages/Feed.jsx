@@ -1,3 +1,4 @@
+import { startPolling } from "@/lib/polling.mjs";
 import { mergeItems } from "@/lib/pagination";
 import { Link } from "react-router-dom";
 import { RequestCard } from "@/components/requests/RequestCard";
@@ -57,9 +58,7 @@ export default function Feed() {
 
   useEffect(() => {
     cursor.current = null; initialized.current = false; setHasMore(false); setPosts(null);
-    load().catch(() => setPosts([]));
-    const timer = setInterval(() => document.visibilityState === "visible" && load().catch(() => {}), 15000);
-    return () => clearInterval(timer);
+    return startPolling(load, { onError: () => setPosts(previous => previous || []) });
   }, [load]);
 
   const moreVacancies = async () => {
@@ -87,12 +86,11 @@ export default function Feed() {
           if(!next)break;
         }
         setVacancies(all);setVacancyCursor(next);setVacancyError(false);
-      } catch { if(active)setVacancyError(true); }
+      } catch (error) { if(active)setVacancyError(true); throw error; }
       finally { vacancyLoading.current=false; }
     };
-    loadVacancies();
-    const timer=setInterval(()=>document.visibilityState==="visible"&&loadVacancies(),15000);
-    return ()=>{active=false;clearInterval(timer);};
+    const stop = startPolling(loadVacancies, { interval: () => Math.max(30000, vacancyPages.current * 15000) });
+    return ()=>{active=false;stop();};
   }, [api,cat]);
 
   return (

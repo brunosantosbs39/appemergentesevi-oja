@@ -22,6 +22,8 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
+    from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
     from backend.pricing import Pricing
     from backend.companies import build_router as companies_router, owned as owned_company
@@ -34,6 +36,8 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
+    from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
     from pricing import Pricing
     from companies import build_router as companies_router, owned as owned_company
@@ -110,8 +114,10 @@ def with_presence(doc: dict) -> dict:
 
 
 # ---------- auth ----------
-async def current_member(request: Request, user: dict = Depends(require_user), _notifications=Depends(notification_tasks)) -> dict:
+async def current_member(request: Request, background_tasks: BackgroundTasks, user: dict = Depends(require_user), _notifications=Depends(notification_tasks)) -> dict:
     uid = user["user_id"]
+    if request.url.path in ("/api/me/presence", "/api/notifications"):
+        background_tasks.add_task(safe_drain, db)
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         await write_limit(db, uid, request.url.path)
     else:
@@ -248,7 +254,7 @@ async def notification_config(me: dict = Depends(current_member)):
 
 @api.get("/notifications")
 async def list_notifications(me: dict = Depends(current_member)):
-    return await db.notifications.find({"user_id": me["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return await db.notifications.find({"user_id": me["user_id"]}, {"_id": 0, "delivery": 0}).sort("created_at", -1).to_list(100)
 
 
 @api.post("/notifications/{nid}/read")
@@ -540,6 +546,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
     ids += [a["professional_id"] for r in items if r.get("client_id") == viewer_id for a in r.get("applications", [])]
     um = await users_map(ids)
     for r in items:
+        r.pop("alert_job", None)
         r["is_expired"] = bool(r.get("expires_at") and r["expires_at"] <= now_iso())
         r["client"] = um.get(r.get("client_id"))
         r["professional"] = um.get(r.get("professional_id"))
@@ -581,8 +588,9 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
         doc["budget"] = body.total_cents() / 100
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
+    doc["alert_job"] = pending_job()
     await db.requests.insert_one(dict(doc))
-    background_tasks.add_task(notify_opportunity, db, dict(doc))
+    background_tasks.add_task(safe_drain, db)
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
@@ -1046,6 +1054,7 @@ async def private_api_cache(request, call_next):
     return response
 
 
+app.include_router(jobs_router(db))
 app.include_router(companies_router(db, onboarded))
 app.include_router(wallet_router(db, onboarded))
 app.include_router(api)
@@ -1063,6 +1072,10 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    await job_indexes(db)
+    await pix_indexes(db)
+    await db.requests.create_index([("status", 1), ("target_pro_id", 1), ("created_at", -1), ("id", -1)])
+    await db.requests.create_index([("status", 1), ("target_pro_id", 1), ("category", 1), ("created_at", -1), ("id", -1)])
     await db.companies.create_index("owner_id")
     await db.company_branches.create_index([("owner_id", 1), ("company_id", 1)])
     await db.company_daily.create_index([("owner_id", 1), ("company_id", 1), ("service_date", 1)])

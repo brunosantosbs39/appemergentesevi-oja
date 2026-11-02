@@ -1,5 +1,6 @@
 """Persistent in-app notifications and optional encrypted Web Push delivery."""
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -45,11 +46,17 @@ def validate_subscription(subscription):
         raise HTTPException(400, "Inscrição de notificações inválida")
 
 
-async def send_notice(db, user_id, title, body, url, dedup_key=None):
+async def send_notice(db, user_id, title, body, url, dedup_key=None, strict=False):
     """Store first; push-provider failures must never roll back the user action."""
     notice = {"id": str(uuid.uuid4()), "user_id": user_id, "title": title, "body": body[:240],
               "url": url, "read": False, "created_at": datetime.now(timezone.utc).isoformat()}
     try:
+        try:
+            from backend.jobs import pending, safe_drain
+        except ModuleNotFoundError:
+            from jobs import pending, safe_drain
+        if os.environ.get("VAPID_PRIVATE_KEY"):
+            notice["delivery"] = pending()
         if dedup_key:
             notice["_id"] = dedup_key
             result = await db.notifications.update_one({"_id": dedup_key}, {"$setOnInsert": notice}, upsert=True)
@@ -57,38 +64,45 @@ async def send_notice(db, user_id, title, body, url, dedup_key=None):
                 return
         else:
             await db.notifications.insert_one(dict(notice))
-        if not os.environ.get("VAPID_PRIVATE_KEY"):
-            return
         tasks = _request_tasks.get()
-        if tasks is not None:
-            tasks.add_task(deliver_notice, db, user_id, notice)
-        else:
-            await deliver_notice(db, user_id, notice)
-
+        if tasks is not None and "delivery" in notice:
+            tasks.add_task(safe_drain, db)
     except Exception:
-        logger.exception("Notification delivery unavailable")
+        logger.exception("Notification persistence unavailable")
+        if strict:
+            raise
 
+
+async def push_job(db, notice):
+    if not os.environ.get("VAPID_PRIVATE_KEY"):
+        raise RuntimeError("PushNotConfigured")
+    from pywebpush import webpush, WebPushException
+    subscriptions = await db.push_subscriptions.find({"user_id": notice["user_id"]}, {"_id": 0}).to_list(10)
+    sent = set(notice.get("delivery", {}).get("sent", []))
+    for record in subscriptions:
+        key = hashlib.sha256(record["endpoint"].encode()).hexdigest()
+        if key in sent:
+            continue
+        try:
+            await run_in_threadpool(webpush, subscription_info=record["subscription"],
+                data=json.dumps({"id": notice["id"], "title": notice["title"], "body": notice["body"], "url": notice["url"]}),
+                vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
+                vapid_claims={"sub": os.environ.get("VAPID_SUBJECT", "mailto:bruno.santos.bs39@gmail.com")},
+                ttl=3600, timeout=5)
+        except WebPushException as exc:
+            if exc.response is None or exc.response.status_code not in (404, 410):
+                raise
+            await db.push_subscriptions.delete_one({"endpoint": record["endpoint"], "user_id": notice["user_id"]})
+        # Save each successful/removed endpoint before the next provider call.
+        # Provider ambiguity is at-least-once; service worker deduplicates by notice id.
+        await db.notifications.update_one({"_id": notice["_id"], "delivery.token": notice["delivery"]["token"]},
+            {"$addToSet": {"delivery.sent": key}})
+    return True, {}
 
 async def deliver_notice(db, user_id, notice):
-    """Best-effort Web Push; the durable inbox remains available on failure."""
-    title, body, url = notice["title"], notice["body"], notice["url"]
+    # Old callers only kick persisted work; no untracked provider delivery.
     try:
-        subscriptions = await db.push_subscriptions.find({"user_id": user_id}, {"_id": 0}).to_list(10)
-        async def deliver(record):
-            from pywebpush import webpush, WebPushException
-            try:
-                await run_in_threadpool(webpush, subscription_info=record["subscription"],
-                    data=json.dumps({"id": notice["id"], "title": title, "body": body[:240], "url": url}),
-                    vapid_private_key=os.environ["VAPID_PRIVATE_KEY"],
-                    vapid_claims={"sub": os.environ.get("VAPID_SUBJECT", "mailto:bruno.santos.bs39@gmail.com")},
-                    ttl=3600, timeout=5)
-            except WebPushException as exc:
-                if exc.response is not None and exc.response.status_code in (404, 410):
-                    await db.push_subscriptions.delete_one({"endpoint": record["endpoint"], "user_id": user_id})
-                else:
-                    logger.warning("Push provider did not accept notification")
-            except Exception:
-                logger.warning("Push delivery unavailable")
-        await asyncio.gather(*(deliver(s) for s in subscriptions))
-    except Exception:
-        logger.exception("Push delivery unavailable")
+        from backend.jobs import safe_drain
+    except ModuleNotFoundError:
+        from jobs import safe_drain
+    await safe_drain(db)

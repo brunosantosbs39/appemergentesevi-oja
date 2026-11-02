@@ -8,10 +8,15 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from pymongo.errors import DuplicateKeyError
 from starlette.concurrency import run_in_threadpool
+
+try:
+    from backend.jobs import pending as pending_job, safe_drain
+except ModuleNotFoundError:
+    from jobs import pending as pending_job, safe_drain
 
 BASE = "https://api.asaas.com/v3"
 
@@ -112,7 +117,6 @@ def expired(op):
 
 async def create_deposit(db, me, body):
     guard()
-    await indexes(db)
     uid = me["user_id"]
     oid = hashlib.sha256((uid + ":" + body.idempotency_key).encode()).hexdigest()
     old = await db.pix_deposits.find_one({"_id": oid})
@@ -120,17 +124,21 @@ async def create_deposit(db, me, body):
         if old["amount_cents"] != body.amount_cents:
             raise HTTPException(409, "Esta solicitação já foi usada com outro valor")
         return public(old)
-    # Persistent per-user creation lease prevents multiple tabs creating multiple charges.
-    try:
-        await db.pix_creation_locks.insert_one({"_id": uid, "operation_id": oid})
-    except DuplicateKeyError:
-        raise HTTPException(409, "Há um depósito em processamento. Atualize as movimentações.")
+    # Create the intent and lock atomically: a process crash cannot leave an ownerless lock.
     op = {"_id": oid, "id": oid, "user_id": uid, "amount_cents": body.amount_cents,
-          "status": "pending", "created_at": stamp(), "paid_at": None}
+          "status": "pending", "creation_stage": "preparing", "created_at": stamp(),
+          "prepare_until": now() + timedelta(minutes=2), "paid_at": None, "sync_job": pending_job()}
+    async def reserve(session):
+        await db.pix_creation_locks.insert_one({"_id": uid, "operation_id": oid}, session=session)
+        await db.pix_deposits.insert_one(op, session=session)
     try:
-        await db.pix_deposits.insert_one(op)
+        async with await db.client.start_session() as session:
+            await session.with_transaction(reserve)
     except DuplicateKeyError:
-        return public(await db.pix_deposits.find_one({"_id": oid}))
+        old = await db.pix_deposits.find_one({"_id": oid})
+        if old and old["amount_cents"] == body.amount_cents:
+            return public(old)
+        raise HTTPException(409, "Há um depósito em processamento. Atualize as movimentações.")
     try:
         # CPF/CNPJ stays in memory and is sent only to Asaas; never stored in our ledger.
         customers = await call("GET", "/customers", params={"cpfCnpj": body.cpf_cnpj, "limit": 100})
@@ -141,7 +149,14 @@ async def create_deposit(db, me, body):
                 "name": me.get("name") or me.get("full_name") or "Cliente ServiçoJá",
                 "cpfCnpj": body.cpf_cnpj, "notificationDisabled": True})
         customer_id = customer["id"]
-        await db.pix_deposits.update_one({"_id": oid}, {"$set": {"customer_id": customer_id}})
+        # A stale preparing intent can be cancelled by recovery. This CAS fences the
+        # old creator BEFORE its irreversible POST, even if it resumes after expiry.
+        transition = await db.pix_deposits.update_one(
+            {"_id": oid, "creation_stage": "preparing", "status": "pending"},
+            {"$set": {"customer_id": customer_id, "creation_stage": "submitting"}})
+        if not transition.modified_count:
+            return public(await db.pix_deposits.find_one({"_id": oid}))
+
         payment = await call("POST", "/payments", {
             "customer": customer_id, "billingType": "PIX", "value": body.amount_cents / 100,
             "dueDate": now().astimezone(timezone(timedelta(hours=-3))).date().isoformat(),
@@ -150,14 +165,16 @@ async def create_deposit(db, me, body):
         if not re.fullmatch(r"pay_[A-Za-z0-9_-]+", pid):
             raise ProviderError()
         # Persist the id BEFORE fetching QR. A QR failure must never recreate the charge.
-        await db.pix_deposits.update_one({"_id": oid}, {"$set": {"provider_payment_id": pid}})
+        await db.pix_deposits.update_one({"_id": oid}, {"$set": {"provider_payment_id": pid, "creation_stage": "created"}})
         await save_qr(db, oid, pid)
-    except ProviderError as error:
-        # An ambiguous network failure may have created a charge. Do not POST again.
-        await db.pix_deposits.update_one({"_id": oid, "status": {"$ne": "paid"}},
-            {"$set": {"status": "failed" if error.definitive and not (await db.pix_deposits.find_one({"_id": oid})).get("provider_payment_id") else "review"}})
-    except (KeyError, TypeError):
-        await db.pix_deposits.update_one({"_id": oid, "status": {"$ne": "paid"}}, {"$set": {"status": "review"}})
+    except (ProviderError, KeyError, TypeError) as error:
+        current = await db.pix_deposits.find_one({"_id": oid})
+        # No payment POST can have happened in preparing. Ambiguous POSTs remain
+        # blocked for reconciliation; never infer absence from a timeout or empty list.
+        safe = current.get("creation_stage") == "preparing" or (
+            isinstance(error, ProviderError) and error.definitive and not current.get("provider_payment_id"))
+        await db.pix_deposits.update_one({"_id": oid, "status": {"$nin": ["paid", "failed"]}},
+            {"$set": {"status": "failed" if safe else "review"}})
     result = await db.pix_deposits.find_one({"_id": oid})
     if result["status"] == "failed":
         await db.pix_creation_locks.delete_one({"_id": uid, "operation_id": oid})
@@ -176,12 +193,29 @@ async def reconcile(db, oid):
     op = await db.pix_deposits.find_one({"_id": oid})
     if not op:
         return
+    if op.get("creation_stage") == "preparing":
+        if op["status"] == "failed":
+            await db.pix_creation_locks.delete_one({"_id": op["user_id"], "operation_id": oid})
+            return
+        if op.get("prepare_until") and op["prepare_until"].replace(tzinfo=timezone.utc) <= now():
+            await db.pix_deposits.update_one(
+                {"_id": oid, "creation_stage": "preparing", "status": "pending"},
+                {"$set": {"status": "failed", "failure_reason": "preparation_interrupted"}})
+            fresh = await db.pix_deposits.find_one({"_id": oid})
+            if fresh["status"] == "failed":
+                await db.pix_creation_locks.delete_one({"_id": op["user_id"], "operation_id": oid})
+        return
+    if op["status"] == "failed" and not op.get("provider_payment_id"):
+        await db.pix_creation_locks.delete_one({"_id": op["user_id"], "operation_id": oid})
+        return
     pid = op.get("provider_payment_id")
     if not pid:
         # Recover an interrupted creation by its reference, without ever recreating it.
         found = await call("GET", "/payments", params={"externalReference": oid, "limit": 100})
         rows = found.get("data", [])
         if len(rows) != 1:
+            await db.pix_deposits.update_one({"_id": oid, "credited_cents": {"$exists": False}},
+                {"$set": {"status": "review", "checked_at": stamp()}})
             return
         payment = rows[0]
         pid = payment.get("id", "")
@@ -233,17 +267,10 @@ async def snapshot(db, uid):
         "available_cents": balance.get("available_cents", 0), "operations": [public(o) for o in operations]}
 
 async def synchronize(db, uid):
-    # One provider refresh per user per 10 seconds, across serverless instances.
-    try:
-        await db.pix_sync.insert_one({"_id": uid, "next_at": now()})
-    except DuplicateKeyError:
-        pass
-    acquired = await db.pix_sync.update_one({"_id": uid, "next_at": {"$lte": now()}},
-        {"$set": {"next_at": now() + timedelta(seconds=10)}})
-    if acquired.modified_count:
-        rows = await db.pix_deposits.find({"user_id": uid, "status": {"$in": ["pending", "review", "expired"]}}).sort("created_at", -1).limit(5).to_list(5)
-        for op in rows:
-            await reconcile(db, op["_id"])
+    # Backfill legacy active intents, but never POST another provider charge.
+    await db.pix_deposits.update_many(
+        {"user_id": uid, "status": {"$in": ["pending", "review"]}, "sync_job": {"$exists": False}},
+        {"$set": {"sync_job": pending_job()}})
 
 async def webhook(db, request):
     guard()
@@ -278,10 +305,11 @@ async def webhook(db, request):
 def build_router(db, onboarded):
     router = APIRouter(prefix="/api/wallet")
     @router.get("")
-    async def wallet(me=Depends(onboarded)):
+    async def wallet(background_tasks: BackgroundTasks, me=Depends(onboarded)):
         if enabled():
             try:
                 await synchronize(db, me["user_id"])
+                background_tasks.add_task(safe_drain, db)
             except ProviderError:
                 pass  # Keep last persisted state; never manufacture successful payments.
         return await snapshot(db, me["user_id"])
@@ -291,10 +319,11 @@ def build_router(db, onboarded):
         return await create_deposit(db, me, body)
 
     @router.post("/sync")
-    async def sync(me=Depends(onboarded)):
+    async def sync(background_tasks: BackgroundTasks, me=Depends(onboarded)):
         guard()
         try:
             await synchronize(db, me["user_id"])
+            background_tasks.add_task(safe_drain, db)
         except ProviderError:
             raise HTTPException(503, "Não foi possível consultar o pagamento agora")
         return await snapshot(db, me["user_id"])

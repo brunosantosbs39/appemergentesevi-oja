@@ -22,6 +22,8 @@ def match(doc, query):
         if isinstance(value, dict):
             if "$ne" in value and got == value["$ne"]: return False
             if "$in" in value and got not in value["$in"]: return False
+            if "$nin" in value and got in value["$nin"]: return False
+            if "$exists" in value and (key in doc) != value["$exists"]: return False
             if "$lte" in value and got > value["$lte"]: return False
         elif got != value:
             return False
@@ -110,12 +112,13 @@ class PixTests(unittest.TestCase):
         with patch.object(w, "call", AsyncMock(side_effect=replies)) as api:
             run(w.create_deposit(self.db, self.me, self.body))
             self.assertEqual(api.await_args_list[1].args[:2], ("POST", "/customers"))
-    def test_ambiguous_creation_is_review_no_retry(self):
+    def test_failure_before_payment_is_failed_without_credit(self):
         with patch.object(w, "call", AsyncMock(side_effect=w.ProviderError())) as api:
             op = run(w.create_deposit(self.db, self.me, self.body))
             run(w.create_deposit(self.db, self.me, self.body))
             self.assertEqual(api.await_count, 1)
-        self.assertEqual(op["status"], "review")
+        self.assertEqual(op["status"], "failed")
+        self.assertFalse(self.db.pix_creation_locks.docs)
         self.assertFalse(self.db.pix_balances.docs)
     def test_qr_failure_preserves_payment_id(self):
         with patch.object(w, "call", AsyncMock(side_effect=[{"data": [{"id": "cus_1", "cpfCnpj": "24971563792"}]},
