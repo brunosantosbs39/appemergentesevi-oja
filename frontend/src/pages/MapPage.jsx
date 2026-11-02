@@ -89,9 +89,7 @@ export default function MapPage() {
   const [hire, setHire] = useState(null);
   const isPro = true;
 
-  useEffect(() => {
-    if (!fromLink) locate();
-  }, [fromLink, locate]);
+  // Keep the registered region until the user explicitly requests device location.
 
   useEffect(() => {
     const params = { lat: pos.lat, lng: pos.lng, radius_km: radius, ...(cat !== "todos" ? { category: cat } : {}) };

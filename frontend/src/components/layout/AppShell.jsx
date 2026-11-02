@@ -96,7 +96,7 @@ export default function AppShell() {
   const { me } = useMe();
   const unread = useUnread();
   const isChat = useLocation().pathname.startsWith("/chat");
-  if (!me.role) return <Navigate to="/onboarding" replace />;
+  if (!me.registration_complete) return <Navigate to="/onboarding" replace />;
   return (
     <div className="min-h-screen bg-background">
       <Sidebar me={me} unread={unread} />

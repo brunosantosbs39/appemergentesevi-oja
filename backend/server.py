@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.registration import build_router as registration_router, complete as registration_complete
     from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
@@ -36,6 +37,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from registration import build_router as registration_router, complete as registration_complete
     from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
@@ -133,7 +135,7 @@ async def current_member(request: Request, background_tasks: BackgroundTasks, us
 
 
 async def onboarded(me: dict = Depends(current_member)) -> dict:
-    if not me.get("role"):
+    if not registration_complete(me):
         raise HTTPException(403, "Complete seu cadastro primeiro")
     return me
 
@@ -313,7 +315,7 @@ async def root():
 
 @api.get("/me")
 async def get_me(me: dict = Depends(current_member)):
-    return me
+    return {**me, "registration_complete": registration_complete(me)}
 
 
 @api.post("/me/presence")
@@ -325,6 +327,8 @@ async def heartbeat(me: dict = Depends(current_member)):
 
 @api.put("/me")
 async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
+    if not registration_complete(me):
+        raise HTTPException(403, "Complete seu cadastro com endereço primeiro")
     data = body.model_dump(exclude_unset=True)
     if "categories" in data:
         cats = [c for c in dict.fromkeys(data["categories"] or []) if c in CATEGORIES]
@@ -337,7 +341,8 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
     data["role"] = "membro"
     if data:
         await db.users.update_one({"user_id": me["user_id"]}, {"$set": data})
-    return await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    result = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    return {**result, "registration_complete": registration_complete(result)}
 
 
 # ---------- files ----------
@@ -1047,13 +1052,14 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/crypto/", "/api/conversations", "/api/wallet", "/api/companies")):
+    if request.url.path.startswith(("/api/me", "/api/crypto/", "/api/conversations", "/api/wallet", "/api/companies")):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["Vary"] = "Authorization, Cookie"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
+app.include_router(registration_router(db, current_member))
 app.include_router(jobs_router(db))
 app.include_router(companies_router(db, onboarded))
 app.include_router(wallet_router(db, onboarded))

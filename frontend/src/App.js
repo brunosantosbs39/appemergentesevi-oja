@@ -6,7 +6,7 @@ import { MeProvider } from "@/context/MeContext";
 import { Toaster } from "@/components/ui/sonner";
 import AppShell from "@/components/layout/AppShell";
 import Landing from "@/pages/Landing";
-import { SignInPage, SignUpPage } from "@/pages/AuthPages";
+import { SignInPage, SignUpPage, SsoCallback } from "@/pages/AuthPages";
 import Onboarding from "@/pages/Onboarding";
 import WalletPage from "@/pages/WalletPage";
 import Companies from "@/pages/Companies";
@@ -36,6 +36,7 @@ function App() {
       <ClerkAuthProvider>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/sso-callback" element={<SsoCallback />} />
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
           <Route element={<Protected />}>
