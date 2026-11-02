@@ -13,7 +13,7 @@ GET /api/me/address/{cep} consulta BrasilAPI CEP v2 e mantém cache por CEP no M
 
 PUT /api/me/registration valida os campos, confere cidade/UF com o CEP e consulta o e-mail primário verificado diretamente no Clerk. Salva endereço privado, e-mail, região, origem da localização e data de conclusão. Projeções públicas não incluem endereço completo nem e-mail. Respostas /api/me têm Cache-Control private, no-store.
 
-OAuth retorna por /sso-callback; desafios adicionais e MFA continuam sob controle do Clerk. Não há alteração das políticas de MFA ou da senha na instância. Recuperação de senha usa o componente seguro do Clerk.
+OAuth retorna por /sso-callback; desafios adicionais e MFA continuam sob controle do Clerk. Não há alteração das políticas de MFA ou da senha na instância. Recuperação de senha usa código de e-mail e redefinição pelo SDK Clerk. MFA continua exigido quando configurado.
 
 Validação:
 - python -m unittest discover -s tests -p test_registration.py -v

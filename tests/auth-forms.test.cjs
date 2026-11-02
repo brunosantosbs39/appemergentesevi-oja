@@ -52,3 +52,18 @@ test('incomplete password authentication is never finalized',async()=>{
 test('signed-in visitor is sent to registration gate',async()=>{
  auth.isSignedIn=true;await render('SignInPage');assert.deepEqual(navigations,['/onboarding']);
 });
+
+test('recovery opens a dedicated email form instead of the old login',async()=>{
+ route='/sign-in/recover';await render('SignInPage');
+ assert.match(document.body.textContent,/Recuperar senha/);
+ assert.ok(document.querySelector('#recovery-email'));
+ assert.equal(document.querySelector('input[type=password]'),null);
+});
+test('recovery requires verified code before password submission',async()=>{
+ route='/sign-in/recover';
+ signIn.create=async()=>({error:null});
+ signIn.resetPasswordEmailCode={sendCode:async()=>({error:null}),verifyCode:async()=>({error:{message:'Código inválido'}})};
+ await render('SignInPage');document.querySelector('#recovery-email').value='test@example.com';await submit();
+ assert.ok(document.querySelector('#recovery-code'));await submit();
+ assert.equal(document.querySelector('input[type=password]'),null);assert.equal(navigations.length,0);
+});

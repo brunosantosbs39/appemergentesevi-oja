@@ -41,9 +41,11 @@ function AccessForm({ registering = false }) {
   const [extra, setExtra] = useState(false);
   const resource = registering ? signUp : signIn;
   const run = async (action) => { if(busy)return; setBusy(true);setError("");try{await action();}catch(e){setError(message(e));}finally{setBusy(false);} };
-  const finish = async () => checked(resource.finalize({navigate: ({session}) => {
+  const finish = async () => checked(resource.finalize({navigate: ({session, decorateUrl}) => {
     if(session?.currentTask) {setTasks(true);return;}
-    navigate("/onboarding", {replace:true});
+    const destination = decorateUrl ? decorateUrl("/onboarding") : "/onboarding";
+    if(destination.startsWith("http")) window.location.assign(destination);
+    else navigate(destination, {replace:true});
   }}));
   const submit = e => {
     e.preventDefault();
@@ -78,7 +80,7 @@ function AccessForm({ registering = false }) {
         <label className="access-field" htmlFor="email">E-mail<input id="email" name="email" type="email" autoComplete="email" required maxLength={254} placeholder="voce@exemplo.com" /></label>
         <PasswordField creating={registering} />
         {registering && <><PasswordField id="confirmation" label="Confirmar senha" creating /><p className="access-hint">Use pelo menos 8 caracteres e uma senha exclusiva.</p></>}
-        {!registering && <Link className="access-link" to="/sign-in/recover" onClick={()=>setExtra(true)}>Esqueci minha senha</Link>}
+        {!registering && <Link className="access-link" to="/sign-in/recover">Esqueci minha senha</Link>}
         <div id="clerk-captcha" />
         <button className="access-primary" disabled={!isLoaded || !resource || busy}>{busy?"Aguarde…":registering?"Criar acesso e continuar":"Entrar"}</button>
       </form>
@@ -88,6 +90,50 @@ function AccessForm({ registering = false }) {
     {error && <p role="alert" className="access-error">{error}</p>}
   </AuthLayout>;
 }
-export const SignInPage = () => <AccessForm key="signin" />;
+function RecoverPassword() {
+  const {signIn} = useSignIn();
+  const {isSignedIn} = useAuth();
+  const navigate = useNavigate();
+  const [stage,setStage] = useState("email"), [error,setError] = useState(""), [busy,setBusy] = useState(false), [task,setTask] = useState(false);
+  const submit = async e => {
+    e.preventDefault(); if(busy)return;
+    const data = new FormData(e.currentTarget);
+    if(stage==="password" && data.get("password")!==data.get("confirmation")){setError("As senhas precisam ser iguais.");return;}
+    setBusy(true);setError("");
+    try {
+      if(stage==="email"){
+        await checked(signIn.create({identifier:String(data.get("email")).trim()}));
+        await checked(signIn.resetPasswordEmailCode.sendCode());setStage("code");
+      }else if(stage==="code"){
+        await checked(signIn.resetPasswordEmailCode.verifyCode({code:String(data.get("code"))}));setStage("password");
+      }else{
+        await checked(signIn.resetPasswordEmailCode.submitPassword({password:String(data.get("password")),signOutOfOtherSessions:true}));
+        if(signIn.status==="complete") await checked(signIn.finalize({navigate:({session,decorateUrl})=>{
+          if(session?.currentTask){setTask(true);return;}
+          const to=decorateUrl?decorateUrl("/onboarding"):"/onboarding";
+          if(to.startsWith("http"))window.location.assign(to);else navigate(to,{replace:true});
+        }}));
+        else setStage("challenge");
+      }
+    }catch(e){setError(message(e));}finally{setBusy(false);}
+  };
+  if(task)return <RedirectToTasks />;
+  if(isSignedIn)return <Navigate to="/onboarding" replace />;
+  return <AuthLayout title="Recuperar senha" subtitle="Confirme seu e-mail para criar uma nova senha. Se você usa Google, também pode voltar e entrar por ele.">
+    {stage==="challenge"?<SignIn routing="hash" forceRedirectUrl="/onboarding" />:<form onSubmit={submit}>
+      {stage==="email" && <label className="access-field" htmlFor="recovery-email">E-mail da conta<input id="recovery-email" name="email" type="email" autoComplete="email" required /></label>}
+      {stage==="code" && <label className="access-field" htmlFor="recovery-code">Código enviado ao e-mail<input id="recovery-code" name="code" autoComplete="one-time-code" inputMode="numeric" required /></label>}
+      {stage==="password" && <><PasswordField label="Nova senha" creating /><PasswordField id="confirmation" label="Confirmar nova senha" creating /><p className="access-hint">Ao redefinir a senha, as outras sessões da conta serão encerradas.</p></>}
+      <button className="access-primary" disabled={busy || !signIn}>{busy?"Aguarde…":stage==="email"?"Enviar código":stage==="code"?"Verificar código":"Salvar nova senha"}</button>
+    </form>}
+    {stage==="code" && <button className="access-link" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{await checked(signIn.resetPasswordEmailCode.sendCode());}catch(e){setError(message(e));}finally{setBusy(false);}}}>Reenviar código</button>}
+    {error && <p role="alert" className="access-error">{error}</p>}
+    <Link className="access-link" to="/sign-in">Voltar ao login</Link>
+  </AuthLayout>;
+}
+export const SignInPage = () => {
+  const {pathname}=useLocation();
+  return pathname==="/sign-in/recover" ? <RecoverPassword /> : <AccessForm key="signin" />;
+};
 export const SignUpPage = () => <AccessForm registering key="signup" />;
 export const SsoCallback = () => <AuthLayout title="Concluindo seu acesso" subtitle="Aguarde enquanto confirmamos sua conta."><AuthenticateWithRedirectCallback signInFallbackRedirectUrl="/onboarding" signUpFallbackRedirectUrl="/onboarding" signInUrl="/sign-in/continue" signUpUrl="/sign-up/continue" /></AuthLayout>;
