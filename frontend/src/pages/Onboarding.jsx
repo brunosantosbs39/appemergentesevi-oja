@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/react";
 import { MapContainer, TileLayer, CircleMarker, useMapEvents } from "react-leaflet";
@@ -26,24 +26,31 @@ export default function Onboarding() {
   const [busy,setBusy] = useState(false), [looking,setLooking] = useState(false);
   const [error,setError] = useState(""), [confirmed,setConfirmed] = useState(false);
   const generation = useRef(0);
-  if(me.registration_complete) return <Navigate to="/mapa" replace />;
+  const lookupTimer = useRef(null);
+  const postalDigits = address.postal_code.replace(/\D/g,"");
   const change = (key,value) => {
     setAddress(prev=>({...prev,[key]:value}));
     setConfirmed(false);
-    if(key==="postal_code"){generation.current++;setRegion(null);setPoint(null);setLooking(false);}
+    if(key==="postal_code" && value.replace(/\D/g, "") !== postalDigits){generation.current++;clearTimeout(lookupTimer.current);setRegion(null);setPoint(null);setLooking(false);setError("");setAddress(prev=>({...prev,street:"",district:"",city:"",state:""}));}
   };
-  const lookup = async () => {
-    const cep=address.postal_code.replace(/\D/g,"");
+  const lookup = useCallback(async () => {
+    clearTimeout(lookupTimer.current);
+    const cep=postalDigits;
     if(cep.length!==8){setError("Informe um CEP com 8 dígitos.");return;}
     const version=++generation.current;setLooking(true);setError("");
     try {
       const {data}=await api.get("/me/address/"+cep);
       if(version!==generation.current)return;
       setRegion(data);setPoint(null);setConfirmed(false);
-      setAddress(prev=>({...prev,postal_code:cep,street:data.street,district:data.district,city:data.city,state:data.state}));
+      setAddress(prev=>({...prev,postal_code:cep,street:data.street || "",district:data.district || "",city:data.city || "",state:data.state || ""}));
     } catch(e){if(version===generation.current)setError(errMsg(e));}
     finally{if(version===generation.current)setLooking(false);}
-  };
+  }, [api, postalDigits]);
+  useEffect(() => {
+    if(postalDigits.length===8 && !me.registration_complete) lookupTimer.current=setTimeout(lookup,350);
+    return () => {clearTimeout(lookupTimer.current);generation.current++;};
+  }, [postalDigits, lookup, me.registration_complete]);
+  if(me.registration_complete) return <Navigate to="/mapa" replace />;
   const save = async e => {
     e.preventDefault();
     if(!region || region.postal_code!==address.postal_code.replace(/\D/g,"")){setError("Consulte seu CEP antes de concluir.");return;}
@@ -69,6 +76,7 @@ export default function Onboarding() {
         <div className="registration-grid">
           {field("postal_code","CEP","postal-code",{inputMode:"numeric",maxLength:9,placeholder:"00000-000"})}
           <div><button type="button" className="access-google" disabled={looking || busy} onClick={lookup}>{looking?"Consultando…":"Buscar endereço pelo CEP"}</button></div>
+          <p className="access-hint registration-full" role="status" aria-live="polite">{looking ? "Buscando endereço…" : region ? (!region.street || !region.district ? "Região encontrada. Complete a rua e o bairro que não vieram na consulta." : "Endereço preenchido. Confira os dados e informe o número.") : "Digite os 8 números do CEP para preencher o endereço automaticamente."}</p>
           <div className="registration-full">{field("street","Rua / avenida","address-line1")}</div>
           {field("number","Número (ou S/N)","off")}
           {field("complement","Complemento (opcional)","address-line2")}
