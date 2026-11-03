@@ -23,9 +23,9 @@ const PostsGrid = ({ posts, onOpen }) =>
   ) : (
     <div className="grid grid-cols-3 gap-1.5 sm:gap-3" data-testid="profile-posts-grid">
       {posts.map((p) => (
-        <button key={p.id} onClick={() => onOpen(p)} className="group relative aspect-square overflow-hidden rounded-none bg-card sm:rounded-none" data-testid={`profile-post-thumb-${p.id}`}>
-          <img src={imgUrl(p.image)} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 text-sm font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
+        <button key={p.id} onClick={() => onOpen(p)} aria-label="Abrir publicação do portfólio" className="sj-portfolio-item group relative aspect-square overflow-hidden rounded-none bg-card sm:rounded-none" data-testid={`profile-post-thumb-${p.id}`}>
+          <img src={imgUrl(p.image)} alt="" className="h-full w-full object-cover sj-portfolio-image" loading="lazy" />
+          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 text-sm font-bold text-white sj-portfolio-overlay">
             <Heart className="h-4 w-4 fill-white" /> {p.likes_count}
           </span>
         </button>
@@ -103,7 +103,7 @@ export default function Profile() {
   }, [api, uid]);
 
   if (user === false) return <EmptyState icon={UserX} title="Perfil não encontrado" testid="profile-not-found" />;
-  if (!user) return <Loader2 className="mx-auto mt-16 h-6 w-6 animate-spin text-foreground" />;
+  if (!user) return <div role="status" className="sj-loading"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /><span>Carregando perfil…</span></div>;
   const isPro = !!user.role;
 
   return (

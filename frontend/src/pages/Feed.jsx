@@ -105,7 +105,7 @@ export default function Feed() {
         <div data-testid="instagram-feed-container" className="mt-6 max-w-xl space-y-6">
           {vacancies.length > 0 && <section className="space-y-4" aria-label="Vagas abertas"><div className="flex items-center justify-between"><h2 className="font-heading text-xl font-bold">Vagas abertas</h2><Link to="/pedidos" className="text-sm underline">Vagas das minhas categorias</Link></div>{vacancies.map((r) => <RequestCard key={r.id} request={r} me={me} />)}{vacancyCursor && <Button variant="outline" disabled={vacancyBusy} onClick={moreVacancies}>{vacancyBusy?"Carregando...":"Ver mais pedidos"}</Button>}</section>}
           {vacancyError && <p role="alert">Não foi possível atualizar os pedidos. Tentaremos novamente automaticamente.</p>}
-          {posts === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
+          {posts === null && <div role="status" className="sj-loading"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /><span>Carregando publicações…</span></div>}
           {posts?.length === 0 && (
             <EmptyState icon={ImagePlus} title="Nada por aqui ainda" text="Seja o primeiro a publicar nesta categoria." testid="feed-empty-state" />
           )}

@@ -1,0 +1,60 @@
+/* Emil design-engineering pass. Preserve monochrome tokens, square geometry and flows. */
+:root{--sj-ease-out:cubic-bezier(.23,1,.32,1);--sj-motion-fast:140ms}
+.sj-page-header{padding-bottom:24px;border-bottom:1px solid hsl(var(--border));gap:20px}
+.sj-page-header h1{line-height:1.2;text-wrap:balance;overflow-wrap:anywhere}
+.sj-empty-state{min-height:220px}.sj-empty-state p{line-height:1.7;text-wrap:pretty}
+.sj-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:48px 20px;color:hsl(var(--muted-foreground));font-size:14px}
+.sj-button,.access-primary,.access-google,.lux-button{touch-action:manipulation;transition:background-color var(--sj-motion-fast) ease,color var(--sj-motion-fast) ease,border-color var(--sj-motion-fast) ease,transform var(--sj-motion-fast) var(--sj-ease-out)}
+.sj-button:active:not(:disabled):not(:focus-visible),.access-primary:active:not(:disabled):not(:focus-visible),.access-google:active:not(:disabled):not(:focus-visible),.lux-button:active:not(:focus-visible){transform:scale(.98)}
+.sj-button:focus-visible,.access-card :focus-visible,.lux-landing :focus-visible{transition:none}
+.sj-sidebar-nav a[aria-current=page]{box-shadow:inset 2px 0 hsl(var(--foreground))}
+.sj-category-options{scroll-padding-inline:4px;scrollbar-width:thin;scrollbar-color:hsl(var(--border)) transparent}
+.sj-category-options button[aria-pressed=true]{border-color:hsl(var(--foreground));box-shadow:inset 0 -2px hsl(var(--foreground))}
+.sj-app input:not([type=checkbox]):not([type=radio]):not([type=file]),.sj-app select{min-height:44px}
+.sj-app input:focus-visible,.sj-app select:focus-visible,.sj-app textarea:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:3px}
+.sj-app input,.sj-app textarea,.sj-app select{scroll-margin-block:100px}
+.sj-app [role=alert]{line-height:1.65;overflow-wrap:anywhere}
+.sj-app[data-page=empresas] form{background:hsl(var(--card));padding:clamp(16px,3vw,28px)}
+.sj-app[data-page=empresas] label{font-size:14px;line-height:1.6}
+.sj-app[data-page=empresas] h2{line-height:1.4}
+.sj-app[data-page=empresas] article,.sj-app[data-page=empresas] section{overflow-wrap:anywhere}
+.sj-app[data-page=empresas] .text-2xl,.sj-app[data-page=carteira] .text-3xl,.sj-app[data-page=carteira] .text-2xl{font-variant-numeric:tabular-nums;letter-spacing:-.025em;overflow-wrap:anywhere}
+.sj-app[data-page=carteira] section{scroll-margin-top:24px}
+.sj-app[data-page=carteira] p{line-height:1.65}
+.sj-app[data-page=pedidos] [aria-pressed=true]{box-shadow:inset 0 -2px hsl(var(--primary-foreground))}
+.sj-app[data-page=mapa] [aria-label="Legenda do mapa"]{padding:12px 0;border-block:1px solid hsl(var(--border));line-height:1.7}
+.sj-app[data-page=mapa] [data-testid=map-pros-list]{scrollbar-width:thin;scrollbar-color:hsl(var(--border)) transparent;overscroll-behavior:contain}
+.sj-portfolio-overlay{opacity:1}.sj-portfolio-item:focus-visible{outline-offset:4px}
+.sj-dialog{animation-duration:180ms;animation-timing-function:var(--sj-ease-out)}
+.sj-dialog[data-state=closed]{animation-duration:120ms}
+.sj-dialog [role=tablist]{max-width:100%}
+.access-card h1{font-family:'Plus Jakarta Sans',Arial,sans-serif;font-weight:400;letter-spacing:.025em;text-wrap:balance}
+.access-card h2{line-height:1.4}.access-error{border-color:hsl(var(--destructive));background:hsl(var(--destructive)/.06);line-height:1.6}
+.registration-card h2{padding-top:20px;border-top:1px solid hsl(var(--border))}
+.registration-card input[type=checkbox]{width:20px;height:20px;flex-shrink:0;accent-color:hsl(var(--foreground))}
+.registration-grid>div:has(>.access-google){align-self:end;margin-bottom:18px}
+.registration-region{padding:18px;line-height:1.7}
+.lux-landing h1,.lux-landing h2,.lux-landing h3{text-wrap:balance}
+.lux-intro,.lux-resources p,.lux-questions p{text-wrap:pretty}
+.lux-questions summary{min-height:48px}.lux-questions details[open]{border-bottom-color:#888}
+.lux-questions details[open] summary{color:#fff}.lux-questions summary::marker{color:#aaa}
+.sj-chat .sj-bubble{animation:none}.sj-chat .sj-message-meta,.sj-chat time{font-variant-numeric:tabular-nums}
+.sj-chat .sj-icon-button,.sj-chat .sj-send,.sj-chat .sj-audio-controls button.sj-mic{min-width:44px;min-height:44px}
+.sj-chat .sj-inbox-filters button{min-height:40px}.sj-chat .sj-history-button{min-height:44px}
+.sj-chat .sj-proposal-title{border-color:var(--sj-line)}
+.sj-chat button:focus-visible,.sj-chat a:focus-visible{outline-color:hsl(var(--ring))}
+@media(hover:hover) and (pointer:fine){
+ .sj-portfolio-image{transition:transform 180ms var(--sj-ease-out)}.sj-portfolio-item:hover .sj-portfolio-image{transform:scale(1.025)}
+ .sj-portfolio-overlay{opacity:0;transition:opacity 140ms ease}.sj-portfolio-item:hover .sj-portfolio-overlay,.sj-portfolio-item:focus-visible .sj-portfolio-overlay{opacity:1}
+ .sj-button:hover:not(:disabled){filter:brightness(.94)}
+}
+@media(hover:none){.pin-pro:hover{transform:none}}
+@media(max-width:640px){
+ .sj-page-header{padding-bottom:20px}.sj-page-header h1{font-size:28px}.sj-page-header>div:last-child:not(:first-child){width:100%}
+ .sj-page-header>div:last-child:not(:first-child)>button{flex:1;white-space:normal}
+ .sj-app[data-page=feed] [aria-label="Vagas abertas"]>div:first-child{flex-wrap:wrap;gap:8px}
+ .sj-app[data-page=perfil] [role=tablist]{display:flex;width:100%;gap:4px}.sj-app[data-page=perfil] [role=tab]{flex:1;padding-inline:8px;font-size:12px}
+ .sj-app input:not([type=checkbox]):not([type=radio]),.sj-app textarea,.sj-app select,.sj-chat .sj-search input,.sj-chat .sj-composer textarea{font-size:16px}
+ .access-page>header{gap:16px}.access-card{padding-bottom:24px}.lux-questions summary{font-size:15px}
+}
+@media(prefers-reduced-motion:reduce){.sj-button:active,.access-primary:active,.access-google:active,.lux-button:active,.sj-portfolio-item:hover .sj-portfolio-image{transform:none!important}.sj-dialog{animation:none!important}}

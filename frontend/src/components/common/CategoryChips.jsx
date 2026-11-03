@@ -29,7 +29,7 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
           className="absolute right-0 top-0 grid h-11 w-11 place-items-center"><X aria-hidden="true" className="h-4 w-4" /></button>}
       </div>
       {selected.length > 0 && query && <p className="text-xs text-muted-foreground">Seleção atual: {selected.map(item => item.label).join(", ")}. Pesquisar não altera sua seleção.</p>}
-      <div className={cn("flex gap-2", multiple || query ? "flex-wrap" : "no-scrollbar -mx-1 overflow-x-auto px-1 pb-1")}>
+      <div className={cn("sj-category-options flex gap-2", multiple || query ? "flex-wrap" : "no-scrollbar -mx-1 overflow-x-auto px-1 pb-1")}>
         {items.map(({ slug, label, icon: Icon }) => (
           <button key={slug} type="button" onClick={() => toggle(slug)} aria-pressed={isOn(slug)}
             data-testid={testid + "-" + slug}

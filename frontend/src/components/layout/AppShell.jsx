@@ -30,7 +30,7 @@ const Dot = ({ n, className }) =>
 const Sidebar = ({ me, unread }) => (
   <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-border bg-card px-5 py-7 lg:flex">
     <div className="flex items-center justify-between gap-2"><Logo to="/feed" /><ThemeToggle compact /></div>
-    <nav className="mt-10 space-y-1">
+    <nav aria-label="Navegação principal" className="sj-sidebar-nav mt-10 space-y-1">
       {NAV.map(({ to, label, icon: Icon, id }) => (
         <NavLink
           key={id}
@@ -39,7 +39,7 @@ const Sidebar = ({ me, unread }) => (
           className={({ isActive }) =>
             cn(
               "group flex items-center gap-3 rounded-none px-4 py-3 text-[15px] font-semibold transition-colors duration-200",
-              isActive ? "bg-secondary text-secondary-foreground" : "text-foreground hover:bg-card hover:text-foreground",
+              isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )
           }
         >
@@ -95,10 +95,11 @@ const BottomNav = ({ unread }) => (
 export default function AppShell() {
   const { me } = useMe();
   const unread = useUnread();
-  const isChat = useLocation().pathname.startsWith("/chat");
+  const pathname = useLocation().pathname;
+  const isChat = pathname.startsWith("/chat");
   if (!me.registration_complete) return <Navigate to="/onboarding" replace />;
   return (
-    <div className="min-h-screen bg-background">
+    <div className="sj-app min-h-screen bg-background" data-page={pathname.split("/")[1]}>
       <Sidebar me={me} unread={unread} />
       {!isChat && <MobileTop />}
       <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
