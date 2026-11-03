@@ -64,3 +64,20 @@
 .lux-final .lux-actions{flex-direction:column}.lux-footer{padding:32px 6%;align-items:flex-start}.lux-footer>span{width:100%}
 }
 @media(prefers-reduced-motion:reduce){.lux-landing *{transition:none!important;scroll-behavior:auto!important}}
+
+.lux-resources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:48px 40px;margin-top:65px}
+.lux-resources article{border-top:1px solid var(--lux-line);padding-top:28px}
+.lux-resources .lux-eyebrow{font-size:9px;margin-bottom:18px}
+.lux-resources h3{font-size:19px;line-height:1.5;letter-spacing:.04em;margin:0 0 18px}
+.lux-resources article>p:last-child,.lux-questions p{font-size:17px;line-height:1.8;color:#bbb}
+.lux-faq{background:#141414;border-block:1px solid var(--lux-line)}
+.lux-questions{max-width:900px;margin:55px auto 0}
+.lux-questions details{border-bottom:1px solid #363636;padding:22px 0}
+.lux-questions summary{cursor:pointer;font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:16px;line-height:1.6;padding:8px 28px 8px 0}
+.lux-questions summary:focus-visible{outline:2px solid #fff;outline-offset:5px}
+.lux-questions details[open] summary{margin-bottom:14px}
+.lux-questions p{max-width:760px;margin:0 0 10px}
+.lux-footer nav{display:flex;gap:22px;flex-wrap:wrap;font-size:10px;letter-spacing:.08em}
+.lux-footer nav a{display:inline-flex;align-items:center;min-height:44px}
+@media(max-width:1000px){.lux-resources{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.lux-resources{grid-template-columns:1fr;gap:32px;margin-top:38px}.lux-questions{margin-top:30px}.lux-footer nav{width:100%}}
