@@ -46,10 +46,11 @@ export default function Onboarding() {
     } catch(e){if(version===generation.current)setError(errMsg(e));}
     finally{if(version===generation.current)setLooking(false);}
   }, [api, postalDigits]);
+  const invalidateLookup = useCallback(() => {generation.current++;}, []);
   useEffect(() => {
     if(postalDigits.length===8 && !me.registration_complete) lookupTimer.current=setTimeout(lookup,350);
-    return () => {clearTimeout(lookupTimer.current);generation.current++;};
-  }, [postalDigits, lookup, me.registration_complete]);
+    return () => {clearTimeout(lookupTimer.current);invalidateLookup();};
+  }, [postalDigits, lookup, me.registration_complete, invalidateLookup]);
   if(me.registration_complete) return <Navigate to="/mapa" replace />;
   const save = async e => {
     e.preventDefault();
