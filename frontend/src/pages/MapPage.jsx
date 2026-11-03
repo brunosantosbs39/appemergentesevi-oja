@@ -130,7 +130,7 @@ export default function MapPage() {
         </div>
       )}
       {status === "approximate" && <p role="status" className="mt-3 text-sm">O computador forneceu apenas uma posição aproximada (margem de {Math.round(accuracy)} m). Para maior precisão, tente no celular com a localização ativada.</p>}
-      <p className="mt-3 text-xs text-muted-foreground" role="status">{accuracy != null ? `Localização do aparelho: precisão aproximada de ${Math.round(accuracy)} m · atualizada às ${new Date(updatedAt).toLocaleTimeString("pt-BR")}` : fromLink ? "Centro definido pelo link; não representa sua localização atual." : "Centro do perfil ou região inicial; use Minha localização para atualizar."} As distâncias são em linha reta. Os profissionais aparecem no local cadastrado.</p>
+      <p className="mt-3 text-xs text-muted-foreground" role="status">{accuracy != null ? `Localização do aparelho: precisão aproximada de ${Math.round(accuracy)} m · atualizada às ${new Date(updatedAt).toLocaleTimeString("pt-BR")}` : fromLink ? "Centro definido pelo link; não representa sua localização atual." : "Centro do perfil ou região inicial; use Minha localização para atualizar."} As distâncias são em linha reta. Os profissionais aparecem em uma região aproximada para preservar seu endereço.</p>
       {mapError && <p role="alert">Não foi possível carregar os resultados. Altere o raio ou tente atualizar sua localização.</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground" aria-label="Legenda do mapa">
         <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-foreground" /> Vagas abertas · valor total</span>

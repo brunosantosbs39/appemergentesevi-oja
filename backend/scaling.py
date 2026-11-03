@@ -47,13 +47,16 @@ async def write_limit(db, uid, path):
         raise HTTPException(429, "Muitas tentativas. Aguarde um momento e tente novamente.", headers={"Retry-After": str(60 - epoch % 60)})
 
 
-def nearby_pipeline(query, lat, lng, radius, sort, limit, offset=0, target_uid=None):
+def nearby_pipeline(query, lat, lng, radius, sort, limit, offset=0, target_uid=None, approximate=False):
     """Filter using indexed latitude/longitude; calculate and sort BEFORE paging.
 
     Works with existing profiles, without a destructive GeoJSON backfill.
     Handles the antimeridian and poles, using exact spherical distance.
     """
-    pipeline = []
+    # Quantize BEFORE radius filtering/distance sorting to avoid a location oracle.
+    pipeline = [{"$set": {axis: {"$cond": [{"$isNumber": "$" + axis},
+                {"$divide": [{"$round": [{"$multiply": ["$" + axis, 50]}, 0]}, 50]}, None]}
+                for axis in ("lat", "lng")}}] if approximate else []
     if lat is not None and lng is not None:
         spatial = {"lat": {"$gte": -90, "$lte": 90}, "lng": {"$gte": -180, "$lte": 180}}
         if radius > 0:
@@ -104,3 +107,9 @@ class ReadBurstGuard:
         self.windows[uid] = (window, count)
         if count > self.maximum:
             raise HTTPException(429, "Muitas consultas. Aguarde um momento.", headers={"Retry-After": str(60 - now % 60)})
+
+
+def approximate_coordinate(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return round(value * 50) / 50
+    return None

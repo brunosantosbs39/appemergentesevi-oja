@@ -148,7 +148,7 @@ def test_request_persists_job_and_returns_no_worker_metadata(monkeypatch):
     async def run():
         async with local_database(monkeypatch) as (server,db):
             await db.users.insert_many([
-                {"user_id":"owner","name":"Owner","role":"membro"},
+                {"user_id":"owner","name":"Owner","role":"membro","registration_completed_at":"2026-01-01","email":"owner@example.com","address":{"city":"Test"}},
                 {"user_id":"near","name":"Pro","role":"membro","categories":["eletricista"],"lat":-23.55,"lng":-46.63}])
             async def identity(): return {"user_id":"owner"}
             server.app.dependency_overrides[server.require_user]=identity

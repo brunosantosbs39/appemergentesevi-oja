@@ -34,7 +34,7 @@ try:  # launched as `backend.server`
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
     from backend.seed import seed_demo
-    from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard, approximate_coordinate
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from registration import build_router as registration_router, complete as registration_complete
@@ -49,7 +49,7 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
-    from scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard, approximate_coordinate
     from notifications import send_notice, validate_subscription, notification_tasks
 
 mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
@@ -383,7 +383,7 @@ async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: 
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"headline": rx}]
-    pipeline = nearby_pipeline(query, lat, lng, radius_km, sort, limit, offset)
+    pipeline = nearby_pipeline(query, lat, lng, radius_km, sort, limit, offset, approximate=True)
     # Public projection prevents private profile fields from reaching the client.
     pipeline.append({"$project": {**PUBLIC, "lat": 1, "lng": 1, "distance_km": 1}})
     return [with_presence(d) for d in await db.users.aggregate(pipeline, maxTimeMS=5000).to_list(limit)]
@@ -394,7 +394,7 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
     doc = await db.users.find_one({"user_id": uid}, {**PUBLIC, "lat": 1, "lng": 1})
     if not doc:
         raise HTTPException(404, "Usuário não encontrado")
-    lat, lng = doc.pop("lat", None), doc.pop("lng", None)
+    lat, lng = approximate_coordinate(doc.pop("lat", None)), approximate_coordinate(doc.pop("lng", None))
     if doc.get("role"):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
     doc["posts_count"] = await db.posts.count_documents({"user_id": uid})
@@ -1052,9 +1052,9 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/me", "/api/crypto/", "/api/conversations", "/api/wallet", "/api/companies")):
+    if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "private, no-store"
-        response.headers["Vary"] = "Authorization, Cookie"
+        response.headers["Vary"] = ", ".join(filter(None, [response.headers.get("Vary"), "Authorization", "Cookie"]))
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -1125,4 +1125,3 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
-

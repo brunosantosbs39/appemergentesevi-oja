@@ -197,7 +197,7 @@ def test_http_sync_keeps_auth_and_authorization_and_returns_retry_on_db_failure(
         import httpx
         from pymongo.errors import WaitQueueTimeoutError
         async with local_database(monkeypatch) as (server, db):
-            await db.users.insert_one({"user_id": "me", "role": "profissional"})
+            await db.users.insert_one({"user_id": "me", "role": "profissional", "registration_completed_at": "2026-01-01", "address": {"city": "Test"}, "email": "me@example.com"})
             await db.conversations.insert_one({"id": "chat", "participants": ["me", "other"], "last_at": server.now_iso(), "unread": {}})
             monkeypatch.setenv("CLERK_SECRET_KEY", "unit-test-placeholder")
             transport = httpx.ASGITransport(app=server.app)
