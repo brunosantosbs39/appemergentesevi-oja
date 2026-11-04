@@ -6,13 +6,16 @@ import { MeProvider } from "@/context/MeContext";
 import { Toaster } from "@/components/ui/sonner";
 import AppShell from "@/components/layout/AppShell";
 import Landing from "@/pages/Landing";
-import { SignInPage, SignUpPage } from "@/pages/AuthPages";
+import { SignInPage, SignUpPage, SsoCallback } from "@/pages/AuthPages";
 import Onboarding from "@/pages/Onboarding";
+import WalletPage from "@/pages/WalletPage";
+import Companies from "@/pages/Companies";
 import Feed from "@/pages/Feed";
 import MapPage from "@/pages/MapPage";
 import Requests from "@/pages/Requests";
 import Chat from "@/pages/Chat";
 import Profile from "@/pages/Profile";
+import "@/design-polish.css";
 
 const Home = () => (
   <>
@@ -34,13 +37,16 @@ function App() {
       <ClerkAuthProvider>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/sso-callback" element={<SsoCallback />} />
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/sign-up/*" element={<SignUpPage />} />
           <Route element={<Protected />}>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route element={<AppShell />}>
               <Route path="/feed" element={<Feed />} />
+              <Route path="/empresas" element={<Companies />} />
               <Route path="/mapa" element={<MapPage />} />
+              <Route path="/carteira" element={<WalletPage />} />
               <Route path="/pedidos" element={<Requests />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/chat/:id" element={<Chat />} />
@@ -56,3 +62,4 @@ function App() {
 }
 
 export default App;
+

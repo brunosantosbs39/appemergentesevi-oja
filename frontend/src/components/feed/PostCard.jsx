@@ -61,7 +61,7 @@ export const PostCard = ({ post, onDeleted, onHire }) => {
   const [burst, setBurst] = useState(false);
   const a = post.author || {};
   const mine = post.user_id === me.user_id;
-  const canHire = (a.role === "profissional" || post.intent === "opportunity") && !mine;
+  const canHire = !!a.role && !mine;
 
   const toggleLike = async () => {
     setLiked(!liked);

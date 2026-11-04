@@ -57,20 +57,20 @@ def test_profile_cover_validates_owner_and_supports_removal(monkeypatch):
     monkeypatch.setenv("MONGO_URL", "mongodb://localhost:27017")
     with patch("motor.motor_asyncio.AsyncIOMotorClient"):
         server = importlib.import_module("backend.server")
-    member = {"user_id": "owner", "role": "contratante"}
+    member = {"user_id": "owner", "role": "contratante", "registration_completed_at": "2026-01-01", "address": {"city":"Test"}, "email":"owner@example.com"}
     users = SimpleNamespace(update_one=AsyncMock(), find_one=AsyncMock(return_value={**member, "cover": "image-path"}))
     monkeypatch.setattr(server, "db", SimpleNamespace(users=users))
     validate = AsyncMock()
     monkeypatch.setattr(server, "check_image", validate)
     result = asyncio.run(server.update_me(server.ProfileUpdate(cover="image-path"), member))
     validate.assert_awaited_once_with("image-path", "owner")
-    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": "image-path"}})
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": "image-path", "role": "membro"}})
     assert result["cover"] == "image-path"
     assert server.PUBLIC["cover"] == 1
     validate.reset_mock()
     asyncio.run(server.update_me(server.ProfileUpdate(cover=None), member))
     validate.assert_not_awaited()
-    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": None}})
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": None, "role": "membro"}})
     validate.side_effect = server.HTTPException(403, "Arquivo não autorizado")
     users.update_one.reset_mock()
     with pytest.raises(server.HTTPException):
@@ -310,8 +310,7 @@ def test_portfolio_and_publications_have_separate_lifetimes(monkeypatch):
     assert publication["expires_at"] == expiry.isoformat()
     with pytest.raises(server.HTTPException):
         server.expiration_iso(datetime.now(timezone.utc) - timedelta(seconds=1))
-    with pytest.raises(server.HTTPException):
-        asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image"), {"user_id": "client", "role": "contratante"}))
+    assert asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image"), {"user_id": "client", "role": "contratante"}))["kind"] == "portfolio"
 
 
 def test_web_push_subscription_validation_and_delivery(monkeypatch):
@@ -326,12 +325,17 @@ def test_web_push_subscription_validation_and_delivery(monkeypatch):
         with pytest.raises(notices.HTTPException):
             notices.validate_subscription({"endpoint": endpoint, "keys": keys})
     cursor = SimpleNamespace(to_list=AsyncMock(return_value=[{"endpoint": subscription["endpoint"], "subscription": subscription}]))
-    db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock()), push_subscriptions=SimpleNamespace(find=Mock(return_value=cursor), delete_one=AsyncMock()))
+    db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock(), update_one=AsyncMock()), push_subscriptions=SimpleNamespace(find=Mock(return_value=cursor), delete_one=AsyncMock()))
     monkeypatch.setenv("VAPID_PRIVATE_KEY", "test-key")
     send = Mock()
     monkeypatch.setattr(pywebpush, "webpush", send)
     asyncio.run(notices.send_notice(db, "recipient", "Nova mensagem", "Atualização", "/chat/chat"))
     assert db.notifications.insert_one.call_args.args[0]["user_id"] == "recipient"
+    send.assert_not_called()  # Delivery is persisted, not sent during the request.
+    notice = db.notifications.insert_one.call_args.args[0]
+    notice["_id"] = "notice-test"
+    notice["delivery"]["token"] = "worker-test"
+    asyncio.run(notices.push_job(db, notice))
     assert send.call_args.kwargs["subscription_info"] == subscription
     assert send.call_args.kwargs["ttl"] == 3600
     send.side_effect = RuntimeError("unavailable")
@@ -430,7 +434,7 @@ def test_professional_can_hire_without_changing_profile(monkeypatch):
         return items
     monkeypatch.setattr(server, "enrich_requests", enrich)
     member = {"user_id": "plumber", "role": "profissional"}
-    result = asyncio.run(server.create_request(server.RequestCreate(category="pintor", title="Pintar minha casa", lat=-16.6, lng=-49.2), member))
+    result = asyncio.run(server.create_request(server.RequestCreate(category="pintor", title="Pintar minha casa", lat=-16.6, lng=-49.2), background_tasks=server.BackgroundTasks(), me=member))
     assert result["client_id"] == "plumber"
     assert result["professional_id"] is None
     assert result["status"] == "pendente"
