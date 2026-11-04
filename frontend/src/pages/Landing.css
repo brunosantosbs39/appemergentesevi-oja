@@ -81,3 +81,24 @@
 .lux-footer nav a{display:inline-flex;align-items:center;min-height:44px}
 @media(max-width:1000px){.lux-resources{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.lux-resources{grid-template-columns:1fr;gap:32px;margin-top:38px}.lux-questions{margin-top:30px}.lux-footer nav{width:100%}}
+
+/* One shared content edge across desktop sections; photos remain full bleed. */
+@media(min-width:701px){
+.lux-landing{--lux-gutter:max(40px,calc((100% - 1200px)/2))}
+.lux-header,.lux-hero-copy,.lux-categories,.lux-section,.lux-footer{padding-inline:var(--lux-gutter)}
+.lux-hero-bottom{left:var(--lux-gutter);right:var(--lux-gutter)}
+.lux-section{padding-block:clamp(72px,6vw,104px)}
+.lux-section-heading{grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:32px}
+.lux-section-heading h2{font-size:clamp(32px,3.5vw,54px);overflow-wrap:break-word}
+.lux-steps{gap:32px;margin-top:56px}
+.lux-resources{gap:40px 32px;margin-top:56px}
+.lux-craft{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.lux-craft-copy{padding-left:clamp(40px,5vw,72px);padding-right:max(40px,calc(100% - 600px));padding-block:72px;min-width:0}
+.lux-craft-copy h2{font-size:clamp(32px,3.5vw,54px)}
+.lux-questions{max-width:none;margin-left:calc((100% - 32px)/3 + 32px);margin-right:0}
+.lux-final{padding-block:104px}
+}
+@media(min-width:701px) and (max-width:1000px){
+.lux-section-heading{grid-template-columns:1fr;gap:8px}
+.lux-questions{margin-left:0}
+}
