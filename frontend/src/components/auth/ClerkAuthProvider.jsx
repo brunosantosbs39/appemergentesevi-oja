@@ -84,6 +84,16 @@ export default function ClerkAuthProvider({ children }) {
     return () => { cancelled = true; clearTimeout(retryTimer); clearTimeout(timeout); controller?.abort(); };
   }, [retry]);
 
+  function navigateAuth(to, replace = false) {
+    const dest = new URL(to, window.location.origin);
+    if (!["https:", "http:"].includes(dest.protocol)) return;
+    if (dest.origin !== window.location.origin) {
+      if (replace) window.location.replace(dest.href);
+      else window.location.assign(dest.href);
+    } else {
+      navigate(dest.pathname + dest.search + dest.hash, { replace });
+    }
+  }
   if (!config) return <div className="auth-loading">
     <Logo />
     {unavailable ? <><h1>Vamos tentar novamente?</h1>
@@ -97,8 +107,8 @@ export default function ClerkAuthProvider({ children }) {
       proxyUrl={config.proxy_url || undefined}
       appearance={appearance}
       localization={authLocalization}
-      routerPush={(to) => navigate(to)}
-      routerReplace={(to) => navigate(to, { replace: true })}
+      routerPush={(to) => navigateAuth(to)}
+      routerReplace={(to) => navigateAuth(to, true)}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/"

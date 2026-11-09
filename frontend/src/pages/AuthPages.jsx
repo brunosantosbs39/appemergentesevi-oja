@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { useAuth, useSignIn, useSignUp, SignIn, SignUp, AuthenticateWithRedirectCallback, RedirectToTasks } from "@clerk/react";
+import { useAuth, useClerk, useSignIn, useSignUp, SignIn, SignUp, AuthenticateWithRedirectCallback, RedirectToTasks } from "@clerk/react";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/common/Misc";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -33,6 +33,7 @@ const checked = async (promise) => { const result = await promise; if(result?.er
 
 function AccessForm({ registering = false }) {
   const { isLoaded, isSignedIn } = useAuth();
+  const clerk = useClerk();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const navigate = useNavigate();
@@ -87,7 +88,11 @@ function AccessForm({ registering = false }) {
         <button className="access-primary" disabled={!isLoaded || !resource || busy}>{busy?"Aguarde…":registering?"Criar acesso e continuar":"Entrar"}</button>
       </form>
       <div className="access-divider">ou</div>
-      <button className="access-google" disabled={!isLoaded || busy || !resource} onClick={()=>run(()=>checked(resource.sso({strategy:"oauth_google",redirectUrl:"/onboarding",redirectCallbackUrl:"/sso-callback"})))}><span aria-hidden="true">G</span> Continuar com Google</button>
+      <button className="access-google" disabled={!isLoaded || busy || !resource} onClick={()=>run(()=>clerk.client.signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: new URL("/sso-callback", window.location.origin).href,
+        redirectUrlComplete: new URL("/onboarding", window.location.origin).href
+      }))}><span aria-hidden="true">G</span> Continuar com Google</button>
       <p className="access-switch">{registering?"Já tem uma conta?":"Ainda não tem conta?"} <Link to={registering?"/sign-in":"/sign-up"}>{registering?"Entrar":"Criar conta"}</Link></p>
       <p className="access-hint">Uma conta para contratar e trabalhar. O endereço é obrigatório para concluir o cadastro, inclusive com Google.</p>
     </>}

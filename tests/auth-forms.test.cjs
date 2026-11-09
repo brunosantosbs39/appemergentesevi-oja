@@ -14,7 +14,7 @@ let auth={isLoaded:true,isSignedIn:false}, route='/sign-in', navigations=[], cal
 const signIn={status:'needs_identifier',password:async value=>{calls.push(['password',value]);return {error:null};}, sso:async value=>{calls.push(['sso',value]);return {error:null};},finalize:async ({navigate})=>{navigate({session:{}});return {error:null};}};
 const signUp={...signIn,missingFields:[],unverifiedFields:['email_address'],verifications:{sendEmailCode:async()=>({error:null}),verifyEmailCode:async()=>{signUp.status='complete';return {error:null};}}};
 const mocks={
- '@clerk/react':{useAuth:()=>auth,useSignIn:()=>({signIn}),useSignUp:()=>({signUp}),SignIn:()=>React.createElement('p',null,'challenge'),SignUp:()=>null,AuthenticateWithRedirectCallback:()=>null,RedirectToTasks:()=>null},
+ '@clerk/react':{useClerk:()=>({client:{signIn:{authenticateWithRedirect:async opts=>calls.push(['redirect',opts])}}}),useAuth:()=>auth,useSignIn:()=>({signIn}),useSignUp:()=>({signUp}),SignIn:()=>React.createElement('p',null,'challenge'),SignUp:()=>null,AuthenticateWithRedirectCallback:()=>null,RedirectToTasks:()=>null},
  'react-router-dom':{Link:({to,children,...rest})=>React.createElement('a',{href:to,...rest},children),Navigate:({to})=>{navigations.push(to);return null;},useNavigate:()=>to=>navigations.push(to),useLocation:()=>({pathname:route})},
  '@/components/common/Misc':{Logo:()=>React.createElement('span',null,'ServiçoJá')},
  '@/components/theme/ThemeToggle':{ThemeToggle:()=>null},
@@ -48,8 +48,8 @@ test('mismatched signup passwords never call Clerk',async()=>{
 });
 test('Google also returns to onboarding',async()=>{
  await render('SignInPage');await React.act(async()=>document.querySelector('.access-google').click());
- assert.equal(calls[0][1].strategy,'oauth_google');assert.equal(calls[0][1].redirectUrl,'/onboarding');
- assert.equal(calls[0][1].redirectCallbackUrl,'/sso-callback');
+ assert.equal(calls[0][1].strategy,'oauth_google');assert.equal(calls[0][1].redirectUrlComplete,'http://localhost/onboarding');
+ assert.equal(calls[0][1].redirectUrl,'http://localhost/sso-callback');
 });
 test('incomplete password authentication is never finalized',async()=>{
  signIn.status='needs_second_factor';await render('SignInPage');await submit();
