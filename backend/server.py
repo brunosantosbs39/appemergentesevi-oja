@@ -77,7 +77,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("servicoja")
 
 CATEGORIES = {"eletricista", "encanador", "pintor", "pedreiro", "marceneiro", "diarista", "jardineiro", "beleza",
-              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros", "producao_eventos", "tecnico_som", "iluminacao", "montagem_palco", "roadie", "dj", "musico", "seguranca_eventos", "recepcao_eventos", "garcom", "tecnico_led", "carregador_eventos"}
+              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros", "producao_eventos", "tecnico_som", "iluminacao", "montagem_palco", "roadie", "dj", "musico", "seguranca_eventos", "recepcao_eventos", "garcom", "tecnico_led", "carregador_eventos", "cantor", "auxiliar_cozinha", "cozinheiro", "churrasqueiro", "confeiteiro", "copeiro", "bartender", "promotor_eventos", "operador_camera"}
 STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em andamento",
                  "concluido": "Concluído", "cancelado": "Cancelado"}
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",

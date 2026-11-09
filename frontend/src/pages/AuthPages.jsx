@@ -22,6 +22,7 @@ function PasswordField({ id = "password", label = "Senha", creating = false }) {
 const message = (error) => {
   const code = error?.errors?.[0]?.code || error?.code || "";
   if (/password_incorrect|identifier_not_found/.test(code)) return "Não foi possível entrar. Confira o e-mail e a senha.";
+  if (/password_length_too_short/.test(code)) return "Use pelo menos 8 caracteres.";
   if (/password_pwned|password_not_strong/.test(code)) return "Escolha uma senha mais forte que você não use em outros serviços.";
   if (/identifier_exists/.test(code)) return "Este e-mail já possui uma conta. Entre ou recupere sua senha.";
   if (/verification_failed|code_expired|incorrect_code/.test(code)) return "Código inválido ou expirado. Confira ou solicite outro.";
@@ -50,6 +51,7 @@ function AccessForm({ registering = false }) {
   const submit = e => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
+    if(registering && String(data.get("password")).length < 8) {setError("Use pelo menos 8 caracteres.");return;}
     if(registering && data.get("password") !== data.get("confirmation")) {setError("As senhas precisam ser iguais.");return;}
     run(async () => {
       await checked(resource.password({emailAddress:String(data.get("email")).trim(),password:String(data.get("password"))}));
@@ -79,7 +81,7 @@ function AccessForm({ registering = false }) {
       <form onSubmit={submit}>
         <label className="access-field" htmlFor="email">E-mail<input id="email" name="email" type="email" autoComplete={registering ? "email" : "username"} required maxLength={254} placeholder="voce@exemplo.com" /></label>
         <PasswordField creating={registering} />
-        {registering && <><PasswordField id="confirmation" label="Confirmar senha" creating /><p className="access-hint">Use pelo menos 8 caracteres e uma senha exclusiva.</p></>}
+        {registering && <><PasswordField id="confirmation" label="Confirmar senha" creating /><p className="access-hint">Use pelo menos 8 caracteres.</p></>}
         {!registering && <Link className="access-link" to="/sign-in/recover">Esqueci minha senha</Link>}
         <div id="clerk-captcha" />
         <button className="access-primary" disabled={!isLoaded || !resource || busy}>{busy?"Aguarde…":registering?"Criar acesso e continuar":"Entrar"}</button>
@@ -100,6 +102,7 @@ function RecoverPassword() {
   const submit = async e => {
     e.preventDefault(); if(busy)return;
     const data = new FormData(e.currentTarget);
+    if(stage==="password" && String(data.get("password")).length < 8){setError("Use pelo menos 8 caracteres.");return;}
     if(stage==="password" && data.get("password")!==data.get("confirmation")){setError("As senhas precisam ser iguais.");return;}
     setBusy(true);setError("");
     try {
