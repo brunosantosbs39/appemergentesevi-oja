@@ -66,7 +66,9 @@ function AccessForm({ registering = false }) {
   };
   if(tasks) return <RedirectToTasks />;
   if(isSignedIn) return <Navigate to="/onboarding" replace />;
-  const native = extra || location.pathname.replace(/\/$/, "") !== (registering ? "/sign-up" : "/sign-in");
+  const isContinuation = location.pathname.replace(/\/$/, "") !== (registering ? "/sign-up" : "/sign-in");
+  const activeChallenge = ["needs_second_factor", "needs_new_password", "needs_client_trust", "needs_first_factor"].includes(signIn?.status);
+  const native = extra || (isContinuation && (registering || activeChallenge));
   return <AuthLayout title={registering ? "Criar sua conta" : "Entrar no ServiçoJá"} subtitle={registering ? "Etapa 1 de 2 · Crie seu acesso. Depois, complete seus dados e endereço." : "Use seu e-mail e senha ou continue com o Google."}>
     {native ? <>{registering ? <SignUp routing="path" path="/sign-up" signInUrl="/sign-in" forceRedirectUrl="/onboarding" /> : <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" forceRedirectUrl="/onboarding" />}<Link className="access-link" to={registering?"/sign-up":"/sign-in"} onClick={()=>setExtra(false)}>Voltar</Link></> :
     (verify || (registering && signUp?.status === "missing_requirements" && !signUp.missingFields?.length && signUp.unverifiedFields?.includes("email_address"))) ? <><form onSubmit={e=>{e.preventDefault();const code=new FormData(e.currentTarget).get("code");run(async()=>{await checked(signUp.verifications.verifyEmailCode({code:String(code)}));if(signUp.status==="complete")await finish();else setExtra(true);});}}>
@@ -74,16 +76,16 @@ function AccessForm({ registering = false }) {
       <button className="access-primary" disabled={busy}>{busy?"Verificando…":"Verificar e completar cadastro"}</button>
     </form><button className="access-link" disabled={busy} onClick={()=>run(()=>checked(signUp.verifications.sendEmailCode()))}>Reenviar código</button></> :
     <>
-      <button className="access-google" disabled={!isLoaded || busy || !resource} onClick={()=>run(()=>checked(resource.sso({strategy:"oauth_google",redirectUrl:"/onboarding",redirectCallbackUrl:"/sso-callback"})))}><span aria-hidden="true">G</span> Continuar com Google</button>
-      <div className="access-divider">ou use seu e-mail</div>
       <form onSubmit={submit}>
-        <label className="access-field" htmlFor="email">E-mail<input id="email" name="email" type="email" autoComplete="email" required maxLength={254} placeholder="voce@exemplo.com" /></label>
+        <label className="access-field" htmlFor="email">E-mail<input id="email" name="email" type="email" autoComplete={registering ? "email" : "username"} required maxLength={254} placeholder="voce@exemplo.com" /></label>
         <PasswordField creating={registering} />
         {registering && <><PasswordField id="confirmation" label="Confirmar senha" creating /><p className="access-hint">Use pelo menos 8 caracteres e uma senha exclusiva.</p></>}
         {!registering && <Link className="access-link" to="/sign-in/recover">Esqueci minha senha</Link>}
         <div id="clerk-captcha" />
         <button className="access-primary" disabled={!isLoaded || !resource || busy}>{busy?"Aguarde…":registering?"Criar acesso e continuar":"Entrar"}</button>
       </form>
+      <div className="access-divider">ou</div>
+      <button className="access-google" disabled={!isLoaded || busy || !resource} onClick={()=>run(()=>checked(resource.sso({strategy:"oauth_google",redirectUrl:"/onboarding",redirectCallbackUrl:"/sso-callback"})))}><span aria-hidden="true">G</span> Continuar com Google</button>
       <p className="access-switch">{registering?"Já tem uma conta?":"Ainda não tem conta?"} <Link to={registering?"/sign-in":"/sign-up"}>{registering?"Entrar":"Criar conta"}</Link></p>
       <p className="access-hint">Uma conta para contratar e trabalhar. O endereço é obrigatório para concluir o cadastro, inclusive com Google.</p>
     </>}

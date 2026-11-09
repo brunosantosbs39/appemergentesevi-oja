@@ -31,6 +31,12 @@ test('login shows email and password together and Google option',async()=>{
  await render('SignInPage');assert.ok(document.querySelector('form input[type=email]'));assert.ok(document.querySelector('form input[type=password]'));
  assert.match(document.body.textContent,/Continuar com Google/);
 });
+test('a fresh login on the continuation link also shows password and Google',async()=>{
+ route='/sign-in/continue';await render('SignInPage');
+ assert.ok(document.querySelector('input[autocomplete=username]'));
+ assert.ok(document.querySelector('input[autocomplete=current-password]'));
+ assert.ok(document.querySelector('.access-google'));
+});
 test('successful password login goes through mandatory onboarding',async()=>{
  signIn.status='complete';await render('SignInPage');
  document.querySelector('#email').value='person@example.com';document.querySelector('#password').value='test-password';
