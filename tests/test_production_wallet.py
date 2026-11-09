@@ -233,6 +233,25 @@ class PixTests(unittest.TestCase):
             api.assert_not_awaited()
         self.assertFalse(self.db.pix_withdrawals.docs)
 
+    def test_pix_key_types_normalized_and_sent_to_asaas(self):
+        cases = [("CPF", "249.715.637-92", "24971563792"),
+                 ("CNPJ", "11.222.333/0001-81", "11222333000181"),
+                 ("PHONE", "+55 (11) 99999-1234", "11999991234"),
+                 ("EMAIL", "USER@example.com", "user@example.com"),
+                 ("EVP", self.withdraw_body().pix_key, self.withdraw_body().pix_key)]
+        for kind, raw, expected in cases:
+            with self.subTest(kind=kind):
+                db = database()
+                db.pix_balances.docs["alice"] = {"_id":"alice", "available_cents":900}
+                body = w.WithdrawalIn(**{**self.withdraw_body().model_dump(), "pix_type":kind, "pix_key":raw})
+                with patch.object(w, "call", AsyncMock(side_effect=w.ProviderError())) as api:
+                    run(w.create_transfer(db, "alice", body))
+                payload = api.await_args.args[2]
+                self.assertEqual((payload["pixAddressKeyType"], payload["pixAddressKey"]), (kind, expected))
+        for kind in ("CPF", "PHONE", "EVP", "EMAIL", "CNPJ"):
+            with self.assertRaises(ValidationError):
+                w.WithdrawalIn(**{**self.withdraw_body().model_dump(), "pix_type":kind, "pix_key":"invalid"})
+
     def test_withdrawal_retries_and_reconciliation(self):
         self.db.pix_balances.docs["alice"] = {"_id": "alice", "available_cents": 900}
         body = self.withdraw_body()

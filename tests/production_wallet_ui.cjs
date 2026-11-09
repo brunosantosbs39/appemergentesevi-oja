@@ -17,7 +17,9 @@ const transform = file => babel.transformSync(fs.readFileSync(file, "utf8"), {
   configFile: false, babelrc: false
 }).code;
 const moduleMock = { exports: {} };
+let hash = "";
 const mocks = {
+  "react-router-dom": { useLocation: () => ({hash}), Link: ({to,children}) => React.createElement("a",{href:to},children) },
   "@tanstack/react-query": { useQueryClient: () => ({}) },
   "@/lib/api": { useApi: () => ({}), errMsg: () => "Error" },
   "@/components/ui/button": { Button: props => React.createElement("button", props) },
@@ -44,7 +46,12 @@ assert.match(pending, /PIX-UNIT-TEST/);
 assert.match(pending, /data:image\/png;base64,YWJj/);
 assert.match(pending, /2026-10-28 23:59:59/);
 assert.doesNotMatch(pending, /Ambiente de testes|saldo de teste|Solicitar saque/);
-assert.match(pending, /Revisar saque/);
+assert.doesNotMatch(pending, /Revisar saque/);
+hash = "#sacar-saldo";
+const withdrawal = render("pending");
+for (const label of ["Revisar saque","CPF","CNPJ","E-mail","Telefone com DDD","Chave aleatória"]) assert.ok(withdrawal.includes(label));
+assert.doesNotMatch(withdrawal, /PIX-UNIT-TEST/);
+hash = "#extrato";
 const paid = render("paid");
 assert.match(paid, /Pagamento recebido/);
 assert.match(paid, /Creditado/);

@@ -18,7 +18,7 @@ Nunca use prefixos REACT_APP_, NEXT_PUBLIC_ ou VITE_ para esses segredos. Não c
 - Exibe encodedImage, payload e expirationDate fornecidos pelo Asaas. A validade não é inventada pelo app: pode variar conforme configuração da conta e chave Pix.
 - A criação nunca credita saldo. A tela consulta a carteira a cada 15 segundos. O servidor limita consultas por usuário a uma rodada por 10 segundos e até cinco pendências por rodada.
 - Crédito é do **valor líquido netValue** após tarifas, mostrado separadamente do valor solicitado. O saldo disponível é em centavos inteiros.
-- Saques de produção usam saldo disponível e chave Pix aleatória, até R$ 100 por operação. A reserva é transacional. Habilite eventos TRANSFER_* no webhook Asaas existente. A carteira também reconsulta transferências identificadas. Em caso de resposta ambígua, concilie pela referência externa antes de liberar a reserva. As tarifas de saída do provedor ficam a cargo da plataforma. Autorizações exigidas pelo Asaas são realizadas no painel da conta.
+- Saques de produção usam saldo disponível e chave Pix CPF, CNPJ, e-mail, telefone com DDD ou aleatória, até R$ 100 por operação. A reserva é transacional. Habilite eventos TRANSFER_* no webhook Asaas existente. A carteira também reconsulta transferências identificadas. Em caso de resposta ambígua, concilie pela referência externa antes de liberar a reserva. As tarifas de saída do provedor ficam a cargo da plataforma. Autorizações exigidas pelo Asaas são realizadas no painel da conta.
 - Conta única continua permitindo contratar e trabalhar; os participantes de cada pedido são pessoas distintas.
 
 ## Webhook e confirmação

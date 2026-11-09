@@ -6,6 +6,7 @@ import re
 import secrets
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
@@ -313,7 +314,27 @@ async def webhook(db, request):
 
 class WithdrawalIn(BaseModel):
     amount_cents: int = Field(strict=True, gt=0, le=10000)
-    pix_key: str = Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+    pix_type: Literal["CPF", "CNPJ", "EMAIL", "PHONE", "EVP"] = "EVP"
+    pix_key: str = Field(min_length=1, max_length=254)
+
+    @field_validator("pix_key")
+    @classmethod
+    def normalize_key(cls, value, info):
+        key = value.strip()
+        kind = info.data.get("pix_type")
+        if kind in ("CPF", "CNPJ"):
+            digits = document(key)
+            if len(digits) == (11 if kind == "CPF" else 14):
+                return digits
+        elif kind == "PHONE":
+            digits = re.sub(r"[ ()-]", "", key).removeprefix("+55")
+            if re.fullmatch(r"[0-9]{11}", digits):
+                return digits
+        elif kind == "EMAIL" and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", key):
+            return key.lower()
+        elif kind == "EVP" and re.fullmatch(r"[\da-fA-F]{8}(?:-[\da-fA-F]{4}){3}-[\da-fA-F]{12}", key):
+            return key.lower()
+        raise ValueError("Chave inválida para o tipo selecionado")
     idempotency_key: str = Field(min_length=16, max_length=80, pattern=r"^[A-Za-z0-9-]+$")
 
 def public_transfer(op):
@@ -361,7 +382,7 @@ async def create_transfer(db, uid, body):
     fingerprint = hashlib.sha256(key.encode()).hexdigest()
     oid = hashlib.sha256(f"withdraw:{uid}:{body.idempotency_key}".encode()).hexdigest()
     op = {"_id": oid, "id": oid, "user_id": uid, "amount_cents": body.amount_cents,
-          "destination_hash": fingerprint, "status": "pending", "created_at": stamp()}
+          "destination_hash": fingerprint, "pix_type": body.pix_type, "status": "pending", "created_at": stamp()}
     async def reserve(session):
         if await db.pix_deposits.find_one({"user_id": uid, "status": "review", "credited_cents": {"$exists": True}}, session=session):
             raise HTTPException(409, "Há um crédito em análise. Aguarde a revisão.")
@@ -378,12 +399,13 @@ async def create_transfer(db, uid, body):
             await session.with_transaction(reserve)
     except DuplicateKeyError:
         previous = await db.pix_withdrawals.find_one({"_id": oid})
-        if previous and previous["amount_cents"] == body.amount_cents and previous["destination_hash"] == fingerprint:
+        if (previous and previous["amount_cents"] == body.amount_cents and previous["destination_hash"] == fingerprint
+                and previous.get("pix_type", "EVP") == body.pix_type):
             return public_transfer(previous)
         raise HTTPException(409, "Confira o saque anterior antes de solicitar outro.")
     try:
         transfer = await call("POST", "/transfers", {"value": body.amount_cents / 100,
-            "pixAddressKey": key, "pixAddressKeyType": "EVP", "externalReference": oid})
+            "pixAddressKey": key, "pixAddressKeyType": body.pix_type, "externalReference": oid})
     except ProviderError as error:
         if error.definitive:
             await finish_transfer(db, op, "failed")

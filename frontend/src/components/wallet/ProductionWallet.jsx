@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import PixWithdrawal from "./PixWithdrawal";
+import { Link, useLocation } from "react-router-dom";
+import PixWithdrawal, { withdrawalLabels } from "./PixWithdrawal";
 import { Copy, Loader2, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { useApi, errMsg } from "@/lib/api";
@@ -9,6 +10,8 @@ import { Button } from "@/components/ui/button";
 const money = n => ((n || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const labels = { pending: "Aguardando pagamento", paid: "Pagamento recebido", expired: "Pix expirado", failed: "Não concluído", review: "Em análise" };
 export default function ProductionWallet({ wallet, userId }) {
+  const { hash } = useLocation();
+  const area = ["#sacar-saldo", "#extrato"].includes(hash) ? hash : "#adicionar-saldo";
   const api = useApi();
   const cache = useQueryClient();
   const [amount, setAmount] = useState("25,00");
@@ -56,10 +59,12 @@ export default function ProductionWallet({ wallet, userId }) {
       <p>Saldo disponível</p><p className="mt-3 text-3xl">{money(wallet.available_cents)}</p>
       <p className="mt-3 text-sm text-muted-foreground">Os pagamentos de serviços com saldo real serão liberados em uma próxima etapa.</p>
     </section>
-    <nav aria-label="Ações da carteira" className="grid grid-cols-2 gap-3">
-      <a href="#adicionar-saldo" className="flex min-h-12 items-center justify-center border border-primary bg-primary p-3 font-semibold text-primary-foreground">Adicionar saldo</a>
-      <a href="#sacar-saldo" className="flex min-h-12 items-center justify-center border border-border bg-card p-3 font-semibold">Sacar</a>
+    <nav aria-label="Áreas da carteira" className="grid grid-cols-3 gap-2">
+      {Object.entries({"#adicionar-saldo":"Depositar", "#sacar-saldo":"Sacar", "#extrato":"Extrato"}).map(([to, name]) =>
+        <Link key={to} to={to} aria-current={area === to ? "page" : undefined}
+          className={"flex min-h-12 items-center justify-center border p-2 font-semibold " + (area === to ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>{name}</Link>)}
     </nav>
+    {area === "#adicionar-saldo" && <>
     {!wallet.enabled ? <p role="status">Depósitos Pix temporariamente indisponíveis.</p> : <form onSubmit={deposit} id="adicionar-saldo" className="space-y-4 border border-border bg-card p-5">
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
       <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || !!active} required /></label>
@@ -68,11 +73,8 @@ export default function ProductionWallet({ wallet, userId }) {
       <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || !!active}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
       {active && <p role="status" className="text-sm">Acompanhe o depósito abaixo antes de gerar outro.</p>}
     </form>}
-    <PixWithdrawal wallet={wallet} userId={userId} />
     <section className="space-y-4" aria-live="polite">
-      <h2 className="text-xl">Depósitos</h2>
-      {!wallet.operations.length && <p>Nenhum depósito.</p>}
-      {wallet.operations.map(op => <article key={op.id} className="space-y-3 border border-border bg-card p-4 sm:p-5">
+      {wallet.operations.filter(op => ["pending","review"].includes(op.status)).map(op => <article key={op.id} className="space-y-3 border border-border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap justify-between gap-3"><strong>{money(op.amount_cents)}</strong><span>{labels[op.status]}</span></div>
         <p className="text-sm text-muted-foreground">Criado em {new Date(op.created_at).toLocaleString("pt-BR")}</p>
         {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
@@ -87,5 +89,20 @@ export default function ProductionWallet({ wallet, userId }) {
         {op.status === "review" && <p>Estamos verificando este pagamento. Não repita o depósito; entre em contato com o suporte se persistir.</p>}
       </article>)}
     </section>
+    </>}
+    {area === "#sacar-saldo" && <PixWithdrawal wallet={wallet} userId={userId} />}
+    {area === "#extrato" && <section className="space-y-3" aria-labelledby="titulo-extrato">
+      <h2 id="titulo-extrato" className="text-xl">Extrato de movimentações</h2>
+      {!wallet.operations.length && !wallet.withdrawals?.length && <p>Nenhuma movimentação.</p>}
+      {[...wallet.operations.map(op => ({...op, type:"Depósito", label:labels[op.status]})),
+        ...(wallet.withdrawals || []).map(op => ({...op, type:"Saque", label:withdrawalLabels[op.status]}))]
+        .sort((a,b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+        .map(op => <article key={op.type + op.id} className="space-y-2 border border-border bg-card p-4">
+          <div className="flex justify-between gap-2"><strong>{op.type}</strong><span>{money(op.amount_cents)}</span></div>
+          <p>{op.label}</p>
+          {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
+          <time dateTime={op.created_at}>{new Date(op.created_at).toLocaleString("pt-BR")}</time>
+        </article>)}
+    </section>}
   </div>;
 }
