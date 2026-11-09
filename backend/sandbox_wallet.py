@@ -147,6 +147,16 @@ async def reconcile(db, oid):
 async def fund_service(db, rid, uid, amount):
     r=await db.requests.find_one({'id':rid,'client_id':uid,'status':{'$in':['aceito','em_andamento']}},{'_id':0})
     if not r or not r.get('professional_id') or r['professional_id']==uid: raise HTTPException(409,'Escolha um serviço aceito por outra pessoa')
+    net = amount
+    if r.get("pricing_version"):
+        try:
+            from backend.pricing import cents, worker_offer
+        except ModuleNotFoundError:
+            from pricing import cents, worker_offer
+        gross = cents(r.get("agreed_budget") or 0)
+        if amount != gross:
+            raise HTTPException(409, "Use o valor combinado para reservar.")
+        net = r.get("agreed_net_cents", worker_offer(gross))
     key=ident(rid)
     def apply(s):
         if key in s['funds']:
@@ -154,7 +164,7 @@ async def fund_service(db, rid, uid, amount):
             return
         if len(s['funds'])>=100: raise HTTPException(409,'Limite de serviços de teste atingido')
         post(s,uid,-amount,'service-reserve',rid)
-        s['funds'][key]={'request_id':rid,'client_id':uid,'professional_id':r['professional_id'],'amount_cents':amount,'status':'reserved','title':r.get('title','Serviço'),'confirmations':[],'created_at':stamp()}
+        s['funds'][key]={'request_id':rid,'client_id':uid,'professional_id':r['professional_id'],'amount_cents':amount,'net_cents':net,'status':'reserved','title':r.get('title','Serviço'),'confirmations':[],'created_at':stamp()}
     await mutate(db,apply)
 
 async def confirm_fund(db, rid, uid):
@@ -168,7 +178,10 @@ async def confirm_fund(db, rid, uid):
         if f['status']!='reserved': raise HTTPException(409,'Pagamento em contestação')
         f['confirmations']=list(set(f['confirmations'])|{uid})
         if set(f['confirmations'])=={f['client_id'],f['professional_id']}:
-            post(s,f['professional_id'],f['amount_cents'],'service-reserve',rid)
+            net = f.get("net_cents", f["amount_cents"])
+            post(s,f['professional_id'],net,'service-reserve',rid)
+            if f["amount_cents"] > net:
+                post(s,"__platform__",f["amount_cents"]-net,"platform-commission",rid)
             f.update(status='released',released_at=stamp())
     await mutate(db,apply)
 
@@ -185,6 +198,9 @@ async def snapshot(db,uid):
     funds=[f for f in s['funds'].values() if uid in (f['client_id'],f['professional_id'])]
     for f in funds:
         r=await db.requests.find_one({'id':f['request_id']},{'_id':0,'status':1,'check_in_at':1,'check_out_at':1})
+        net = f.pop("net_cents", f["amount_cents"])
+        if uid == f["professional_id"]:
+            f["amount_cents"] = net
         f['service_status']=(r or {}).get('status')
         f['arrived']=bool((r or {}).get('check_in_at'))
     return {'enabled':True,'sandbox':True,'available_cents':balance(s,uid),

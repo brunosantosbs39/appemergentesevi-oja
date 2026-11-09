@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from pymongo import ReturnDocument
 
 
-async def confirm_completion(requests, rid, uid, timestamp):
+async def confirm_completion(requests, rid, uid, timestamp, session=None):
     party = {"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}
     eligible = {**party, "status": "concluido", "check_out_at": {"$type": "string"},
                 "professional_id": {"$type": "string"},
@@ -17,9 +17,9 @@ async def confirm_completion(requests, rid, uid, timestamp):
             {"$ifNull": ["$completion_confirmed_at", {"$literal": timestamp}]},
             "$$REMOVE"
         ]}}}
-    ], projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    ], projection={"_id": 0}, return_document=ReturnDocument.AFTER, **({"session":session} if session is not None else {}))
     if result:
         return result
-    if not await requests.find_one(party, {"_id": 0, "id": 1}):
+    if not await requests.find_one(party, {"_id": 0, "id": 1}, **({"session":session} if session is not None else {})):
         raise HTTPException(404, "Pedido não encontrado")
     raise HTTPException(409, "A confirmação exige um serviço concluído com check-out e duas pessoas distintas")

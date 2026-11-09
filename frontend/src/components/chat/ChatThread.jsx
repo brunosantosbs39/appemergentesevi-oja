@@ -196,7 +196,7 @@ export const ChatThread = ({ id }) => {
       <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label="Opções da conversa" aria-expanded={actionsOpen}><MoreVertical size={22} /></button>
     </header>
     <ChatProtection peerId={conv.other.user_id} onReady={setPeerReady} />
-    {conv.request && <details className="sj-job"><summary><span className="sj-job-dot" /><span>{conv.request.title}</span><strong>{brl(conv.request.budget)}</strong></summary><div className="sj-job-body"><Link to="/pedidos">Ver vaga e acompanhar serviço</Link><ApplyButton key={conv.request.id} request={conv.request} /></div></details>}
+    {conv.request && <details className="sj-job"><summary><span className="sj-job-dot" /><span>{conv.request.title}</span><strong>{brl(conv.request.agreed_budget ?? conv.request.my_application?.negotiated_budget ?? conv.request.budget)}</strong></summary><div className="sj-job-body"><Link to="/pedidos">Ver vaga e acompanhar serviço</Link><ApplyButton key={conv.request.id} request={conv.request} /></div></details>}
     {error && <button type="button" className="sj-connection" onClick={() => pollRef.current?.()}>Conexão interrompida. Tentando reconectar… Toque para tentar agora.</button>}
     <div className="sj-message-area">
       <div ref={listRef} className="sj-messages" data-testid="chat-messages-list" onScroll={() => { const list = listRef.current; nearBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 110; if (nearBottom.current) setAway(false); }}>

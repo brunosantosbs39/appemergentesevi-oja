@@ -98,6 +98,8 @@ async def indexes(db):
         partialFilterExpression={"provider_payment_id": {"$type": "string"}})
     await db.pix_deposits.create_index([("user_id", 1), ("created_at", -1)])
     await db.pix_withdrawals.create_index([("user_id", 1), ("created_at", -1)])
+    await db.pix_ledger.create_index([("user_id", 1), ("created_at", -1)])
+    await db.requests.create_index([("professional_id", 1), ("service_fund.status", 1), ("status", 1)])
     await db.pix_withdrawals.create_index("transfer_id", unique=True,
         partialFilterExpression={"transfer_id": {"$type": "string"}})
 
@@ -268,8 +270,15 @@ async def snapshot(db, uid):
     balance = await db.pix_balances.find_one({"_id": uid}) or {}
     operations = await db.pix_deposits.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
     withdrawals = await db.pix_withdrawals.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
+    service_entries = await db.pix_ledger.find({"user_id": uid, "kind": {"$in": [
+        "service_income", "service_refund", "service_reserve"]}}, {"_id":1, "kind":1, "amount_cents":1, "created_at":1}
+        ).sort("created_at", -1).limit(50).to_list(50)
+    pending = await db.requests.aggregate([
+        {"$match": {"professional_id":uid, "status":{"$in":["em_andamento","concluido"]}, "service_fund.status":"reserved"}},
+        {"$group": {"_id":None, "total":{"$sum":"$service_fund.net"}}}]).to_list(1)
     return {"enabled": enabled(), "sandbox": False, "mode": "production", "withdrawals_enabled": enabled(),
         "withdrawals": [public_transfer(w) for w in withdrawals],
+        "service_entries": service_entries, "pending_cents": pending[0]["total"] if pending else 0,
         "available_cents": balance.get("available_cents", 0), "operations": [public(o) for o in operations]}
 
 async def synchronize(db, uid):

@@ -77,3 +77,7 @@ A leitura da carteira retorna o último estado salvo e agenda reconciliação
 persistente. Webhooks continuam autenticados e consultam diretamente o Asaas
 antes de atualizar o saldo. Consulte
 OPERACAO_FILAS.md para retomadas e agendamento independente de usuários.
+
+## Pagamento das novas vagas
+
+Ofertas do contratante reservam o total anunciado e destinam 90% ao profissional. Contrapropostas preservam o valor solicitado pelo profissional e acrescentam 10% desse valor ao custo do contratante. Os cálculos usam centavos e arredondam o total. Na produção, a aprovação reserva o saldo na mesma transação que seleciona o candidato. Após o check-in, o profissional vê seu valor a receber. O check-out e as duas confirmações liberam o líquido. A diferença fica registrada no livro de movimentações da plataforma. Cancelamento ou desistência antes do check-in devolve a reserva. Pedidos anteriores conservam as condições originais.

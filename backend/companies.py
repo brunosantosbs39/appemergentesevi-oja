@@ -48,8 +48,8 @@ def request_row(r):
     status = "cancelled" if r["status"] == "cancelado" else "completed" if r["status"] == "concluido" else "planned"
     return {"id":r["id"], "source":"request", "branch_id":r.get("branch_id"), "worker":r.get("title", "Pedido"),
         "service_date":r.get("service_date") or r["created_at"][:10], "days":r.get("daily_count", 1),
-        "amount_cents":int((Decimal(str(r.get("budget") or 0))*100).quantize(Decimal("1"))),
-        "billing_type":r.get("billing_type","fixed"), "quantity":r.get("quantity",1), "unpriced":r.get("budget") is None, "status":status}
+        "amount_cents":int((Decimal(str(r.get("agreed_budget", r.get("budget")) or 0))*100).quantize(Decimal("1"))),
+        "billing_type":r.get("billing_type","fixed"), "quantity":r.get("quantity",1), "unpriced":r.get("agreed_budget", r.get("budget")) is None, "status":status}
 
 def build_router(db, onboarded):
     router=APIRouter(prefix="/api/companies")

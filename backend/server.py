@@ -26,7 +26,9 @@ try:  # launched as `backend.server`
     from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
-    from backend.pricing import Pricing
+    from backend.pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
+    from backend.service_funds import approve as reserve_service, refund as refund_service, settle as settle_service
+    from backend.production_wallet import selected as real_selected, guard as real_guard
     from backend.companies import build_router as companies_router, owned as owned_company
     from backend.sandbox_wallet import build_router as wallet_router
     from backend.completion import confirm_completion
@@ -41,7 +43,9 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
-    from pricing import Pricing
+    from pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
+    from service_funds import approve as reserve_service, refund as refund_service, settle as settle_service
+    from production_wallet import selected as real_selected, guard as real_guard
     from companies import build_router as companies_router, owned as owned_company
     from sandbox_wallet import build_router as wallet_router
     from completion import confirm_completion
@@ -557,6 +561,10 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
         r["professional"] = um.get(r.get("professional_id"))
         r["target_pro"] = um.get(r.get("target_pro_id"))
         r["distance_km"] = distance_km(lat, lng, r.get("lat"), r.get("lng"))
+        fund = r.pop("service_fund", None)
+        if fund:
+            r["payment_status"] = fund["status"]
+        present_request(r, viewer_id)
         applications = r.pop("applications", [])
         for application in applications:
             if application["status"] == "pending" and (r["status"] != "pendente" or r["is_expired"]):
@@ -588,6 +596,8 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc["pricing_version"] = 1
+    doc["wallet_reservation"] = real_selected()
     doc["quantity"] = float(body.quantity)
     if body.unit_cents is not None:
         doc["budget"] = body.total_cents() / 100
@@ -686,14 +696,20 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
         current = await db.requests.find_one({"id": rid, "client_id": me["user_id"]}, {"_id": 0})
         candidate = next((a for a in (current or {}).get("applications", []) if a["professional_id"] == professional_id), {})
         changes["agreed_budget"] = candidate.get("negotiated_budget", (current or {}).get("budget"))
+        if current and current.get("pricing_version") and changes["agreed_budget"] is not None:
+            changes["agreed_net_cents"] = candidate.get("quote_net_cents", worker_offer(cents(changes["agreed_budget"])))
         changes.update({"status": "aceito", "professional_id": professional_id, "accepted_at": stamp, "approved_by": me["user_id"]})
     selection_query = {"id": rid, "$and": [vacancy_open_query()], "client_id": me["user_id"], "status": "pendente",
                        "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}}
     if body.status == "approved" and current:
         selection_query["updated_at"] = current.get("updated_at")
-    r = await db.requests.find_one_and_update(
-        selection_query,
-        {"$set": changes}, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if body.status == "approved" and current and current.get("wallet_reservation"):
+        real_guard()
+        r = await reserve_service(db, selection_query, changes, cents(changes["agreed_budget"] or 0),
+                                  changes.get("agreed_net_cents", 0), stamp)
+    else:
+        r = await db.requests.find_one_and_update(selection_query, {"$set": changes}, projection={"_id": 0},
+                                                  return_document=ReturnDocument.AFTER)
     if not r:
         raise HTTPException(409, "Candidatura indisponível ou ação não autorizada")
     conv = await get_or_create_conversation(r["client_id"], professional_id, rid)
@@ -724,8 +740,16 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
             update["service_duration_seconds"] = max(0, int((datetime.fromisoformat(stamp) - datetime.fromisoformat(before["check_in_at"])).total_seconds()))
     if body.status == "pendente":
         update.update({"professional_id": None, "target_pro_id": None})
-    r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
-                                              return_document=ReturnDocument.AFTER)
+    if before:
+        query["status"] = before["status"]
+        query["updated_at"] = before.get("updated_at")
+    if before and before.get("service_fund", {}).get("status") == "reserved" and body.status in ("pendente", "cancelado"):
+        if before.get("check_in_at"):
+            raise HTTPException(409, "O serviço já começou. Entre em contato com o suporte para cancelar.")
+        r = await refund_service(db, query, update, stamp)
+    else:
+        r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
+                                                  return_document=ReturnDocument.AFTER) if before else None
     if not r:
         exists = await db.requests.find_one({"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 1})
         if not exists:
@@ -780,7 +804,12 @@ async def check_out_service(rid: str, me: dict = Depends(onboarded)):
 
 @api.post("/requests/{rid}/confirm-completion")
 async def confirm_service_completion(rid: str, me: dict = Depends(onboarded)):
-    result = await confirm_completion(db.requests, rid, me["user_id"], now_iso())
+    funded = await db.requests.find_one({"id": rid, "service_fund.status": {"$in": ["reserved","released"]},
+        "$or": [{"client_id": me["user_id"]}, {"professional_id": me["user_id"]}]}, {"_id":1})
+    if funded:
+        result = await settle_service(db, rid, me["user_id"], now_iso(), confirm_completion)
+    else:
+        result = await confirm_completion(db.requests, rid, me["user_id"], now_iso())
     return (await enrich_requests([result], viewer_id=me["user_id"]))[0]
 
 
@@ -791,8 +820,9 @@ async def conv_summaries(convs: list, uid: str) -> list:
     rm = {}
     if rids:
         docs = await db.requests.find({"id": {"$in": rids}}, {"_id": 0, "id": 1, "title": 1, "category": 1,
-                                                               "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
+                                                               "pricing_version": 1, "agreed_net_cents": 1, "agreed_budget": 1, "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
         for doc in docs:
+            present_request(doc, uid)
             applications = doc.pop("applications", [])
             doc["my_application"] = next((a for a in applications if a["professional_id"] == uid), None)
         rm = {d["id"]: d for d in docs}
@@ -891,7 +921,7 @@ async def sync_conversation(cid: str, after: Optional[str] = None, mark_read: bo
             await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
                 {"$set": {f"unread.{uid}": 0}, "$max": {f"read_at.{uid}": seen}})
     summary = (await conv_summaries([conv], uid))[0]
-    return {"conversation": summary, "messages": messages, "cursor": cursor, "has_more": more,
+    return {"conversation": summary, "messages": [present_message(m, uid) for m in messages], "cursor": cursor, "has_more": more,
             "history_cursor": page_cursor(messages[0]["created_at"], messages[0]["id"]) if messages and not after else None,
             "has_history": not after and len(messages) == 50}
 
@@ -913,7 +943,7 @@ async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool =
         seen = msgs[-1]["created_at"] if msgs else now_iso()
         await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
             {"$set": {f"unread.{me['user_id']}": 0, f"read_at.{me['user_id']}": seen}})
-    return msgs
+    return [present_message(m, me["user_id"]) for m in msgs]
 
 
 @api.post("/conversations/{cid}/messages")
@@ -1009,43 +1039,60 @@ async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded
         request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
         if not request or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
             raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
-    return await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
-                             request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
-                                       "deadline": body.deadline.strip(), "status": "pending"})
+    quote = {}
+    if conv.get("request_id") and request.get("pricing_version"):
+        quote["client_cents"] = client_quote(cents(body.amount))
+    msg = await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
+                             request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": cents(body.amount) / 100,
+                                       "deadline": body.deadline.strip(), "status": "pending", **quote})
+    return present_message(msg, me["user_id"])
 
 
 @api.patch("/conversations/{cid}/proposals/{mid}")
 async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict = Depends(onboarded)):
     await my_conversation(cid, me["user_id"])
-    proposal_message = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "proposal"}, {"_id": 0})
-    if proposal_message and proposal_message.get("request_id") and body.status == "accepted":
-        if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
-            raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
-        rid = proposal_message["request_id"]
-        request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
-        if not request:
-            raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
-        applicant = proposal_message["sender_id"]
-        amount = proposal_message["proposal"]["amount"]
-        application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
-        query = {"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}
-        if application:
-            query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
-            change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}
-        else:
-            query["applications.professional_id"] = {"$ne": applicant}
-            change = {"$push": {"applications": {"professional_id": applicant, "status": "pending", "applied_at": now_iso(), "negotiated_budget": amount}}, "$set": {"updated_at": now_iso()}}
-        result = await db.requests.update_one(query, change)
-        if result.matched_count == 0:
-            raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
-    msg = await db.messages.find_one_and_update(
-        {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
-        {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"], "updated_at": now_iso()}},
-        projection={"_id": 0}, return_document=ReturnDocument.AFTER)
-    if not msg:
-        raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+    async def respond(session):
+        proposal_message = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "proposal"}, {"_id": 0}, session=session)
+        if proposal_message and proposal_message.get("request_id") and body.status == "accepted":
+            if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
+                raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
+            rid = proposal_message["request_id"]
+            request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0}, session=session)
+            if not request:
+                raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
+            applicant = proposal_message["sender_id"]
+            amount = proposal_message["proposal"]["amount"]
+            net = cents(amount)
+            priced = "client_cents" in proposal_message["proposal"]
+            if priced:
+                amount = proposal_message["proposal"]["client_cents"] / 100
+            application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
+            query = {"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}
+            if application:
+                query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
+                change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}
+            else:
+                query["applications.professional_id"] = {"$ne": applicant}
+                change = {"$push": {"applications": {"professional_id": applicant, "status": "pending", "applied_at": now_iso(), "negotiated_budget": amount}}, "$set": {"updated_at": now_iso()}}
+            if priced:
+                if application:
+                    change["$set"]["applications.$.quote_net_cents"] = net
+                else:
+                    change["$push"]["applications"]["quote_net_cents"] = net
+            result = await db.requests.update_one(query, change, session=session)
+            if result.matched_count == 0:
+                raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
+        msg = await db.messages.find_one_and_update(
+            {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
+            {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"], "updated_at": now_iso()}},
+            projection={"_id": 0}, return_document=ReturnDocument.AFTER, session=session)
+        if not msg:
+            raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+        return msg
+    async with await db.client.start_session() as session:
+        msg = await session.with_transaction(respond)
     await send_notice(db, msg["sender_id"], "Resposta à contraproposta", "Sua contraproposta foi aceita." if body.status == "accepted" else "Sua contraproposta foi recusada.", f"/chat/{cid}")
-    return msg
+    return present_message(msg, me["user_id"])
 
 
 # Never let identity backups, messages or authenticated responses enter browser/CDN caches.

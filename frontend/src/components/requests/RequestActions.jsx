@@ -88,7 +88,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
           {(r.completion_confirmations || []).includes(me.user_id)
             ? <p className="text-sm text-muted-foreground">Sua confirmação já foi registrada.</p>
             : <Button disabled={!!busy} variant="outline" onClick={confirm} data-testid="confirm-completion-button">{spin("confirm")} Confirmar conclusão</Button>}
-          <p className="text-xs text-muted-foreground">Esta confirmação registra a conclusão do serviço. Na carteira de testes, os dois também confirmam a liberação do saldo simulado. Nenhum dinheiro real é movimentado.</p>
+          <p className="text-xs text-muted-foreground">{r.payment_status ? "Quando os dois confirmarem, o valor combinado será liberado na carteira do profissional." : "As duas partes confirmam a conclusão do serviço."}</p>
         </div>
       )}
       {r.status === "concluido" && otherId && !reviewed && (

@@ -57,7 +57,7 @@ export default function ProductionWallet({ wallet, userId }) {
     <header><p className="text-sm text-muted-foreground">Seus pagamentos</p><h1 className="text-3xl">Carteira</h1></header>
     <section className="border border-border bg-card p-5">
       <p>Saldo disponível</p><p className="mt-3 text-3xl">{money(wallet.available_cents)}</p>
-      <p className="mt-3 text-sm text-muted-foreground">Os pagamentos de serviços com saldo real serão liberados em uma próxima etapa.</p>
+      {wallet.pending_cents > 0 && <p className="mt-3">A receber pelos serviços: {money(wallet.pending_cents)}</p>}
     </section>
     <nav aria-label="Áreas da carteira" className="grid grid-cols-3 gap-2">
       {Object.entries({"#adicionar-saldo":"Depositar", "#sacar-saldo":"Sacar", "#extrato":"Extrato"}).map(([to, name]) =>
@@ -93,9 +93,10 @@ export default function ProductionWallet({ wallet, userId }) {
     {area === "#sacar-saldo" && <PixWithdrawal wallet={wallet} userId={userId} />}
     {area === "#extrato" && <section className="space-y-3" aria-labelledby="titulo-extrato">
       <h2 id="titulo-extrato" className="text-xl">Extrato de movimentações</h2>
-      {!wallet.operations.length && !wallet.withdrawals?.length && <p>Nenhuma movimentação.</p>}
+      {!wallet.operations.length && !wallet.withdrawals?.length && !wallet.service_entries?.length && <p>Nenhuma movimentação.</p>}
       {[...wallet.operations.map(op => ({...op, type:"Depósito", label:labels[op.status]})),
-        ...(wallet.withdrawals || []).map(op => ({...op, type:"Saque", label:withdrawalLabels[op.status]}))]
+        ...(wallet.withdrawals || []).map(op => ({...op, type:"Saque", label:withdrawalLabels[op.status]})),
+        ...(wallet.service_entries || []).map(op => ({...op, id:op._id, type:({service_income:"Serviço recebido",service_refund:"Reserva devolvida",service_reserve:"Valor reservado"})[op.kind], label:"Registrado"}))]
         .sort((a,b) => Date.parse(b.created_at) - Date.parse(a.created_at))
         .map(op => <article key={op.type + op.id} className="space-y-2 border border-border bg-card p-4">
           <div className="flex justify-between gap-2"><strong>{op.type}</strong><span>{money(op.amount_cents)}</span></div>
