@@ -27,7 +27,7 @@ try:  # launched as `backend.server`
     from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
     from backend.pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
-    from backend.service_funds import approve as reserve_service, refund as refund_service, settle as settle_service
+    from backend.service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
     from backend.production_wallet import selected as real_selected, guard as real_guard
     from backend.companies import build_router as companies_router, owned as owned_company
     from backend.sandbox_wallet import build_router as wallet_router
@@ -44,7 +44,7 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
     from pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
-    from service_funds import approve as reserve_service, refund as refund_service, settle as settle_service
+    from service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
     from production_wallet import selected as real_selected, guard as real_guard
     from companies import build_router as companies_router, owned as owned_company
     from sandbox_wallet import build_router as wallet_router
@@ -743,7 +743,10 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     if before:
         query["status"] = before["status"]
         query["updated_at"] = before.get("updated_at")
-    if before and before.get("service_fund", {}).get("status") == "reserved" and body.status in ("pendente", "cancelado"):
+    funded_checkout = before and before.get("service_fund", {}).get("status") == "reserved" and body.status == "concluido"
+    if funded_checkout:
+        r = await checkout_service(db, query, update, stamp)
+    elif before and before.get("service_fund", {}).get("status") == "reserved" and body.status in ("pendente", "cancelado"):
         if before.get("check_in_at"):
             raise HTTPException(409, "O serviço já começou. Entre em contato com o suporte para cancelar.")
         r = await refund_service(db, query, update, stamp)
@@ -751,11 +754,16 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
         r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
                                                   return_document=ReturnDocument.AFTER) if before else None
     if not r:
+        if body.status == "concluido":
+            finished = await db.requests.find_one({"id": rid, "professional_id": uid, "status": "concluido",
+                "service_fund.status": "released"}, {"_id": 0})
+            if finished:
+                return (await enrich_requests([finished], me.get("lat"), me.get("lng"), viewer_id=uid))[0]
         exists = await db.requests.find_one({"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 1})
         if not exists:
             raise HTTPException(404, "Pedido não encontrado")
         raise HTTPException(409, "Ação não permitida no status atual do pedido")
-    if body.status == "concluido":
+    if body.status == "concluido" and not funded_checkout:
         await db.users.update_one({"user_id": r["professional_id"]}, {"$inc": {"jobs_done": 1}})
     if body.status == "pendente":
         await notify_request(before, "O profissional desistiu do pedido. Ele voltou para a fila de pedidos.")

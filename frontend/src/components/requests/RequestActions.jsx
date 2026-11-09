@@ -54,7 +54,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
 
   return (
     <>
-      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={`/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
+      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={r.payment_status ? "/carteira#extrato" : `/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{!r.payment_status && isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
       {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
@@ -69,7 +69,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       )}
       {isPro && r.status === "em_andamento" && (
         <Button disabled={!!busy} className="rounded-none" onClick={() => run("concluido", "Check-out registrado: serviço finalizado!")} data-testid="complete-service-button">
-          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} Check-out · Finalizar
+          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} {r.payment_status === "reserved" ? "Check-out · Finalizar e receber" : "Check-out · Finalizar"}
         </Button>
       )}
       {isPro && r.status === "aceito" && (
@@ -77,12 +77,13 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
           Desistir
         </Button>
       )}
-      {isClient && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
+      {isClient && !(r.payment_status === "reserved" && r.check_in_at) && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
         <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
           Cancelar
         </Button>
       )}
-      {r.status === "concluido" && r.check_out_at && (isClient || isPro) && (
+      {r.status === "concluido" && r.check_out_at && r.payment_status === "released" && (isClient || isPro) && <p className="text-sm">Pagamento liberado na carteira do profissional.</p>}
+      {r.status === "concluido" && r.check_out_at && r.payment_status !== "released" && (isClient || isPro) && (
         <div className="w-full border border-border bg-card p-4 space-y-3">
           <p className="text-sm">{r.completion_confirmed_at ? "Conclusão confirmada pelos dois." : "A conclusão precisa da confirmação das duas pessoas."}</p>
           {(r.completion_confirmations || []).includes(me.user_id)

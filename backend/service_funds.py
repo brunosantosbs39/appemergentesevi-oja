@@ -55,17 +55,35 @@ async def refund(db, query, changes, timestamp):
         return await session.with_transaction(reverse)
 
 
+async def release(db, result, timestamp, session):
+    fund = result["service_fund"]
+    pro = result["professional_id"]
+    await change_balance(db, pro, fund["net"], session)
+    await entry(db, fund, "service_income", pro, fund["net"], timestamp, session)
+    await entry(db, fund, "platform_commission", None, fund["gross"] - fund["net"], timestamp, session)
+    await db.requests.update_one({"id": result["id"]}, {"$set": {"service_fund.status":"released"}}, session=session)
+    fund["status"] = "released"
+
+
+async def checkout(db, query, changes, timestamp):
+    async def finish(session):
+        result = await db.requests.find_one_and_update(
+            {**query, "service_fund.status":"reserved", "check_in_at":{"$type":"string"}},
+            {"$set":changes}, projection={"_id":0}, return_document=ReturnDocument.AFTER, session=session)
+        if result:
+            await release(db, result, timestamp, session)
+            await db.users.update_one({"user_id":result["professional_id"]}, {"$inc":{"jobs_done":1}}, session=session)
+        return result
+    async with await db.client.start_session() as session:
+        return await session.with_transaction(finish)
+
+
 async def settle(db, rid, uid, timestamp, confirm):
     async def finish(session):
         result = await confirm(db.requests, rid, uid, timestamp, session=session)
         fund = result.get("service_fund", {})
         if result.get("completion_confirmed_at") and fund.get("status") == "reserved":
-            pro = result["professional_id"]
-            await change_balance(db, pro, fund["net"], session)
-            await entry(db, fund, "service_income", pro, fund["net"], timestamp, session)
-            await entry(db, fund, "platform_commission", None, fund["gross"] - fund["net"], timestamp, session)
-            await db.requests.update_one({"id": rid}, {"$set": {"service_fund.status":"released"}}, session=session)
-            fund["status"] = "released"
+            await release(db, result, timestamp, session)
         return result
     async with await db.client.start_session() as session:
         return await session.with_transaction(finish)

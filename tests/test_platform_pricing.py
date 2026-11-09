@@ -62,3 +62,19 @@ class Settlement(unittest.IsolatedAsyncioTestCase):
             await service_funds.refund(self.db,{"id":"job","status":"aceito"},{"status":"cancelado"},"now")
         self.assertEqual((await self.db.pix_balances.find_one({"_id":"a"}))["available_cents"],11000)
         self.assertEqual(await self.db.pix_ledger.count_documents({}),2)
+
+    async def test_checkin_required_and_checkout_credits_once(self):
+        await self.approve(10000, 9000)
+        self.assertEqual((await self.db.pix_balances.find_one({"_id":"a"}))["available_cents"],1000)
+        query = {"id":"job", "professional_id":"b", "status":"em_andamento"}
+        change = {"status":"concluido","check_out_at":"now"}
+        self.assertIsNone(await service_funds.checkout(self.db, query, change, "now"))
+        await self.db.requests.update_one({"id":"job"}, {"$set":{"status":"em_andamento","check_in_at":"now"}})
+        self.assertIsNone(await self.db.pix_balances.find_one({"_id":"b"}))
+        await self.db.users.insert_one({"user_id":"b", "jobs_done":0})
+        result = await service_funds.checkout(self.db, query, change, "now")
+        self.assertEqual(result["service_fund"]["status"], "released")
+        self.assertIsNone(await service_funds.checkout(self.db, query, change, "later"))
+        self.assertEqual((await self.db.pix_balances.find_one({"_id":"b"}))["available_cents"],9000)
+        self.assertEqual((await self.db.users.find_one({"user_id":"b"}))["jobs_done"],1)
+        self.assertEqual(await self.db.pix_ledger.count_documents({}),3)
