@@ -24,6 +24,7 @@ def match(doc, query):
             if "$in" in value and got not in value["$in"]: return False
             if "$nin" in value and got in value["$nin"]: return False
             if "$exists" in value and (key in doc) != value["$exists"]: return False
+            if "$gte" in value and (got is None or got < value["$gte"]): return False
             if "$lte" in value and got > value["$lte"]: return False
         elif got != value:
             return False
@@ -66,7 +67,7 @@ class Session:
             raise
 
 def database():
-    db = SimpleNamespace(**{n: Collection() for n in ("pix_deposits", "pix_balances", "pix_ledger", "pix_creation_locks")})
+    db = SimpleNamespace(**{n: Collection() for n in ("pix_deposits", "pix_balances", "pix_ledger", "pix_creation_locks", "pix_withdrawals", "pix_withdrawal_locks")})
     db.client = SimpleNamespace(start_session=AsyncMock(side_effect=lambda: Session(db)))
     return db
 
@@ -221,11 +222,45 @@ class PixTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as error: run(w.create_deposit(self.db, self.me, other))
             self.assertEqual(error.exception.status_code, 409)
             self.assertEqual(api.await_count, 3)
-    def test_withdrawals_always_forbidden(self):
-        router = w.build_router(self.db, lambda: self.me)
-        route = next(r for r in router.routes if r.path.endswith("/withdrawals"))
-        with self.assertRaises(HTTPException) as error: run(route.endpoint(self.me))
-        self.assertEqual(error.exception.status_code, 403)
+    def withdraw_body(self):
+        return w.WithdrawalIn(amount_cents=500, pix_key="01234567-1234-1234-1234-123456789012",
+                              idempotency_key="withdraw-request-001")
+
+    def test_no_withdrawal_without_available_balance(self):
+        with patch.object(w, "call", AsyncMock()) as api:
+            with self.assertRaises(HTTPException):
+                run(w.create_transfer(self.db, "alice", self.withdraw_body()))
+            api.assert_not_awaited()
+        self.assertFalse(self.db.pix_withdrawals.docs)
+
+    def test_withdrawal_retries_and_reconciliation(self):
+        self.db.pix_balances.docs["alice"] = {"_id": "alice", "available_cents": 900}
+        body = self.withdraw_body()
+        oid = w.hashlib.sha256(f"withdraw:alice:{body.idempotency_key}".encode()).hexdigest()
+        record = {"id": "tx1", "externalReference": oid, "value": 5, "status": "PENDING"}
+        with patch.object(w, "call", AsyncMock(side_effect=[record, record])) as api:
+            run(w.create_transfer(self.db, "alice", body))
+            run(w.create_transfer(self.db, "alice", body))
+            self.assertEqual(api.await_count, 2)
+        self.assertEqual(self.db.pix_balances.docs["alice"]["available_cents"], 400)
+        with patch.object(w, "call", AsyncMock(return_value={**record, "status": "DONE"})):
+            run(w.check_transfer(self.db, oid, "tx1"))
+        self.assertEqual(self.db.pix_withdrawals.docs[oid]["status"], "done")
+        self.assertEqual(self.db.pix_balances.docs["alice"]["available_cents"], 400)
+
+    def test_ambiguous_transfer_then_authenticated_failure_refunds_once(self):
+        self.db.pix_balances.docs["alice"] = {"_id": "alice", "available_cents": 900}
+        with patch.object(w, "call", AsyncMock(side_effect=w.ProviderError())):
+            op = run(w.create_transfer(self.db, "alice", self.withdraw_body()))
+        self.assertEqual(op["status"], "review")
+        self.assertEqual(self.db.pix_balances.docs["alice"]["available_cents"], 400)
+        data = {"id": "tx1", "externalReference": op["id"], "value": 5, "status": "FAILED"}
+        event = {"transfer": {"id": "tx1", "externalReference": op["id"], "status": "DONE"}}
+        with patch.object(w, "call", AsyncMock(return_value=data)):
+            run(w.webhook(self.db, req(event)))
+            run(w.webhook(self.db, req(event)))
+        self.assertEqual(self.db.pix_balances.docs["alice"]["available_cents"], 900)
+        self.assertEqual(self.db.pix_withdrawals.docs[op["id"]]["status"], "failed")
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ Nunca use prefixos REACT_APP_, NEXT_PUBLIC_ ou VITE_ para esses segredos. Não c
 - Exibe encodedImage, payload e expirationDate fornecidos pelo Asaas. A validade não é inventada pelo app: pode variar conforme configuração da conta e chave Pix.
 - A criação nunca credita saldo. A tela consulta a carteira a cada 15 segundos. O servidor limita consultas por usuário a uma rodada por 10 segundos e até cinco pendências por rodada.
 - Crédito é do **valor líquido netValue** após tarifas, mostrado separadamente do valor solicitado. O saldo disponível é em centavos inteiros.
-- Saques reais retornam 403 e não há botão de saque no modo real. Reserva, repasse e pagamento real entre participantes ainda não são oferecidos nesta etapa; os fluxos de serviços existentes continuam disponíveis no Sandbox. A tela informa essa limitação antes do depósito.
+- Saques de produção usam saldo disponível e chave Pix aleatória, até R$ 100 por operação. A reserva é transacional. Habilite eventos TRANSFER_* no webhook Asaas existente. A carteira também reconsulta transferências identificadas. Em caso de resposta ambígua, concilie pela referência externa antes de liberar a reserva. As tarifas de saída do provedor ficam a cargo da plataforma. Autorizações exigidas pelo Asaas são realizadas no painel da conta.
 - Conta única continua permitindo contratar e trabalhar; os participantes de cada pedido são pessoas distintas.
 
 ## Webhook e confirmação
@@ -43,7 +43,7 @@ Uma intenção é persistida no navegador até resposta para recuperar timeout; 
 ## Operação e homologação
 Antes de habilitar: conta Asaas de produção aprovada, chave Pix/configuração compatível, variáveis secretas, webhook de produção funcional, Mongo com transações e testes de recebimento supervisionados. Nenhuma chave real foi adicionada ao código. O preview desta entrega mantém o Sandbox porque as credenciais de produção não estão configuradas.
 
-35 testes unitários de carteira (20 reais com provedor simulado + 15 Sandbox) cobrem criação/reuso de cliente, QR, ausência de crédito na criação, token incorreto, reconsulta do provedor, divergências, duplicatas, rollback, confirmação cautelar, expiração, estorno, seleção de ambiente e bloqueio de saques. Use:
+Os testes unitários de carteira cobrem criação/reuso de cliente, QR, ausência de crédito na criação, token incorreto, reconsulta do provedor, divergências, duplicatas, rollback, confirmação cautelar, expiração, estorno, seleção de ambiente e reserva, confirmação e devolução de saques. Use:
 ```sh
 python -m unittest discover -s tests -p 'test_*wallet.py' -v
 node tests/production_wallet_ui.cjs
@@ -75,5 +75,5 @@ de forma indiscriminada.
 
 A leitura da carteira retorna o último estado salvo e agenda reconciliação
 persistente. Webhooks continuam autenticados e consultam diretamente o Asaas
-antes de atualizar o saldo. Saques reais continuam proibidos. Consulte
+antes de atualizar o saldo. Consulte
 OPERACAO_FILAS.md para retomadas e agendamento independente de usuários.

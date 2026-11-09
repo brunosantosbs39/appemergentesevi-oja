@@ -11,7 +11,7 @@ const React = req("react");
 const { renderToStaticMarkup } = req("react-dom/server");
 const babel = req("@babel/core");
 const filename = process.env.WALLET_UI_SOURCE || path.join(root, "frontend/src/components/wallet/ProductionWallet.jsx");
-const code = babel.transformSync(fs.readFileSync(filename, "utf8"), {
+const transform = file => babel.transformSync(fs.readFileSync(file, "utf8"), {
   presets: [[req.resolve("@babel/preset-react"), { runtime: "automatic" }]],
   plugins: [req.resolve("@babel/plugin-transform-modules-commonjs")],
   configFile: false, babelrc: false
@@ -24,12 +24,15 @@ const mocks = {
   "sonner": { toast: {} },
   "lucide-react": Object.fromEntries(["Copy", "Loader2", "QrCode"].map(k => [k, () => null]))
 };
-vm.runInNewContext(code, { module: moduleMock, exports: moduleMock.exports,
+const child = { exports: {} };
+vm.runInNewContext(transform(path.join(path.dirname(filename), "PixWithdrawal.jsx")), { module: child, exports: child.exports, require: name => mocks[name] || req(name) });
+mocks["./PixWithdrawal"] = child.exports;
+vm.runInNewContext(transform(filename), { module: moduleMock, exports: moduleMock.exports,
   require: name => mocks[name] || req(name) }, { filename });
 const Component = moduleMock.exports.default;
 function render(status) {
   return renderToStaticMarkup(React.createElement(Component, {
-    userId: "unit-test", wallet: { enabled: true, available_cents: 901,
+    userId: "unit-test", wallet: { enabled: true, withdrawals_enabled: true, available_cents: 901,
       operations: [{ id: "op", amount_cents: 1000, status, created_at: "2026-10-28T12:00:00Z",
         expires_at: "2026-10-28 23:59:59", pix_copy_paste: "PIX-UNIT-TEST", qr_image: "YWJj",
         ...(status === "paid" ? { credited_cents: 901 } : {}) }] }
@@ -41,6 +44,7 @@ assert.match(pending, /PIX-UNIT-TEST/);
 assert.match(pending, /data:image\/png;base64,YWJj/);
 assert.match(pending, /2026-10-28 23:59:59/);
 assert.doesNotMatch(pending, /Ambiente de testes|saldo de teste|Solicitar saque/);
+assert.match(pending, /Revisar saque/);
 const paid = render("paid");
 assert.match(paid, /Pagamento recebido/);
 assert.match(paid, /Creditado/);

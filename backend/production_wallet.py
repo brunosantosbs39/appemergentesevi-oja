@@ -96,6 +96,9 @@ async def indexes(db):
     await db.pix_deposits.create_index("provider_payment_id", unique=True,
         partialFilterExpression={"provider_payment_id": {"$type": "string"}})
     await db.pix_deposits.create_index([("user_id", 1), ("created_at", -1)])
+    await db.pix_withdrawals.create_index([("user_id", 1), ("created_at", -1)])
+    await db.pix_withdrawals.create_index("transfer_id", unique=True,
+        partialFilterExpression={"transfer_id": {"$type": "string"}})
 
 def public(op):
     fields = ("id", "provider_payment_id", "amount_cents", "credited_cents", "status",
@@ -263,7 +266,9 @@ async def reconcile(db, oid):
 async def snapshot(db, uid):
     balance = await db.pix_balances.find_one({"_id": uid}) or {}
     operations = await db.pix_deposits.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
-    return {"enabled": enabled(), "sandbox": False, "mode": "production", "withdrawals_enabled": False,
+    withdrawals = await db.pix_withdrawals.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
+    return {"enabled": enabled(), "sandbox": False, "mode": "production", "withdrawals_enabled": enabled(),
+        "withdrawals": [public_transfer(w) for w in withdrawals],
         "available_cents": balance.get("available_cents", 0), "operations": [public(o) for o in operations]}
 
 async def synchronize(db, uid):
@@ -284,6 +289,10 @@ async def webhook(db, request):
             raise HTTPException(413, "Notificação muito grande")
     try:
         event = json.loads(payload)
+        if isinstance(event.get("transfer"), dict):
+            incoming = event["transfer"]
+            await check_transfer(db, incoming.get("externalReference"), incoming.get("id"))
+            return {"received": True}
         payment = event.get("payment", {})
         if not isinstance(payment, dict):
             raise ValueError()
@@ -302,6 +311,122 @@ async def webhook(db, request):
         raise HTTPException(503, "Confirmação temporariamente indisponível")
     return {"received": True}
 
+class WithdrawalIn(BaseModel):
+    amount_cents: int = Field(strict=True, gt=0, le=10000)
+    pix_key: str = Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+    idempotency_key: str = Field(min_length=16, max_length=80, pattern=r"^[A-Za-z0-9-]+$")
+
+def public_transfer(op):
+    return {field: op[field] for field in ("id", "amount_cents", "status", "created_at")}
+
+async def finish_transfer(db, op, status):
+    async def finish(session):
+        changed = await db.pix_withdrawals.update_one(
+            {"_id": op["_id"], "status": {"$in": ["pending", "review"]}},
+            {"$set": {"status": status, "updated_at": stamp()}}, session=session)
+        if not changed.modified_count:
+            return
+        if status == "failed":
+            await db.pix_balances.update_one({"_id": op["user_id"]},
+                {"$inc": {"available_cents": op["amount_cents"]}}, session=session)
+            await record_transfer_entry(db, op, "refund", op["amount_cents"], session)
+        await db.pix_withdrawal_locks.delete_one({"_id": op["user_id"], "operation_id": op["_id"]}, session=session)
+    async with await db.client.start_session() as session:
+        await session.with_transaction(finish)
+
+async def record_transfer_entry(db, op, kind, amount, session):
+    await db.pix_ledger.insert_one({"_id": f"withdraw-{kind}-{op['id']}", "user_id": op["user_id"],
+        "withdrawal_id": op["id"], "amount_cents": amount, "counter_amount_cents": -amount,
+        "created_at": stamp()}, session=session)
+
+async def check_transfer(db, oid, tid):
+    if not isinstance(oid, str) or not isinstance(tid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", tid):
+        return
+    op = await db.pix_withdrawals.find_one({"_id": oid, "status": {"$in": ["pending", "review"]}})
+    if not op or op.get("transfer_id", tid) != tid:
+        return
+    record = await call("GET", "/transfers/" + tid)
+    if record.get("externalReference") != oid or record.get("id") != tid or money(record.get("value")) != op["amount_cents"]:
+        await db.pix_withdrawals.update_one({"_id": oid, "status": "pending"}, {"$set": {"status": "review"}})
+        return
+    await db.pix_withdrawals.update_one({"_id": oid}, {"$set": {"transfer_id": tid}})
+    if record.get("status") == "DONE":
+        await finish_transfer(db, op, "done")
+    elif record.get("status") in ("FAILED", "CANCELLED"):
+        await finish_transfer(db, op, "failed")
+
+async def create_transfer(db, uid, body):
+    guard()
+    key = body.pix_key.lower()
+    fingerprint = hashlib.sha256(key.encode()).hexdigest()
+    oid = hashlib.sha256(f"withdraw:{uid}:{body.idempotency_key}".encode()).hexdigest()
+    op = {"_id": oid, "id": oid, "user_id": uid, "amount_cents": body.amount_cents,
+          "destination_hash": fingerprint, "status": "pending", "created_at": stamp()}
+    async def reserve(session):
+        if await db.pix_deposits.find_one({"user_id": uid, "status": "review", "credited_cents": {"$exists": True}}, session=session):
+            raise HTTPException(409, "Há um crédito em análise. Aguarde a revisão.")
+        await db.pix_withdrawals.insert_one(op, session=session)
+        await db.pix_withdrawal_locks.insert_one({"_id": uid, "operation_id": oid}, session=session)
+        result = await db.pix_balances.update_one(
+            {"_id": uid, "available_cents": {"$gte": body.amount_cents}},
+            {"$inc": {"available_cents": -body.amount_cents}}, session=session)
+        if not result.modified_count:
+            raise HTTPException(409, "Saldo disponível insuficiente.")
+        await record_transfer_entry(db, op, "reserve", -body.amount_cents, session)
+    try:
+        async with await db.client.start_session() as session:
+            await session.with_transaction(reserve)
+    except DuplicateKeyError:
+        previous = await db.pix_withdrawals.find_one({"_id": oid})
+        if previous and previous["amount_cents"] == body.amount_cents and previous["destination_hash"] == fingerprint:
+            return public_transfer(previous)
+        raise HTTPException(409, "Confira o saque anterior antes de solicitar outro.")
+    try:
+        transfer = await call("POST", "/transfers", {"value": body.amount_cents / 100,
+            "pixAddressKey": key, "pixAddressKeyType": "EVP", "externalReference": oid})
+    except ProviderError as error:
+        if error.definitive:
+            await finish_transfer(db, op, "failed")
+        else:
+            await db.pix_withdrawals.update_one({"_id": oid, "status": "pending"}, {"$set": {"status": "review"}})
+    else:
+        tid = transfer.get("id")
+        if isinstance(tid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", tid):
+            await db.pix_withdrawals.update_one({"_id": oid}, {"$set": {"transfer_id": tid}})
+            try:
+                await check_transfer(db, oid, tid)
+            except ProviderError:
+                pass  # The wallet refresh and webhook both retry the read, never the transfer.
+        else:
+            await db.pix_withdrawals.update_one({"_id": oid, "status": "pending"}, {"$set": {"status": "review"}})
+    return public_transfer(await db.pix_withdrawals.find_one({"_id": oid}))
+
+async def refresh_transfer(db, uid):
+    lock = await db.pix_withdrawal_locks.find_one({"_id": uid})
+    if not lock:
+        return
+    op = await db.pix_withdrawals.find_one({"_id": lock["operation_id"]})
+    if not op:
+        return
+    try:
+        tid = op.get("transfer_id")
+        if not tid:
+            # A lost POST response must never trigger a second POST. Allow one
+            # recovery lookup per minute, including gaps before the first webhook.
+            lease = await db.pix_withdrawals.update_one({"_id": op["id"], "$or": [
+                {"next_lookup": {"$exists": False}}, {"next_lookup": {"$lte": now()}}]},
+                {"$set": {"next_lookup": now() + timedelta(minutes=1)}})
+            if not lease.modified_count:
+                return
+            recent = await call("GET", "/transfers", params={"limit": 100})
+            matches = [t for t in recent.get("data", []) if t.get("externalReference") == op["id"]]
+            if len(matches) != 1:
+                return
+            tid = matches[0].get("id")
+        await check_transfer(db, op["id"], tid)
+    except ProviderError:
+        pass
+
 def build_router(db, onboarded):
     router = APIRouter(prefix="/api/wallet")
     @router.get("")
@@ -310,6 +435,7 @@ def build_router(db, onboarded):
             try:
                 await synchronize(db, me["user_id"])
                 background_tasks.add_task(safe_drain, db)
+                background_tasks.add_task(refresh_transfer, db, me["user_id"])
             except ProviderError:
                 pass  # Keep last persisted state; never manufacture successful payments.
         return await snapshot(db, me["user_id"])
@@ -329,8 +455,8 @@ def build_router(db, onboarded):
         return await snapshot(db, me["user_id"])
 
     @router.post("/withdrawals")
-    async def withdrawal(me=Depends(onboarded)):
-        raise HTTPException(403, "Saques ainda não estão disponíveis")
+    async def withdrawal(body: WithdrawalIn, me=Depends(onboarded)):
+        return await create_transfer(db, me["user_id"], body)
 
     @router.post("/webhook")
     async def hook(request: Request):

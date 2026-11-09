@@ -13,7 +13,7 @@ const questions = [
  ["Preciso de duas contas?", "Não. A mesma conta permite contratar e trabalhar. Tanto no cadastro por e-mail quanto pelo Google, você precisa completar suas informações e endereço para começar."],
  ["Quem escolhe o profissional?", "O contratante. Os interessados se candidatam, e quem publicou o pedido analisa os perfis e seleciona o profissional. A candidatura não significa contratação automática."],
  ["Como a localização funciona?", "O endereço do cadastro ajuda a definir sua região inicial. Você pode usar Minha localização, com a permissão do dispositivo, e filtrar oportunidades por distância. A precisão depende do aparelho; as distâncias são em linha reta."],
- ["Como funciona a carteira?", "Quando disponível na sua conta, o depósito Pix apresenta QR Code e código Copia e Cola. O saldo só é creditado após a confirmação do pagamento. Confira na carteira as condições e os recursos habilitados. O saque real ainda não está disponível."],
+ ["Como funciona a carteira?", "Quando disponível na sua conta, o depósito Pix apresenta QR Code e código Copia e Cola. O saldo só é creditado após a confirmação do pagamento. Confira na carteira as condições e os recursos habilitados. Você pode solicitar saque do saldo disponível para uma chave Pix aleatória."],
  ["O painel de empresas faz pagamentos?", "O painel organiza os custos dos pedidos e dos lançamentos manuais por empresa ou filial. Marcar um lançamento como pago é um registro de controle e não transfere dinheiro."],
  ["As conversas são protegidas?", "Mensagens e áudios enviados com a proteção do chat ativada usam criptografia de ponta a ponta. Contrapropostas são processadas pelo sistema, e mensagens antigas podem ser anteriores à proteção. O chat identifica essas situações."],
 ];
