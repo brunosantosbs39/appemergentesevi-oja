@@ -97,6 +97,7 @@ async def indexes(db):
     await db.pix_deposits.create_index("provider_payment_id", unique=True,
         partialFilterExpression={"provider_payment_id": {"$type": "string"}})
     await db.pix_deposits.create_index([("user_id", 1), ("created_at", -1)])
+    await db.pix_deposits.create_index([("status", 1), ("paid_at", -1)])
     await db.pix_withdrawals.create_index([("user_id", 1), ("created_at", -1)])
     await db.pix_ledger.create_index([("user_id", 1), ("created_at", -1)])
     await db.requests.create_index([("professional_id", 1), ("service_fund.status", 1), ("status", 1)])
@@ -105,7 +106,7 @@ async def indexes(db):
 
 def public(op):
     fields = ("id", "provider_payment_id", "amount_cents", "credited_cents", "status",
-              "created_at", "paid_at", "expires_at", "qr_image", "pix_copy_paste")
+              "created_at", "paid_at", "expires_at", "qr_image", "pix_copy_paste", "quoted_net_cents")
     result = {k: op[k] for k in fields if k in op}
     if op["status"] != "pending":
         result.pop("qr_image", None)
@@ -171,7 +172,15 @@ async def create_deposit(db, me, body):
         if not re.fullmatch(r"pay_[A-Za-z0-9_-]+", pid):
             raise ProviderError()
         # Persist the id BEFORE fetching QR. A QR failure must never recreate the charge.
-        await db.pix_deposits.update_one({"_id": oid}, {"$set": {"provider_payment_id": pid, "creation_stage": "created"}})
+        created = {"provider_payment_id": pid, "creation_stage": "created"}
+        if payment.get("netValue") is not None:
+            try:
+                quoted = money(payment["netValue"])
+                if 0 <= quoted <= body.amount_cents:
+                    created["quoted_net_cents"] = quoted
+            except HTTPException:
+                pass  # Missing price information must not prevent recovery of the payment ID.
+        await db.pix_deposits.update_one({"_id": oid}, {"$set": created})
         await save_qr(db, oid, pid)
     except (ProviderError, KeyError, TypeError) as error:
         current = await db.pix_deposits.find_one({"_id": oid})
@@ -270,6 +279,9 @@ async def snapshot(db, uid):
     balance = await db.pix_balances.find_one({"_id": uid}) or {}
     operations = await db.pix_deposits.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
     withdrawals = await db.pix_withdrawals.find({"user_id": uid}).sort("created_at", -1).limit(50).to_list(50)
+    last_paid = await db.pix_deposits.find_one({"status":"paid", "credited_cents":{"$exists":True}},
+        {"amount_cents":1, "credited_cents":1}, sort=[("paid_at",-1)])
+    fee_estimate = last_paid["amount_cents"] - last_paid["credited_cents"] if last_paid else None
     service_entries = await db.pix_ledger.find({"user_id": uid, "kind": {"$in": [
         "service_income", "service_refund", "service_reserve"]}}, {"_id":1, "kind":1, "amount_cents":1, "created_at":1}
         ).sort("created_at", -1).limit(50).to_list(50)
@@ -277,7 +289,7 @@ async def snapshot(db, uid):
         {"$match": {"professional_id":uid, "status":{"$in":["em_andamento","concluido"]}, "service_fund.status":"reserved"}},
         {"$group": {"_id":None, "total":{"$sum":"$service_fund.net"}}}]).to_list(1)
     return {"enabled": enabled(), "sandbox": False, "mode": "production", "withdrawals_enabled": enabled(),
-        "withdrawals": [public_transfer(w) for w in withdrawals],
+        "withdrawals": [public_transfer(w) for w in withdrawals], "deposit_fee_estimate_cents": fee_estimate,
         "service_entries": service_entries, "pending_cents": pending[0]["total"] if pending else 0,
         "available_cents": balance.get("available_cents", 0), "operations": [public(o) for o in operations]}
 

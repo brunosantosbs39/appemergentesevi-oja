@@ -34,7 +34,7 @@ vm.runInNewContext(transform(filename), { module: moduleMock, exports: moduleMoc
 const Component = moduleMock.exports.default;
 function render(status) {
   return renderToStaticMarkup(React.createElement(Component, {
-    userId: "unit-test", wallet: { enabled: true, withdrawals_enabled: true, available_cents: 901,
+    userId: "unit-test", wallet: { enabled: true, withdrawals_enabled: true, deposit_fee_estimate_cents: 99, available_cents: 901,
       operations: [{ id: "op", amount_cents: 1000, status, created_at: "2026-10-28T12:00:00Z",
         expires_at: "2026-10-28 23:59:59", pix_copy_paste: "PIX-UNIT-TEST", qr_image: "YWJj",
         ...(status === "paid" ? { credited_cents: 901 } : {}) }] }
@@ -42,6 +42,8 @@ function render(status) {
 }
 const pending = render("pending");
 assert.match(pending, /Aguardando pagamento/);
+assert.match(pending, /24,01/);
+assert.match(pending, /Tarifa estimada de recebimento/);
 assert.match(pending, /PIX-UNIT-TEST/);
 assert.match(pending, /data:image\/png;base64,YWJj/);
 assert.match(pending, /2026-10-28 23:59:59/);
@@ -55,5 +57,6 @@ hash = "#extrato";
 const paid = render("paid");
 assert.match(paid, /Pagamento recebido/);
 assert.match(paid, /Creditado/);
+assert.match(paid, /Tarifa de recebimento/);
 assert.doesNotMatch(paid, /PIX-UNIT-TEST|data:image/);
 console.log("Production UI: pending Pix, QR, copy code, validity, real labels and paid state passed");

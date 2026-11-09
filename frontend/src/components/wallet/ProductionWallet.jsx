@@ -20,6 +20,11 @@ export default function ProductionWallet({ wallet, userId }) {
   const lock = useRef(false);
   const storageKey = "pix-intent:" + userId;
   const active = wallet.operations.find(o => ["pending", "review"].includes(o.status));
+  const validAmount = /^\d{1,3}([.,]\d{1,2})?$/.test(amount);
+  const depositCents = validAmount ? Math.round(Number(amount.replace(",", ".")) * 100) : 0;
+  const lastFee = wallet.deposit_fee_estimate_cents;
+  const hasFeeHistory = Number.isInteger(lastFee) && lastFee >= 0;
+  const estimatedFee = hasFeeHistory ? lastFee : 199;
   const input = "mt-2 w-full border border-border bg-background p-3 text-foreground";
   async function deposit(event) {
     event.preventDefault();
@@ -69,7 +74,13 @@ export default function ProductionWallet({ wallet, userId }) {
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
       <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || !!active} required /></label>
       <label className="block">Seu CPF ou CNPJ<input aria-label="CPF ou CNPJ" autoComplete="off" inputMode="numeric" maxLength={20} className={input} value={document} onChange={e => setDocument(e.target.value)} disabled={busy || !!active} required /></label>
-      <p className="text-sm text-muted-foreground">Entre R$ 5 e R$ 100 por depósito. Será creditado o valor líquido recebido, descontadas eventuais tarifas do Asaas. Criar o Pix não adiciona saldo.</p>
+      <p className="text-sm text-muted-foreground">Deposite entre R$ 5 e R$ 100. A tarifa de recebimento do Asaas é descontada quando o Pix é pago, mesmo se você sacar o saldo sem contratar um serviço.</p>
+      {depositCents >= 500 && depositCents <= 10000 && <div className="space-y-1 border-l-2 border-primary pl-3" role="status">
+        <p>Valor do Pix: {money(depositCents)}</p>
+        <p>Tarifa estimada de recebimento: {money(Math.min(depositCents, estimatedFee))}</p>
+        <strong>Saldo estimado a receber: {money(Math.max(0, depositCents - estimatedFee))}</strong>
+        <p className="text-sm text-muted-foreground">{hasFeeHistory ? "Estimativa baseada na última cobrança paga." : "Estimativa pela tarifa padrão do Asaas."} O extrato mostrará a tarifa efetiva após a confirmação.</p>
+      </div>}
       <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || !!active}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
       {active && <p role="status" className="text-sm">Acompanhe o depósito abaixo antes de gerar outro.</p>}
     </form>}
@@ -79,6 +90,7 @@ export default function ProductionWallet({ wallet, userId }) {
         <p className="text-sm text-muted-foreground">Criado em {new Date(op.created_at).toLocaleString("pt-BR")}</p>
         {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
         {op.status === "pending" && op.pix_copy_paste && <>
+          {Number.isInteger(op.quoted_net_cents) && <p>Tarifa prevista pelo Asaas: {money(op.amount_cents - op.quoted_net_cents)} · Saldo previsto: {money(op.quoted_net_cents)}</p>}
           <p className="text-sm">Validade: {op.expires_at} (horário informado pelo Asaas)</p>
           <img src={"data:image/png;base64," + op.qr_image} alt={"QR Code Pix de " + money(op.amount_cents)} className="mx-auto h-auto w-64 max-w-full bg-white p-3" />
           <label className="block text-sm">Pix Copia e Cola<textarea readOnly value={op.pix_copy_paste} className={input + " break-all"} rows={4} onFocus={e => e.target.select()} /></label>
@@ -101,7 +113,7 @@ export default function ProductionWallet({ wallet, userId }) {
         .map(op => <article key={op.type + op.id} className="space-y-2 border border-border bg-card p-4">
           <div className="flex justify-between gap-2"><strong>{op.type}</strong><span>{money(op.amount_cents)}</span></div>
           <p>{op.label}</p>
-          {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
+          {op.credited_cents !== undefined && <p>Tarifa de recebimento: {money(op.amount_cents - op.credited_cents)} · Creditado: {money(op.credited_cents)}</p>}
           <time dateTime={op.created_at}>{new Date(op.created_at).toLocaleString("pt-BR")}</time>
         </article>)}
     </section>}
