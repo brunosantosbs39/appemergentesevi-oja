@@ -7,7 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-class CompanyIn(BaseModel):
+class AddressIn(BaseModel):
+    address: str = Field("", max_length=200)
+
+class CompanyIn(AddressIn):
     name: str = Field(min_length=2, max_length=100)
 class BranchIn(CompanyIn):
     city: str = Field(default="", max_length=100)
@@ -64,7 +67,7 @@ def build_router(db, onboarded):
     async def create(body:CompanyIn, me=Depends(onboarded)):
         name=body.name.strip()
         if len(name)<2: raise HTTPException(400,"Informe o nome da empresa")
-        doc={"_id":str(uuid4()),"owner_id":me["user_id"],"name":name,"created_at":datetime.now(timezone.utc).isoformat()}
+        doc={"_id":str(uuid4()),"owner_id":me["user_id"],"name":name,"address":body.address.strip(),"created_at":datetime.now(timezone.utc).isoformat()}
         await db.companies.insert_one(dict(doc))
         return {**doc,"id":doc["_id"]}
 
@@ -72,9 +75,16 @@ def build_router(db, onboarded):
     async def branch(cid:str, body:BranchIn, me=Depends(onboarded)):
         await owned(db,cid,me["user_id"])
         if len(body.name.strip())<2: raise HTTPException(400,"Informe o nome da filial")
-        doc={"_id":str(uuid4()),"company_id":cid,"owner_id":me["user_id"],"name":body.name.strip(),"city":body.city.strip()}
+        doc={"_id":str(uuid4()),"company_id":cid,"owner_id":me["user_id"],"name":body.name.strip(),"address":body.address.strip(),"city":body.city.strip()}
         await db.company_branches.insert_one(dict(doc))
         return {**doc,"id":doc["_id"]}
+
+    @router.patch("/{cid}/address")
+    async def address(cid:str, body:AddressIn, branch_id:Optional[str]=None, me=Depends(onboarded)):
+        await owned(db,cid,me["user_id"],branch_id)
+        collection = db.company_branches if branch_id else db.companies
+        await collection.update_one({"_id":branch_id or cid,"owner_id":me["user_id"]},{"$set":{"address":body.address.strip()}})
+        return {"saved":True}
 
     @router.post("/{cid}/daily")
     async def daily(cid:str, body:DailyIn, me=Depends(onboarded)):

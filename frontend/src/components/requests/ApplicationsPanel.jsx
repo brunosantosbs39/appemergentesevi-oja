@@ -19,6 +19,7 @@ export const ApplicationsPanel = ({ request, onUpdated }) => {
       toast.success(status === "approved" ? "Candidatura aprovada. Check-in liberado para este profissional." : "Candidatura recusada");
     } catch (err) { toast.error(errMsg(err)); } finally { setBusy(null); }
   };
+  if (request.direct_invitation) return request.status === "pendente" ? <p>Aguardando o aceite do profissional.</p> : null;
   if (!request.applications?.length) return <p className="text-sm text-muted-foreground">Nenhuma candidatura recebida ainda.</p>;
   return <section className="w-full space-y-3 border-t border-border pt-4" aria-label="Candidaturas recebidas">
     <h4 className="font-bold">Candidaturas ({request.applications.length})</h4>

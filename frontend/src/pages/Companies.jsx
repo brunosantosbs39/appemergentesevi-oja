@@ -12,6 +12,7 @@ export default function Companies() {
   const api=useApi(), cache=useQueryClient(), {me}=useMe();
   const [company,setCompany]=useState(""),[branch,setBranch]=useState("");
   const [name,setName]=useState(""),[branchName,setBranchName]=useState(""),[city,setCity]=useState("");
+  const [companyAddress,setCompanyAddress]=useState(""), [branchAddress,setBranchAddress]=useState("");
   const [start,setStart]=useState(()=>localDate().slice(0,7)+"-01"),[end,setEnd]=useState(localDate);
   const [worker,setWorker]=useState(""),[day,setDay]=useState(localDate),[rate,setRate]=useState(""),[days,setDays]=useState("1"),[status,setStatus]=useState("planned"),[note,setNote]=useState("");
   const [billing,setBilling]=useState("daily");
@@ -41,18 +42,27 @@ export default function Companies() {
   const data=dashboard.data;
   return <div className="space-y-6">
     <PageHeader eyebrow="Gestão de custos" title="Empresas e filiais" subtitle="Controle os custos de cada unidade. Estes registros não movimentam dinheiro." />
-    <form className="border border-border p-4 space-y-3" onSubmit={e=>{e.preventDefault();run(async()=>{const {data}=await api.post("/companies",{name});setCompany(data.id);setBranch("");setName("");});}}>
+    <form className="border border-border p-4 space-y-3" onSubmit={e=>{e.preventDefault();run(async()=>{const {data}=await api.post("/companies",{name,address:companyAddress});setCompany(data.id);setBranch("");setName("");setCompanyAddress("");});}}>
       <h2 className="font-heading text-xl">Criar empresa</h2><label className="block">Nome da empresa<input className={input} value={name} onChange={e=>setName(e.target.value)} minLength={2} maxLength={100} required /></label>
+      <label className="block">Endereço da matriz (opcional)<input className={input} value={companyAddress} maxLength={200} onChange={e=>setCompanyAddress(e.target.value)} /></label>
       <Button disabled={busy}>Criar empresa e painel</Button>
     </form>
     {list.isPending&&<p role="status">Carregando empresas...</p>}
     {list.error&&<p role="alert">{errMsg(list.error)}</p>}
     {companies.length>0&&<label className="block">Empresa<select className={input} value={company} onChange={e=>{setCompany(e.target.value);setBranch("");}}><option value="">Selecione</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
     {company&&<>
-      <form className="border border-border p-4 space-y-3" onSubmit={e=>{e.preventDefault();run(async()=>{await api.post(`/companies/${company}/branches`,{name:branchName,city});setBranchName("");setCity("");toast.success("Filial adicionada");});}}>
-        <h2 className="font-heading text-xl">Adicionar filial</h2><div className="grid gap-3 sm:grid-cols-2"><label>Nome da filial<input className={input} value={branchName} onChange={e=>setBranchName(e.target.value)} minLength={2} maxLength={100} required /></label><label>Cidade<input className={input} value={city} onChange={e=>setCity(e.target.value)} maxLength={100}/></label></div><Button disabled={busy}>Adicionar filial</Button>
+      <form className="border border-border p-4 space-y-3" onSubmit={e=>{e.preventDefault();run(async()=>{await api.post(`/companies/${company}/branches`,{name:branchName,city,address:branchAddress});setBranchName("");setCity("");setBranchAddress("");toast.success("Filial adicionada");});}}>
+        <h2 className="font-heading text-xl">Adicionar filial</h2><div className="grid gap-3 sm:grid-cols-2"><label>Nome da filial<input className={input} value={branchName} onChange={e=>setBranchName(e.target.value)} minLength={2} maxLength={100} required /></label><label>Cidade<input className={input} value={city} onChange={e=>setCity(e.target.value)} maxLength={100}/></label><label>Endereço da filial (opcional)<input className={input} value={branchAddress} maxLength={200} onChange={e=>setBranchAddress(e.target.value)} /></label></div><Button disabled={busy}>Adicionar filial</Button>
       </form>
       <div className="grid gap-3 sm:grid-cols-3"><label>Unidade<select className={input} value={branch} onChange={e=>setBranch(e.target.value)}><option value="">Todas / lançar na matriz</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label>De<input className={input} type="date" value={start} onChange={e=>setStart(e.target.value)}/></label><label>Até<input className={input} type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
+      <form key={company + ":" + branch} className="border border-border p-4 space-y-2" onSubmit={e=>{
+        e.preventDefault(); const address = String(new FormData(e.currentTarget).get("address")).trim();
+        run(async()=>{ await api.patch(`/companies/${company}/address`,{address},{params:branch?{branch_id:branch}:{}});
+          toast.success("Endereço da unidade salvo"); });
+      }}>
+        <label>Endereço de {unit(branch)}<input className={input} name="address" maxLength={200} defaultValue={(branch?branches.find(b=>b.id===branch):companies.find(c=>c.id===company))?.address || ""}/></label>
+        <Button disabled={busy}>Salvar endereço</Button>
+      </form>
       {dashboard.isFetching&&<p role="status">Atualizando painel...</p>}
       {dashboard.error&&<p role="alert">{errMsg(dashboard.error)}</p>}
       {data&&!dashboard.error&&<>

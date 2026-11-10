@@ -36,7 +36,7 @@ export const RequestCard = ({ request: r, me, children }) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{r.category_detail || cat.label}</span>
             <StatusBadge status={r.status} />
             {r.target_pro_id && r.status === "pendente" && (
               <span className="inline-flex items-center gap-1 rounded-none bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase text-black">
@@ -50,6 +50,7 @@ export const RequestCard = ({ request: r, me, children }) => {
             <span className="inline-flex items-center gap-1 font-semibold text-foreground" data-testid="service-request-budget">
               <Wallet className="h-3.5 w-3.5 text-foreground" /> {brl(r.agreed_budget ?? r.my_application?.negotiated_budget ?? r.budget)}
             </span>
+            {r.service_date && r.service_time && <span>Agendado para {r.service_date.split("-").reverse().join("/")} às {r.service_time}</span>}
             {r.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {r.address}</span>}
             {r.distance_km != null && (
               <span className="inline-flex items-center gap-1" data-testid="service-request-distance">
@@ -65,13 +66,13 @@ export const RequestCard = ({ request: r, me, children }) => {
       {other ? (
         <Party user={other} label={iAmClient ? "Profissional" : "Contratante"} />
       ) : (
-        iAmClient && r.status === "pendente" && (
+        iAmClient && r.status === "pendente" && !r.direct_invitation && (
           <p className="mt-4 flex items-center gap-2 rounded-none bg-amber-50 p-3 text-sm text-amber-800">
             <span className="radar-dot" /> Aguardando candidaturas. Você escolhe e aprova o profissional.
           </p>
         )
       )}
-      {!iAmClient && r.status === "pendente" && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
+      {!iAmClient && r.status === "pendente" && !r.direct_invitation && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
       <ApplyButton request={r} />
       <ServiceAttendance request={r} />
       {children && <div className="mt-4 flex flex-wrap gap-2">{children}</div>}

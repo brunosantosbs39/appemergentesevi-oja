@@ -95,12 +95,15 @@ export const ProRequests = () => {
           <TabsTrigger value="historico" className="rounded-none px-4" data-testid="pro-tab-history">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="disponiveis" className="mt-6">
+          {items?.some(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente") && <section className="mb-5 space-y-3"><h2 className="font-heading text-xl">Pedidos diretos para você</h2>
+            {items.filter(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente").map(r=><RequestCard key={r.id} request={r} me={me} />)}
+          </section>}
           <RadarBanner count={available?.length ?? null} />
           {!me.categories?.length && <p className="mb-4">Selecione suas categorias no <Link to="/perfil/me" className="underline">perfil</Link> para receber oportunidades aqui. No feed você pode ver todas as categorias.</p>}
           {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
           <div className="grid gap-4 lg:grid-cols-2">
-            {available?.map((r) => (
+            {available?.filter(r=>!r.direct_invitation).map((r) => (
               <RequestCard key={r.id} request={r} me={me} />
             ))}
           </div>

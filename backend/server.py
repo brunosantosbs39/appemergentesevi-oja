@@ -204,6 +204,8 @@ class ProposalStatusIn(BaseModel):
 
 
 class RequestCreate(Pricing):
+    service_time: Optional[str] = Field(None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    category_detail: str = Field("", max_length=100)
     company_id: Optional[str] = None
     branch_id: Optional[str] = None
     service_date: Optional[str] = Field(None, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
@@ -588,7 +590,13 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
         except ValueError: raise HTTPException(400, "Data de serviço inválida")
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
+    if body.category == "outros" and len(body.category_detail.strip()) < 2:
+        raise HTTPException(400, "Descreva a categoria do serviço.")
     if body.target_pro_id:
+        if not body.service_date or not body.service_time or not body.address.strip():
+            raise HTTPException(400, "Informe data, hora e endereço do serviço.")
+        if not body.unit_cents or body.image:
+            raise HTTPException(400, "Informe o valor do pedido direto e envie sem foto.")
         if body.target_pro_id == me["user_id"] or not await db.users.find_one(
                 {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante", "membro"]}}, {"_id": 1}):
             raise HTTPException(400, "Profissional inválido")
@@ -596,6 +604,7 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc["direct_invitation"] = bool(body.target_pro_id)
     doc["pricing_version"] = 1
     doc["wallet_reservation"] = real_selected()
     doc["quantity"] = float(body.quantity)
@@ -603,16 +612,20 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
         doc["budget"] = body.total_cents() / 100
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
-    doc["alert_job"] = pending_job()
+    if not body.target_pro_id:
+        doc["alert_job"] = pending_job()
     await db.requests.insert_one(dict(doc))
-    background_tasks.add_task(safe_drain, db)
+    if body.target_pro_id:
+        await send_notice(db, body.target_pro_id, "Pedido direto", "Você recebeu uma solicitação de serviço.", "/pedidos")
+    else:
+        background_tasks.add_task(safe_drain, db)
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
 @api.get("/requests/mine")
 async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = None, limit: int = 100):
     uid = me["user_id"]
-    query = {"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}]}
+    query = {"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}, {"direct_invitation": True, "target_pro_id": uid}]}
     if before:
         stamp, ident = parse_cursor(before)
         query["$and"] = [{"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]}]
@@ -666,6 +679,37 @@ async def get_request(rid: str, me: dict = Depends(onboarded)):
     return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
 
 
+@api.post("/requests/{rid}/direct-accept")
+async def accept_direct_invitation(rid: str, me: dict = Depends(onboarded)):
+    uid = me["user_id"]
+    query = {"id": rid, "direct_invitation": True, "status": "pendente", "target_pro_id": uid,
+             "client_id": {"$ne": uid}}
+    invite = await db.requests.find_one(query, {"_id": 0})
+    if not invite:
+        raise HTTPException(409, "Pedido direto indisponível.")
+    gross = cents(invite["budget"])
+    net = worker_offer(gross)
+    stamp = now_iso()
+    changes = {"status":"aceito", "professional_id":uid, "agreed_budget":gross / 100,
+               "agreed_net_cents":net, "accepted_at":stamp, "updated_at":stamp}
+    if invite.get("wallet_reservation"):
+        real_guard()
+        try:
+            result = await reserve_service(db, query, changes, gross, net, stamp)
+        except HTTPException as error:
+            if error.status_code == 409:
+                raise HTTPException(409, "Não foi possível reservar o pagamento do contratante. Confira o pedido antes de tentar novamente.")
+            raise
+    else:
+        result = await db.requests.find_one_and_update(query, {"$set":changes}, projection={"_id":0},
+                                                      return_document=ReturnDocument.AFTER)
+    if not result:
+        raise HTTPException(409, "Pedido direto indisponível.")
+    conv = await get_or_create_conversation(invite["client_id"], uid, rid)
+    await add_message(conv, None, "O profissional aceitou o pedido direto.", system=True)
+    return {"conversation_id":conv["id"], "request":(await enrich_requests([result],viewer_id=uid))[0]}
+
+
 @api.post("/requests/{rid}/accept")
 @api.post("/requests/{rid}/apply")
 async def accept_request(rid: str, me: dict = Depends(onboarded)):
@@ -674,7 +718,7 @@ async def accept_request(rid: str, me: dict = Depends(onboarded)):
     r = await db.requests.find_one_and_update(
         {"id": rid, "status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid},
          "$or": [{"target_pro_id": None}, {"target_pro_id": uid}],
-         "applications.professional_id": {"$ne": uid}},
+         "direct_invitation": {"$ne": True}, "applications.professional_id": {"$ne": uid}},
         {"$push": {"applications": application}, "$set": {"updated_at": now_iso()}},
         projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not r:
@@ -740,6 +784,8 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
             update["service_duration_seconds"] = max(0, int((datetime.fromisoformat(stamp) - datetime.fromisoformat(before["check_in_at"])).total_seconds()))
     if body.status == "pendente":
         update.update({"professional_id": None, "target_pro_id": None})
+    if before and before.get("direct_invitation") and body.status == "pendente":
+        update.update(status="cancelado", target_pro_id=uid)
     if before:
         query["status"] = before["status"]
         query["updated_at"] = before.get("updated_at")
@@ -766,7 +812,7 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     if body.status == "concluido" and not funded_checkout:
         await db.users.update_one({"user_id": r["professional_id"]}, {"$inc": {"jobs_done": 1}})
     if body.status == "pendente":
-        await notify_request(before, "O profissional desistiu do pedido. Ele voltou para a fila de pedidos.")
+        await notify_request(before, "O profissional desistiu do pedido.")
     elif body.status in ("em_andamento", "concluido"):
         event = "Check-in registrado: serviço iniciado" if body.status == "em_andamento" else "Check-out registrado: serviço finalizado"
         await notify_request(r, f"{event}. Horário registrado: {stamp} (UTC). Consulte os detalhes no pedido.")
@@ -828,7 +874,7 @@ async def conv_summaries(convs: list, uid: str) -> list:
     rm = {}
     if rids:
         docs = await db.requests.find({"id": {"$in": rids}}, {"_id": 0, "id": 1, "title": 1, "category": 1,
-                                                               "pricing_version": 1, "agreed_net_cents": 1, "agreed_budget": 1, "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
+                                                               "direct_invitation": 1, "target_pro_id": 1, "pricing_version": 1, "agreed_net_cents": 1, "agreed_budget": 1, "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
         for doc in docs:
             present_request(doc, uid)
             applications = doc.pop("applications", [])
@@ -1045,7 +1091,7 @@ async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded
         raise HTTPException(400, "Descreva o serviço da proposta")
     if conv.get("request_id"):
         request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
-        if not request or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
+        if not request or request.get("direct_invitation") or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
             raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
     quote = {}
     if conv.get("request_id") and request.get("pricing_version"):
