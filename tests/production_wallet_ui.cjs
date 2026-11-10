@@ -23,6 +23,7 @@ const mocks = {
   "@tanstack/react-query": { useQueryClient: () => ({}) },
   "@/lib/api": { useApi: () => ({}), errMsg: () => "Error" },
   "@/components/ui/button": { Button: props => React.createElement("button", props) },
+  "@/components/ui/dialog": {Dialog:({open,children})=>open?children:null, DialogContent:({children})=>children,DialogTitle:({children})=>children},
   "sonner": { toast: {} },
   "lucide-react": Object.fromEntries(["Copy", "Loader2", "QrCode"].map(k => [k, () => null]))
 };
@@ -35,18 +36,18 @@ const Component = moduleMock.exports.default;
 function render(status) {
   return renderToStaticMarkup(React.createElement(Component, {
     userId: "unit-test", wallet: { enabled: true, withdrawals_enabled: true, deposit_fee_estimate_cents: 99, available_cents: 901,
-      operations: [{ id: "op", amount_cents: 1000, status, created_at: "2026-10-28T12:00:00Z",
-        expires_at: "2026-10-28 23:59:59", pix_copy_paste: "PIX-UNIT-TEST", qr_image: "YWJj",
+      operations: [{ id: "op", amount_cents: 1000, status, created_at: new Date().toISOString(), timed:true, slot:0,
+        expires_at: new Date(Date.now()+59000).toISOString(), pix_copy_paste: "PIX-UNIT-TEST", qr_image: "YWJj",
         ...(status === "paid" ? { credited_cents: 901 } : {}) }] }
   }));
 }
 const pending = render("pending");
-assert.match(pending, /Aguardando pagamento/);
+assert.match(pending, /Ver Pix/);
 assert.match(pending, /24,01/);
 assert.match(pending, /Tarifa estimada de recebimento/);
-assert.match(pending, /PIX-UNIT-TEST/);
-assert.match(pending, /data:image\/png;base64,YWJj/);
-assert.match(pending, /2026-10-28 23:59:59/);
+assert.doesNotMatch(pending, /PIX-UNIT-TEST/);
+assert.doesNotMatch(pending, /data:image\/png;base64,YWJj/);
+assert.doesNotMatch(pending, /Código 1 de 3/);
 assert.doesNotMatch(pending, /Ambiente de testes|saldo de teste|Solicitar saque/);
 assert.doesNotMatch(pending, /Revisar saque/);
 hash = "#sacar-saldo";

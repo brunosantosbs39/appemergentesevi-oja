@@ -18,5 +18,10 @@ def test_regional_feed_order_privacy_category_and_pagination(monkeypatch):
             assert second["next_cursor"] is None
             filtered = await server.regional_feed(category="pintor",me=me,limit=10)
             assert [row["item"]["id"] for row in filtered["items"]] == ["old"]
+            await db.users.insert_one({"user_id":"author","lat":me["lat"],"lng":me["lng"]})
+            await db.posts.insert_one({"id":"legacy","created_at":"2026-11-11","user_id":"author"})
+            legacy = await server.regional_feed(me=me,limit=2)
+            recovered = legacy["items"][0]["item"]
+            assert recovered["id"] == "legacy" and "author_region" not in recovered and "lat" not in recovered
             assert (await server.regional_feed(me={"user_id":"viewer"},limit=10))["needs_location"]
     asyncio.run(run())

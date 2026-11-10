@@ -394,7 +394,7 @@ async def download(path: str):
 async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(0, ge=0, le=20000),
                         category: Optional[str] = None, q: Optional[str] = Query(None, max_length=100), sort: str = "distance",
                         limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
-    query = {"role": {"$in": ["profissional", "contratante", "membro"]}, "categories.0": {"$exists": True}, "user_id": {"$ne": me["user_id"]}}
+    query = {"role": {"$in": ["profissional", "contratante", "membro"]}, "user_id": {"$ne": me["user_id"]}}
     if category and category != "todos":
         query["categories"] = category
     if q:
@@ -493,6 +493,18 @@ async def regional_feed(category: Optional[str] = None, before: Optional[str] = 
         {"$match":{"$or":[{"request_id":None},{"linked":{"$elemMatch":{"target_pro_id":None,"check_in_at":None,
             "status":{"$in":["pendente","aceito"]},"$and":[vacancy_open_query()]}}}]}},
         {"$unset":"linked"}]
+    # Older publications may lack a map point. Only derive a region for posts
+    # without an explicit destination, and never return the author's coordinates.
+    legacy = [
+        {"$match":{**query,"kind":{"$ne":"portfolio"},"$or":[{"lat":None},{"lng":None}]}},
+        {"$lookup":{"from":"users","localField":"user_id","foreignField":"user_id","as":"author_region",
+                    "pipeline":[{"$project":{"_id":0,"lat":1,"lng":1,"city":1}}]}},
+        {"$set":{"author_region":{"$first":"$author_region"}}},
+        {"$match":{"$or":[{"location_name":{"$in":[None,""]}},{"$expr":{"$eq":["$location_name","$author_region.city"]}}]}},
+        {"$set":{"lat":"$author_region.lat","lng":"$author_region.lng"}},
+        *posts[:-3], {"$unset":["lat","lng","author_region"]}, *posts[-3:]]
+    posts = [*posts, {"$unionWith":{"coll":"posts","pipeline":legacy}},
+             {"$sort":{"created_at":-1,"id":-1}}, {"$limit":limit+1}]
     post_rows = await db.posts.aggregate(posts).to_list(limit+1)
     job_rows = await db.requests.aggregate(jobs).to_list(limit+1)
     tagged = [(p,"post") for p in post_rows] + [(r,"request") for r in job_rows]

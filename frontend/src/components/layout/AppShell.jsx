@@ -1,3 +1,4 @@
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "@/lib/api";
@@ -5,7 +6,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
-import { UserButton } from "@clerk/react";
+import { useClerk } from "@clerk/react";
 import { ClipboardList, Home, Map, MessageCircle, User, Wallet, Building2 } from "lucide-react";
 import { useMe } from "@/context/MeContext";
 import { useUnread } from "@/hooks/useUnread";
@@ -22,6 +23,17 @@ const NAV = [
   { to: "/empresas", label: "Empresas", icon: Building2, id: "empresas" },
   { to: "/perfil/me", label: "Perfil", icon: User, id: "perfil" },
 ];
+
+function AccountMenu() {
+  const { me } = useMe();
+  const clerk = useClerk();
+  return <DropdownMenu><DropdownMenuTrigger asChild>
+    <button type="button" aria-label="Abrir menu da conta"><UserAvatar user={me} className="h-8 w-8" /></button>
+  </DropdownMenuTrigger><DropdownMenuContent align="end">
+    <DropdownMenuItem asChild><Link to="/perfil/me">Meu perfil</Link></DropdownMenuItem>
+    <DropdownMenuItem onSelect={()=>clerk.openUserProfile()}>Gerenciar conta</DropdownMenuItem>
+  </DropdownMenuContent></DropdownMenu>;
+}
 
 const Dot = ({ n, className }) =>
   n > 0 ? (
@@ -60,7 +72,7 @@ const Sidebar = ({ me, unread }) => (
           Conta única
         </p>
       </div>
-      <UserButton />
+      <AccountMenu />
     </div>
     <LogoutButton className="mt-3 w-full" />
   </aside>
@@ -105,7 +117,7 @@ function VersionNotice() {
 const MobileTop = () => (
   <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur-xl lg:hidden">
     <Logo to="/feed" />
-    <div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /><UserButton /></div>
+    <div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /><AccountMenu /></div>
   </header>
 );
 
