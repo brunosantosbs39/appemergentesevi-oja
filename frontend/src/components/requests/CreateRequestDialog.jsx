@@ -33,7 +33,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
     description: "",
     budget: "",
     expires_at: "",
-    address: targetPro ? "" : me.city || "", category_detail: "", service_time: "",
+    address: targetPro ? "" : me.city || "", category_detail: targetPro?.categories?.[0] === "outros" ? targetPro.custom_roles?.[0] || "" : "", service_time: "",
   });
   const companyList = useQuery({queryKey:["companies",me.user_id],queryFn:async()=>(await api.get("/companies")).data});
   const [pos, setPos] = useState(me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS);
@@ -84,7 +84,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
             </SelectContent>
           </Select>
         </Field>
-        {f.category==="outros" && <label className="block text-sm">Qual é a categoria?<Input value={f.category_detail} onChange={set("category_detail")} required minLength={2} maxLength={100} /></label>}
+        {f.category==="outros" && <label className="block text-sm">Qual função precisa?<Input value={f.category_detail} onChange={set("category_detail")} required minLength={2} maxLength={100} /></label>}
         {!targetPro && <Field label="Tipo de contratação"><select className="w-full border border-border bg-background p-3" value={f.billing_type} onChange={e=>setF(s=>({...s,billing_type:e.target.value,quantity:"1"}))}><option value="daily">Diária</option><option value="hourly">Por hora</option><option value="fixed">Orçamento fechado</option></select></Field>}
         <Field label={f.billing_type==="daily"?"Valor da diária (R$)":f.billing_type==="hourly"?"Valor por hora (R$)":"Orçamento total (R$)"}>
           <Input type="number" required={!!targetPro} min={targetPro ? "0.01" : "0"} step="0.01" inputMode="decimal" value={f.budget} onChange={set("budget")} placeholder="A combinar" data-testid="request-budget-input" />

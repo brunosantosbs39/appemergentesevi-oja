@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, CircleMarker, useMapEvents } from "react-leafl
 import "leaflet/dist/leaflet.css";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { CategoryChips } from "@/components/common/CategoryChips";
 import { Logo } from "@/components/common/Misc";
 import { errMsg, useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
@@ -21,6 +22,8 @@ export default function Onboarding() {
   const { user } = useUser();
   const api = useApi(), navigate = useNavigate();
   const [name,setName] = useState(me.name || user?.fullName || "");
+  const [roles,setRoles] = useState(me.categories || []);
+  const [custom,setCustom] = useState((me.custom_roles || []).join(", "));
   const [address,setAddress] = useState({...empty,...me.address});
   const [region,setRegion] = useState(null), [point,setPoint] = useState(null);
   const [busy,setBusy] = useState(false), [looking,setLooking] = useState(false);
@@ -59,7 +62,7 @@ export default function Onboarding() {
     if(region.lat==null && !point){setError("Selecione sua região no mapa.");return;}
     setBusy(true);setError("");
     try{
-      const {data}=await api.put("/me/registration",{name:name.trim(),address,location:point});
+      const {data}=await api.put("/me/registration",{name:name.trim(),address,location:point,categories:roles,custom_roles:custom.split(",").map(x=>x.trim()).filter(Boolean)});
       setMe(data);navigate("/mapa",{replace:true});
     }catch(e){setError(errMsg(e));}finally{setBusy(false);}
   };
@@ -72,6 +75,9 @@ export default function Onboarding() {
       <form onSubmit={save}>
         <label className="access-field" htmlFor="registration-name">Nome completo<input id="registration-name" autoComplete="name" required minLength={2} maxLength={80} value={name} onChange={e=>setName(e.target.value)} /></label>
         <label className="access-field" htmlFor="registration-email">E-mail da conta<input id="registration-email" type="email" value={user?.primaryEmailAddress?.emailAddress || ""} readOnly /></label>
+        <h2>Funções que você desempenha</h2>
+        <CategoryChips multiple includeAll={false} value={roles} onChange={v=>setRoles(v.slice(0,5))} />
+        <label className="access-field">Adicionar funções fora da lista<input value={custom} maxLength={400} placeholder="Separe as funções por vírgula" onChange={e=>setCustom(e.target.value)} /></label>
         <h2>Seu endereço</h2>
         <p className="access-hint">Rua, número e complemento ficam no seu cadastro privado. O mapa usa uma região aproximada, que você pode ajustar.</p>
         <div className="registration-grid">

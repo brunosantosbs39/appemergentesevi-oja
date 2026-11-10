@@ -9,6 +9,7 @@ const React=deps('react'),{createRoot}=deps('react-dom/client');
 let requests=[],root;
 const api={get:url=>new Promise((resolve,reject)=>requests.push({url,resolve,reject}))};
 const mocks={
+'@/components/common/CategoryChips':{CategoryChips:()=>null},
 'react-router-dom':{Navigate:()=>null,useNavigate:()=>()=>{}},
 '@clerk/react':{useUser:()=>({user:{fullName:'Test',primaryEmailAddress:{emailAddress:'test@example.com'}}})},
 'react-leaflet':{MapContainer:({children})=>React.createElement('div',null,children),TileLayer:()=>null,CircleMarker:()=>null,useMapEvents:()=>({getCenter:()=>({lat:-23,lng:-46})})},

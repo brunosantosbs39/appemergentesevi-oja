@@ -79,6 +79,16 @@ export const ProRequests = () => {
     update(request);
     if (request.status === "concluido") setTab("historico");
   };
+  useEffect(() => {
+    if (reviewReq) return;
+    const pending = items?.find(r => r.status === "concluido" && r.check_out_at &&
+      (r.client_id === me.user_id ? !r.client_reviewed : r.professional_id === me.user_id && !r.pro_reviewed) &&
+      !sessionStorage.getItem("review-prompt:" + me.user_id + ":" + r.id));
+    if (pending) {
+      sessionStorage.setItem("review-prompt:" + me.user_id + ":" + pending.id, "1");
+      setReviewReq(pending);
+    }
+  }, [items, me.user_id, reviewReq]);
   const props = { me, onUpdated, onReview: setReviewReq };
 
   return (
@@ -124,7 +134,7 @@ export const ProRequests = () => {
         </TabsContent>
       </Tabs>
       {hasMore && <Button type="button" variant="outline" disabled={loadingMore} className="mt-5" onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar mais pedidos e histórico"}</Button>}
-      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, "pro_reviewed")} />
+      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, reviewReq.client_id === me.user_id ? "client_reviewed" : "pro_reviewed")} />
     </div>
   );
 };

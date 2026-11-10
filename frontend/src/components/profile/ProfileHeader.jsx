@@ -48,9 +48,10 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
             {user.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{user.city}</span>}
             {user.distance_km != null && !isMe && <span className="inline-flex items-center gap-1"><Navigation className="h-3.5 w-3.5" />{km(user.distance_km)} de você</span>}
           </div>
-          {isPro && user.categories?.length > 0 && (
+          {(user.custom_roles?.length > 0 || user.categories?.length > 0) && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {user.categories.map((c) => {
+              {user.custom_roles?.map(role => <span key={role} className="rounded-full border px-3 py-1 text-xs">{role}</span>)}
+              {(user.categories || []).filter(c=>c !== "outros" || !user.custom_roles?.length).map((c) => {
                 const { label, icon: Icon } = catOf(c);
                 return <span key={c} className="inline-flex items-center gap-1 rounded-full border border-foreground bg-muted px-3 py-1 text-xs font-semibold text-foreground"><Icon className="h-3.5 w-3.5" />{label}</span>;
               })}

@@ -85,7 +85,7 @@ STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
             "image/heic": "heic", "image/heif": "heif"}
 MAX_UPLOAD = 4 * 1024 * 1024
-PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "headline": 1, "bio": 1, "categories": 1,
+PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "custom_roles": 1, "headline": 1, "bio": 1, "categories": 1,
           "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1, "last_seen": 1}
 # who may move a request to each status, and from which statuses
 TRANSITIONS = {
@@ -169,6 +169,7 @@ class ProfileUpdate(BaseModel):
     headline: Optional[str] = Field(None, max_length=120)
     bio: Optional[str] = Field(None, max_length=1000)
     categories: Optional[List[str]] = None
+    custom_roles: Optional[List[str]] = Field(None, max_length=5)
     city: Optional[str] = Field(None, max_length=80)
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lng: Optional[float] = Field(None, ge=-180, le=180)
@@ -185,6 +186,7 @@ class PostCreate(BaseModel):
     image: str
     caption: str = Field("", max_length=2200)
     category: Optional[str] = None
+    category_detail: str = Field("", max_length=100)
     location_name: Optional[str] = Field(None, max_length=120)
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lng: Optional[float] = Field(None, ge=-180, le=180)
@@ -338,9 +340,16 @@ async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
     if not registration_complete(me):
         raise HTTPException(403, "Complete seu cadastro com endereço primeiro")
     data = body.model_dump(exclude_unset=True)
+    if "custom_roles" in data:
+        roles = list(dict.fromkeys(v.strip() for v in data["custom_roles"] or []))
+        if any(not 2 <= len(v) <= 80 for v in roles):
+            raise HTTPException(400, "Cada função precisa ter de 2 a 80 caracteres.")
+        data["custom_roles"] = roles
     if "categories" in data:
         cats = [c for c in dict.fromkeys(data["categories"] or []) if c in CATEGORIES]
         data["categories"] = cats[:5]
+        if data.get("custom_roles") and "outros" not in data["categories"]:
+            data["categories"].append("outros")
     if data.get("cover"):
         await check_image(data["cover"], me["user_id"])
     if data.get("avatar"):

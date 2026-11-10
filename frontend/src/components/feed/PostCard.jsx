@@ -26,7 +26,7 @@ const PostHeader = ({ post, mine, onDelete }) => {
           {isPro && <BadgeCheck className="h-4 w-4 shrink-0 text-foreground" />}
         </Link>
         <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-          {post.category && <span>{catOf(post.category).label}</span>}
+          {post.category && <span>{post.category_detail || catOf(post.category).label}</span>}
           {post.location_name && (
             <span className="inline-flex items-center gap-0.5" data-testid="feed-post-location">
               <MapPin className="h-3 w-3" />

@@ -106,11 +106,13 @@ async def indexes(db):
 
 def public(op):
     fields = ("id", "provider_payment_id", "amount_cents", "credited_cents", "status",
-              "created_at", "paid_at", "expires_at", "qr_image", "pix_copy_paste", "quoted_net_cents")
+              "created_at", "paid_at", "timed", "slot", "expires_at", "qr_image", "pix_copy_paste", "quoted_net_cents")
     result = {k: op[k] for k in fields if k in op}
-    if op["status"] != "pending":
+    if op["status"] != "pending" or (op.get("timed") and expired(op)):
         result.pop("qr_image", None)
         result.pop("pix_copy_paste", None)
+    if op.get("timed") and op["status"] == "pending" and now() >= datetime.fromisoformat(op["created_at"]) + timedelta(seconds=180):
+        result["status"] = "expired"
     return result
 
 def expired(op):
@@ -121,6 +123,118 @@ def expired(op):
         return date <= now()
     except (KeyError, ValueError):
         return False
+
+async def expire_timed(db, op):
+    await db.pix_deposits.update_one({"_id": op["id"], "status": "pending"},
+        {"$set": {"status": "expired"}, "$unset": {"qr_image": "", "pix_copy_paste": ""}})
+    await db.pix_creation_locks.delete_one({"_id": op["user_id"], "operation_id": op["id"]})
+
+
+async def collect_timed(db, op, pid):
+    payment = await call("GET", "/payments/" + pid)
+    if payment.get("id") != pid or payment.get("pixQrCodeId") not in op.get("qr_ids", []):
+        return False
+    if payment.get("status") in ("REFUNDED", "REFUND_REQUESTED", "REFUND_IN_PROGRESS", "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE"):
+        await db.pix_deposits.update_one({"provider_payment_id":pid, "credited_cents":{"$exists":True}}, {"$set":{"status":"review"}})
+        return False
+    if (payment.get("deleted") or payment.get("billingType") != "PIX"
+            or payment.get("status") != "RECEIVED" or money(payment.get("value")) != op["amount_cents"]):
+        return False
+    net = money(payment.get("netValue"))
+    if not 0 < net <= op["amount_cents"]:
+        return False
+    async def credit(session):
+        if await db.pix_ledger.find_one({"_id": pid}, session=session):
+            return
+        paid = payment.get("paymentDate") or stamp()
+        changes = {"status":"paid", "paid_at":paid, "credited_cents":net, "provider_payment_id":pid}
+        current = await db.pix_deposits.find_one({"_id":op["id"]}, session=session)
+        # Two genuine receipts on successive codes are distinct ledger entries.
+        receipt = op["id"]
+        if current.get("credited_cents") is not None:
+            receipt += ":" + pid
+            await db.pix_deposits.insert_one({"_id":receipt, "id":receipt, "user_id":op["user_id"],
+                "created_at":stamp(), "amount_cents":op["amount_cents"], **changes}, session=session)
+        else:
+            await db.pix_deposits.update_one({"_id":receipt}, {"$set":changes}, session=session)
+        await db.pix_ledger.insert_one({"_id":pid, "user_id":op["user_id"], "deposit_id":receipt,
+            "amount_cents":net, "counter_amount_cents":-net, "created_at":stamp()}, session=session)
+        await db.pix_balances.update_one({"_id":op["user_id"]}, {"$inc":{"available_cents":net}}, upsert=True, session=session)
+        await db.pix_creation_locks.delete_one({"_id":op["user_id"],"operation_id":op["id"]}, session=session)
+    async with await db.client.start_session() as session:
+        await session.with_transaction(credit)
+    return True
+
+
+async def timed_receipts(db, op):
+    for qr_id in op.get("qr_ids", []):
+        rows = await call("GET", "/payments", params={"pixQrCodeId":qr_id, "limit":10})
+        for row in rows.get("data", []):
+            if row.get("pixQrCodeId") == qr_id and re.fullmatch(r"pay_[A-Za-z0-9_-]+", row.get("id", "")):
+                if await collect_timed(db, op, row["id"]):
+                    return True
+    return False
+
+
+async def timed_code(db, op):
+    if op["status"] != "pending":
+        return public(op)
+    start = datetime.fromisoformat(op["created_at"])
+    slot = max(0, int((now() - start).total_seconds()) // 59)
+    if slot >= 3 and now() < start + timedelta(seconds=180):
+        return public(op)
+    if slot >= 3:
+        await expire_timed(db, op)
+    elif slot > op.get("slot", -1):
+        if op.get("qr_ids") and await timed_receipts(db, op):
+            return public(await db.pix_deposits.find_one({"_id":op["id"]}))
+        end = start + timedelta(seconds=59 * (slot + 1))
+        claim = await db.pix_deposits.update_one({"_id":op["id"], "status":"pending", "slot":{"$lt":slot}},
+            {"$set":{"slot":slot, "expires_at":end.isoformat()}, "$unset":{"pix_copy_paste":"","qr_image":""}})
+        if claim.modified_count:
+            keys = await call("GET", "/pix/addressKeys", params={"limit":100})
+            key = next((k["key"] for k in keys.get("data",[]) if k.get("key") and k.get("status")=="ACTIVE"), None)
+            if not key:
+                await expire_timed(db, op)
+                raise HTTPException(503, "A conta recebedora precisa de uma chave Pix ativa para gerar este código.")
+            qr = await call("POST", "/pix/qrCodes/static", {"addressKey":key,"value":op["amount_cents"]/100,
+                "format":"ALL","allowsMultiplePayments":False,"externalReference":op["id"],
+                "expirationDate":end.astimezone(timezone(timedelta(hours=-3))).strftime("%Y-%m-%d %H:%M:%S")})
+            if not all(isinstance(qr.get(k),str) and qr[k] for k in ("id","encodedImage","payload")):
+                raise ProviderError()
+            await db.pix_deposits.update_one({"_id":op["id"]},{"$addToSet":{"qr_ids":qr["id"]}})
+            await db.pix_deposits.update_one({"_id":op["id"],"status":"pending","slot":slot},
+                {"$set":{"qr_image":qr["encodedImage"],"pix_copy_paste":qr["payload"]}})
+    return public(await db.pix_deposits.find_one({"_id":op["id"]}))
+
+
+async def create_timed(db, me, body):
+    guard()
+    uid = me["user_id"]
+    oid = hashlib.sha256((uid + ":" + body.idempotency_key).encode()).hexdigest()
+    op = await db.pix_deposits.find_one({"_id":oid})
+    if not op:
+        lock = await db.pix_creation_locks.find_one({"_id":uid})
+        if lock:
+            previous = await db.pix_deposits.find_one({"_id":lock["operation_id"]})
+            if previous and previous.get("timed") and now() >= datetime.fromisoformat(previous["created_at"]) + timedelta(seconds=180):
+                await expire_timed(db, previous)
+        op = {"_id":oid,"id":oid,"user_id":uid,"amount_cents":body.amount_cents,"created_at":stamp(),
+              "timed":True,"slot":-1,"qr_ids":[],"status":"pending","sync_job":pending_job()}
+        async def reserve(session):
+            await db.pix_creation_locks.insert_one({"_id":uid,"operation_id":oid},session=session)
+            await db.pix_deposits.insert_one(op,session=session)
+        try:
+            async with await db.client.start_session() as session:
+                await session.with_transaction(reserve)
+        except DuplicateKeyError:
+            op = await db.pix_deposits.find_one({"_id":oid})
+            if not op:
+                raise HTTPException(409,"Já existe uma solicitação de depósito em andamento.")
+    if op["amount_cents"] != body.amount_cents:
+        raise HTTPException(409,"Solicitação já utilizada para outro valor.")
+    return await timed_code(db,op) if op.get("timed") else public(op)
+
 
 async def create_deposit(db, me, body):
     guard()
@@ -207,6 +321,10 @@ async def save_qr(db, oid, pid):
 async def reconcile(db, oid):
     op = await db.pix_deposits.find_one({"_id": oid})
     if not op:
+        return
+    if op.get("timed"):
+        if not await timed_receipts(db, op) and now() >= datetime.fromisoformat(op["created_at"]) + timedelta(seconds=180):
+            await expire_timed(db, op)
         return
     if op.get("creation_stage") == "preparing":
         if op["status"] == "failed":
@@ -324,7 +442,11 @@ async def webhook(db, request):
         op = await db.pix_deposits.find_one({"provider_payment_id": pid})
         if not op and isinstance(payment.get("externalReference"), str):
             op = await db.pix_deposits.find_one({"_id": payment["externalReference"]})
-        if op:
+        if not op and isinstance(payment.get("pixQrCodeId"), str):
+            op = await db.pix_deposits.find_one({"qr_ids":payment["pixQrCodeId"]})
+        if op and op.get("timed"):
+            await collect_timed(db, op, pid)
+        elif op:
             # Ignore event financial fields. reconcile performs a fresh authenticated GET.
             await reconcile(db, op["_id"])
     except (ValueError, AttributeError):
@@ -485,7 +607,18 @@ def build_router(db, onboarded):
 
     @router.post("/deposits")
     async def deposit(body: DepositIn, me=Depends(onboarded)):
-        return await create_deposit(db, me, body)
+        try:
+            return await create_timed(db, me, body)
+        except ProviderError:
+            raise HTTPException(502, "O Asaas não conseguiu gerar o Pix. Consulte a solicitação na carteira.")
+
+    @router.post("/deposits/{oid}/code")
+    async def refresh_code(oid: str, me=Depends(onboarded)):
+        guard()
+        op = await db.pix_deposits.find_one({"_id":oid,"user_id":me["user_id"],"timed":True})
+        if not op:
+            raise HTTPException(404,"Depósito não encontrado")
+        return await timed_code(db,op)
 
     @router.post("/sync")
     async def sync(background_tasks: BackgroundTasks, me=Depends(onboarded)):

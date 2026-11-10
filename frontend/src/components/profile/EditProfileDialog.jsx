@@ -23,7 +23,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
   const { me, setMe } = useMe();
   const [f, setF] = useState({
     name: me.name || "", headline: me.headline || "", bio: me.bio || "", city: me.city || "",
-    categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null, cover: me.cover || null,
+    custom_roles:(me.custom_roles || []).join(", "), categories: me.categories || [], hourly_rate: me.hourly_rate ?? "", avatar: me.avatar || null, cover: me.cover || null,
   });
   const [pos, setPos] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
     if (uploading || busy) return;
     setBusy(true);
     try {
-      const body = { ...f, name: f.name.trim(), hourly_rate: f.hourly_rate === "" ? null : Number(f.hourly_rate), ...(pos || {}) };
+      const body = { ...f, custom_roles:f.custom_roles.split(",").map(s=>s.trim()).filter(Boolean), name: f.name.trim(), hourly_rate: f.hourly_rate === "" ? null : Number(f.hourly_rate), ...(pos || {}) };
       if (f.avatar === me.avatar) delete body.avatar;
       if (f.cover === (me.cover || null)) delete body.cover;
       const { data } = await api.put("/me", body);
@@ -73,6 +73,7 @@ const ProfileForm = ({ onSaved, onClose }) => {
       {(
         <>
           <Field label="Serviços que você oferece (opcional)"><CategoryChips value={f.categories} onChange={set("categories")} includeAll={false} multiple testid="edit-category" /></Field>
+          <Field label="Funções fora da lista"><Input value={f.custom_roles} onChange={set("custom_roles")} placeholder="Separe as funções por vírgula" maxLength={400} /></Field>
           <div className="grid gap-4 sm:grid-cols-[1fr_160px]">
             <Field label="Título profissional"><Input value={f.headline} onChange={set("headline")} maxLength={120} data-testid="edit-headline-input" /></Field>
             <Field label="Valor/hora (R$)"><Input type="number" min="0" value={f.hourly_rate} onChange={set("hourly_rate")} data-testid="edit-rate-input" /></Field>

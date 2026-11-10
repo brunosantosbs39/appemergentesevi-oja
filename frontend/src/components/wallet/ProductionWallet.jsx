@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import PixWithdrawal, { withdrawalLabels } from "./PixWithdrawal";
@@ -20,6 +20,35 @@ export default function ProductionWallet({ wallet, userId }) {
   const lock = useRef(false);
   const storageKey = "pix-intent:" + userId;
   const active = wallet.operations.find(o => ["pending", "review"].includes(o.status));
+  const [clock, setClock] = useState(Date.now);
+  const refreshing = useRef(false);
+  const timed = active?.timed && active.status === "pending" ? active : null;
+  const timedId = timed?.id;
+  useEffect(() => {
+    if (!timedId) return;
+    setClock(Date.now());
+    const tick = setInterval(() => setClock(Date.now()), 500);
+    return () => clearInterval(tick);
+  }, [timedId]);
+  const slotEnd = timed ? Date.parse(timed.expires_at || timed.created_at) : Infinity;
+  const remaining = Math.max(0, Math.ceil((slotEnd - clock) / 1000));
+  const sessionEnd = timed ? Date.parse(timed.created_at) + 180000 : Infinity;
+  useEffect(() => {
+    if (!timedId || remaining > 0 || refreshing.current) return;
+    let cancelled = false;
+    const refresh = async () => {
+      if (refreshing.current || cancelled) return;
+      refreshing.current = true;
+      try {
+        await api.post("/wallet/deposits/" + timedId + "/code");
+        await cache.invalidateQueries({queryKey:["wallet",userId]});
+      } catch { /* Retry the same server slot after connectivity returns. */ }
+      finally { refreshing.current = false; }
+    };
+    refresh();
+    const retry = setInterval(refresh, 3000);
+    return () => { cancelled = true; clearInterval(retry); };
+  }, [api, cache, userId, timedId, remaining]);
   const validAmount = /^\d{1,3}([.,]\d{1,2})?$/.test(amount);
   const depositCents = validAmount ? Math.round(Number(amount.replace(",", ".")) * 100) : 0;
   const lastFee = wallet.deposit_fee_estimate_cents;
@@ -49,6 +78,7 @@ export default function ProductionWallet({ wallet, userId }) {
       if (data.status === "pending") toast.success("Pix gerado. O saldo será atualizado após o recebimento.");
       else toast.info(labels[data.status] || "Atualizando pagamento");
     } catch (error) {
+      if (error.response?.status === 503 || error.response?.status === 409) sessionStorage.removeItem(storageKey);
       toast.error(error.response ? errMsg(error) : error.message);
     } finally {
       setBusy(false); lock.current = false;
@@ -72,8 +102,8 @@ export default function ProductionWallet({ wallet, userId }) {
     {area === "#adicionar-saldo" && <>
     {!wallet.enabled ? <p role="status">Depósitos Pix temporariamente indisponíveis.</p> : <form onSubmit={deposit} id="adicionar-saldo" className="space-y-4 border border-border bg-card p-5">
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
-      <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || !!active} required /></label>
-      <label className="block">Seu CPF ou CNPJ<input aria-label="CPF ou CNPJ" autoComplete="off" inputMode="numeric" maxLength={20} className={input} value={document} onChange={e => setDocument(e.target.value)} disabled={busy || !!active} required /></label>
+      <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
+      <label className="block">Seu CPF ou CNPJ<input aria-label="CPF ou CNPJ" autoComplete="off" inputMode="numeric" maxLength={20} className={input} value={document} onChange={e => setDocument(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
       <p className="text-sm text-muted-foreground">Deposite entre R$ 5 e R$ 100. A tarifa de recebimento do Asaas é descontada quando o Pix é pago, mesmo se você sacar o saldo sem contratar um serviço.</p>
       {depositCents >= 500 && depositCents <= 10000 && <div className="space-y-1 border-l-2 border-primary pl-3" role="status">
         <p>Valor do Pix: {money(depositCents)}</p>
@@ -81,23 +111,23 @@ export default function ProductionWallet({ wallet, userId }) {
         <strong>Saldo estimado a receber: {money(Math.max(0, depositCents - estimatedFee))}</strong>
         <p className="text-sm text-muted-foreground">{hasFeeHistory ? "Estimativa baseada na última cobrança paga." : "Estimativa pela tarifa padrão do Asaas."} O extrato mostrará a tarifa efetiva após a confirmação.</p>
       </div>}
-      <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || !!active}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
+      <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || (!!active && clock < sessionEnd)}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
       {active && <p role="status" className="text-sm">Acompanhe o depósito abaixo antes de gerar outro.</p>}
     </form>}
     <section className="space-y-4" aria-live="polite">
       {wallet.operations.filter(op => ["pending","review"].includes(op.status)).map(op => <article key={op.id} className="space-y-3 border border-border bg-card p-4 sm:p-5">
-        <div className="flex flex-wrap justify-between gap-3"><strong>{money(op.amount_cents)}</strong><span>{labels[op.status]}</span></div>
+        <div className="flex flex-wrap justify-between gap-3"><strong>{money(op.amount_cents)}</strong><span>{op.timed && op.status==="pending" && clock >= sessionEnd ? labels.expired : labels[op.status]}</span></div>
         <p className="text-sm text-muted-foreground">Criado em {new Date(op.created_at).toLocaleString("pt-BR")}</p>
         {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
-        {op.status === "pending" && op.pix_copy_paste && <>
+        {op.status === "pending" && (!op.timed || (remaining > 0 && clock < sessionEnd)) && op.pix_copy_paste && <>
           {Number.isInteger(op.quoted_net_cents) && <p>Tarifa prevista pelo Asaas: {money(op.amount_cents - op.quoted_net_cents)} · Saldo previsto: {money(op.quoted_net_cents)}</p>}
-          <p className="text-sm">Validade: {op.expires_at} (horário informado pelo Asaas)</p>
+          <p className="text-sm">{op.timed ? `Código ${op.slot + 1} de 3 · Pague em ${remaining}s` : "Validade: " + op.expires_at}</p>
           <img src={"data:image/png;base64," + op.qr_image} alt={"QR Code Pix de " + money(op.amount_cents)} className="mx-auto h-auto w-64 max-w-full bg-white p-3" />
           <label className="block text-sm">Pix Copia e Cola<textarea readOnly value={op.pix_copy_paste} className={input + " break-all"} rows={4} onFocus={e => e.target.select()} /></label>
           <Button type="button" className="min-h-12 w-full sm:w-auto" onClick={() => copy(op.pix_copy_paste)}><Copy className="h-4 w-4" />Copiar código Pix</Button>
           <p className="text-sm text-muted-foreground">Aguardando pagamento. Esta tela atualiza automaticamente a cada 15 segundos.</p>
         </>}
-        {op.status === "pending" && !op.pix_copy_paste && <p role="status">Preparando o Pix. Aguarde a atualização automática.</p>}
+        {op.status === "pending" && clock < sessionEnd && (!op.pix_copy_paste || (op.timed && remaining === 0)) && <p role="status">Preparando o Pix. Aguarde a atualização automática.</p>}
         {op.status === "review" && <p>Estamos verificando este pagamento. Não repita o depósito; entre em contato com o suporte se persistir.</p>}
       </article>)}
     </section>

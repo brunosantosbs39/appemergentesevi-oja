@@ -35,6 +35,17 @@ class Address(BaseModel):
 class Registration(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=2, max_length=80)
+    categories: list[str] = Field(default_factory=list, max_length=5)
+    custom_roles: list[str] = Field(default_factory=list, max_length=5)
+
+    @field_validator("custom_roles", "categories")
+    @classmethod
+    def valid_roles(cls, values):
+        clean = list(dict.fromkeys(v.strip() for v in values))
+        if any(not 2 <= len(v) <= 80 for v in clean):
+            raise ValueError("Informe funções de 2 a 80 caracteres")
+        return clean
+
     address: Address
     # For CEPs without coordinates, the user can explicitly confirm a map point.
     location: dict | None = None
@@ -126,7 +137,7 @@ def build_router(db, current_member):
         if not valid_point(lat, lng):
             raise HTTPException(422, "Este CEP não tem coordenadas. Confirme sua região no mapa.")
         email = await run_in_threadpool(verified_email, me["user_id"])
-        update = {"name": body.name, "address": body.address.model_dump(), "email": email,
+        update = {"categories": list(dict.fromkeys(body.categories + (["outros"] if body.custom_roles else []))), "custom_roles": body.custom_roles, "name": body.name, "address": body.address.model_dump(), "email": email,
                   "city": f'{resolved["city"]}, {resolved["state"]}', "lat": lat, "lng": lng,
                   "location_source": source, "role": "membro",
                   "registration_completed_at": datetime.now(timezone.utc).isoformat()}
