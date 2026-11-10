@@ -19,17 +19,21 @@ export default function ProductionWallet({ wallet, userId }) {
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const storageKey = "pix-intent:" + userId;
-  const active = wallet.operations.find(o => ["pending", "review"].includes(o.status));
   const [clock, setClock] = useState(Date.now);
+  const operations = wallet.operations.map(op =>
+    op.status === "pending" && clock >= Date.parse(op.created_at) + 180000
+      ? {...op, status:"expired", pix_copy_paste:null, qr_image:null} : op);
+  const active = operations.find(o => ["pending", "review"].includes(o.status));
   const refreshing = useRef(false);
   const timed = active?.timed && active.status === "pending" ? active : null;
   const timedId = timed?.id;
+  const pendingId = wallet.operations.find(op => op.status === "pending")?.id;
   useEffect(() => {
-    if (!timedId) return;
+    if (!pendingId) return;
     setClock(Date.now());
     const tick = setInterval(() => setClock(Date.now()), 500);
     return () => clearInterval(tick);
-  }, [timedId]);
+  }, [pendingId]);
   const slotEnd = timed ? Date.parse(timed.expires_at || timed.created_at) : Infinity;
   const remaining = Math.max(0, Math.ceil((slotEnd - clock) / 1000));
   const sessionEnd = timed ? Date.parse(timed.created_at) + 180000 : Infinity;
@@ -115,7 +119,7 @@ export default function ProductionWallet({ wallet, userId }) {
       {active && <p role="status" className="text-sm">Acompanhe o depósito abaixo antes de gerar outro.</p>}
     </form>}
     <section className="space-y-4" aria-live="polite">
-      {wallet.operations.filter(op => ["pending","review"].includes(op.status)).map(op => <article key={op.id} className="space-y-3 border border-border bg-card p-4 sm:p-5">
+      {operations.filter(op => ["pending","review"].includes(op.status)).map(op => <article key={op.id} className="space-y-3 border border-border bg-card p-4 sm:p-5">
         <div className="flex flex-wrap justify-between gap-3"><strong>{money(op.amount_cents)}</strong><span>{op.timed && op.status==="pending" && clock >= sessionEnd ? labels.expired : labels[op.status]}</span></div>
         <p className="text-sm text-muted-foreground">Criado em {new Date(op.created_at).toLocaleString("pt-BR")}</p>
         {op.credited_cents !== undefined && <p>Creditado: {money(op.credited_cents)}</p>}
@@ -136,7 +140,7 @@ export default function ProductionWallet({ wallet, userId }) {
     {area === "#extrato" && <section className="space-y-3" aria-labelledby="titulo-extrato">
       <h2 id="titulo-extrato" className="text-xl">Extrato de movimentações</h2>
       {!wallet.operations.length && !wallet.withdrawals?.length && !wallet.service_entries?.length && <p>Nenhuma movimentação.</p>}
-      {[...wallet.operations.map(op => ({...op, type:"Depósito", label:labels[op.status]})),
+      {[...operations.map(op => ({...op, type:"Depósito", label:labels[op.status]})),
         ...(wallet.withdrawals || []).map(op => ({...op, type:"Saque", label:withdrawalLabels[op.status]})),
         ...(wallet.service_entries || []).map(op => ({...op, id:op._id, type:({service_income:"Serviço recebido",service_refund:"Reserva devolvida",service_reserve:"Valor reservado"})[op.kind], label:"Registrado"}))]
         .sort((a,b) => Date.parse(b.created_at) - Date.parse(a.created_at))

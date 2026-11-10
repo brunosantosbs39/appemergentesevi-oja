@@ -104,14 +104,22 @@ async def indexes(db):
     await db.pix_withdrawals.create_index("transfer_id", unique=True,
         partialFilterExpression={"transfer_id": {"$type": "string"}})
 
+def session_elapsed(op):
+    created = op.get("created_at")
+    if not created:
+        return False
+    return now() >= datetime.fromisoformat(created.replace("Z", "+00:00")) + timedelta(minutes=3)
+
+
 def public(op):
     fields = ("id", "provider_payment_id", "amount_cents", "credited_cents", "status",
               "created_at", "paid_at", "timed", "slot", "expires_at", "qr_image", "pix_copy_paste", "quoted_net_cents")
     result = {k: op[k] for k in fields if k in op}
-    if op["status"] != "pending" or (op.get("timed") and expired(op)):
+    elapsed = op["status"] == "pending" and session_elapsed(op)
+    if op["status"] != "pending" or elapsed or (op.get("timed") and expired(op)):
         result.pop("qr_image", None)
         result.pop("pix_copy_paste", None)
-    if op.get("timed") and op["status"] == "pending" and now() >= datetime.fromisoformat(op["created_at"]) + timedelta(seconds=180):
+    if elapsed:
         result["status"] = "expired"
     return result
 
@@ -217,8 +225,11 @@ async def create_timed(db, me, body):
         lock = await db.pix_creation_locks.find_one({"_id":uid})
         if lock:
             previous = await db.pix_deposits.find_one({"_id":lock["operation_id"]})
-            if previous and previous.get("timed") and now() >= datetime.fromisoformat(previous["created_at"]) + timedelta(seconds=180):
-                await expire_timed(db, previous)
+            if previous and session_elapsed(previous):
+                if previous.get("timed"):
+                    await expire_timed(db, previous)
+                else:
+                    await reconcile(db, previous["id"])
         op = {"_id":oid,"id":oid,"user_id":uid,"amount_cents":body.amount_cents,"created_at":stamp(),
               "timed":True,"slot":-1,"qr_ids":[],"status":"pending","sync_job":pending_job()}
         async def reserve(session):
@@ -359,6 +370,15 @@ async def reconcile(db, oid):
         and payment.get("customer") == op.get("customer_id") and payment.get("billingType") == "PIX"
         and money(payment.get("value")) == op["amount_cents"])
     status = payment.get("status")
+    old_unpaid = session_elapsed(op) and status in ("PENDING", "OVERDUE") and op.get("credited_cents") is None
+    removed = False
+    if old_unpaid and valid:
+        response = await call("DELETE", "/payments/" + pid)
+        if response.get("deleted") is not True or response.get("id", pid) != pid:
+            raise ProviderError()
+        removed = True
+    elif old_unpaid and payment.get("deleted") and payment.get("id") == pid and payment.get("externalReference") == oid:
+        removed = True
     credited = 0
     if valid and status == "RECEIVED":
         credited = money(payment.get("netValue"))
@@ -367,6 +387,11 @@ async def reconcile(db, oid):
     target = "paid" if valid and status == "RECEIVED" else (
         "review" if not valid or status in ("REFUNDED", "REFUND_REQUESTED", "REFUND_IN_PROGRESS", "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE") else
         "failed" if payment.get("deleted") else "expired" if expired(op) else "pending")
+
+    if removed:
+        target = "expired"
+    elif session_elapsed(op) and valid and status == "CONFIRMED":
+        target = "review"
 
     async def commit(session):
         current = await db.pix_deposits.find_one({"_id": oid}, session=session)

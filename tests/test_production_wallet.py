@@ -180,6 +180,26 @@ class PixTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as error:
                 run(w.webhook(self.db, req({"payment": {"id": "pay_123"}})))
         self.assertEqual(error.exception.status_code, 503)
+    def test_old_dynamic_qr_hidden_and_unpaid_charge_cancelled(self):
+        op = self.seed()
+        op.update(created_at="2020-01-01T00:00:00+00:00", expires_at="2099-01-01", pix_copy_paste="PIX", qr_image="QR")
+        view = w.public(op)
+        self.assertEqual(view["status"], "expired")
+        self.assertNotIn("pix_copy_paste", view)
+        self.assertNotIn("qr_image", view)
+        with patch.object(w, "call", AsyncMock(side_effect=[self.payment(status="PENDING"), {"deleted":True,"id":"pay_123"}])) as api:
+            run(w.reconcile(self.db, "op"))
+            self.assertEqual(api.await_args.args, ("DELETE","/payments/pay_123"))
+        self.assertEqual(self.db.pix_deposits.docs["op"]["status"],"expired")
+        self.assertFalse(self.db.pix_balances.docs)
+
+    def test_old_received_charge_is_credited_instead_of_cancelled(self):
+        self.seed()["created_at"] = "2020-01-01T00:00:00+00:00"
+        with patch.object(w,"call",AsyncMock(return_value=self.payment())) as api:
+            run(w.reconcile(self.db,"op"))
+            api.assert_awaited_once_with("GET","/payments/pay_123")
+        self.assertEqual(self.db.pix_balances.docs["alice"]["available_cents"],901)
+
     def test_expired_can_be_received_later(self):
         self.seed().update(expires_at="2000-01-01", pix_copy_paste="PIX")
         self.reconcile(status="PENDING")
