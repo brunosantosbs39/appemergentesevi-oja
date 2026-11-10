@@ -87,6 +87,19 @@ def test_presence_expires_and_handles_legacy_profiles(monkeypatch):
     assert server.with_presence({"last_seen": (datetime.now(timezone.utc) - timedelta(seconds=76)).isoformat()})["is_online"] is False
 
 
+def proposal_db(**collections):
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+
+    @asynccontextmanager
+    async def session_context():
+        async def with_transaction(callback):
+            return await callback(object())
+        yield SimpleNamespace(with_transaction=with_transaction)
+
+    return SimpleNamespace(client=SimpleNamespace(start_session=AsyncMock(side_effect=session_context)), **collections)
+
+
 def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     from unittest.mock import AsyncMock
     from pydantic import ValidationError
@@ -99,7 +112,7 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     monkeypatch.setattr(server, "add_message", message)
     files = SimpleNamespace(insert_one=AsyncMock(), find_one=AsyncMock(return_value={"conversation_id": "chat"}))
     messages = SimpleNamespace(find_one=AsyncMock(return_value={"audio_path": "private/audio"}), find_one_and_update=AsyncMock(return_value={"id": "proposal", "sender_id": "recipient"}))
-    monkeypatch.setattr(server, "db", SimpleNamespace(files=files, messages=messages))
+    monkeypatch.setattr(server, "db", proposal_db(files=files, messages=messages))
     monkeypatch.setattr(server, "put_object", Mock(return_value={"path": "private/audio"}))
     monkeypatch.setattr(server, "get_object", Mock(return_value=(b"audio", "audio/webm")))
     file = UploadFile(filename="voice.webm", file=io.BytesIO(b"audio"), headers=Headers({"content-type": "audio/webm;codecs=opus"}))
@@ -119,6 +132,7 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
         server.ProposalIn(description="Service", amount=float("nan"))
     asyncio.run(server.send_proposal("chat", server.ProposalIn(description=" Pintura ", amount=125.5, deadline="Sexta"), member))
     assert message.call_args.kwargs["proposal"]["status"] == "pending"
+    monkeypatch.setattr(server, "send_notice", AsyncMock())
     asyncio.run(server.respond_proposal("chat", "proposal", server.ProposalStatusIn(status="accepted"), member))
     query = messages.find_one_and_update.call_args.args[0]
     assert query["sender_id"] == {"$ne": "sender"}
@@ -143,11 +157,13 @@ def test_check_in_out_records_server_time_and_rejects_invalid_transitions(monkey
     member = {"user_id": "pro", "role": "profissional"}
     state = {"id": "job", "status": "aceito", "client_id": "client", "professional_id": "pro"}
     async def find_one(query, projection):
+        if isinstance(query.get("status"), str):
+            return None
         if "$or" in query:
             return dict(state) if any(state.get(key) == val for part in query["$or"] for key, val in part.items()) else None
         return dict(state) if state["status"] in query["status"]["$in"] and state["professional_id"] == query.get("professional_id") else None
     async def update(query, changes, **kwargs):
-        if state["status"] not in query["status"]["$in"] or state["professional_id"] != query.get("professional_id"):
+        if state["status"] not in (query["status"]["$in"] if isinstance(query["status"], dict) else [query["status"]]) or state["professional_id"] != query.get("professional_id"):
             return None
         state.update(changes["$set"])
         return dict(state)
@@ -217,6 +233,8 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
     async def find(query, projection):
         if "status" not in query and "client_id" in query:
             return copy.deepcopy(state) if query["client_id"] == state["client_id"] else None
+        if isinstance(query.get("status"), str):
+            return None
         if "$or" in query:
             return copy.deepcopy(state) if any(state.get(k) == v for part in query["$or"] for k, v in part.items()) else None
         if state["status"] in query["status"]["$in"] and state.get("professional_id") == query.get("professional_id"):
@@ -240,7 +258,7 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
             for key, value in changes["$set"].items():
                 if key.startswith("applications.$."):
                     candidate[key.split(".")[-1]] = value
-        elif state["status"] not in query["status"]["$in"] or state.get("professional_id") != query.get("professional_id"):
+        elif state["status"] not in (query["status"]["$in"] if isinstance(query["status"], dict) else [query["status"]]) or state.get("professional_id") != query.get("professional_id"):
             return None
         state.update({k: v for k, v in changes["$set"].items() if not k.startswith("applications.$.")})
         return copy.deepcopy(state)
@@ -282,7 +300,8 @@ def test_accepted_counterproposal_attaches_new_price_to_candidate(monkeypatch):
     requests = SimpleNamespace(find_one=AsyncMock(return_value=request), update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1)))
     messages = SimpleNamespace(find_one=AsyncMock(return_value=proposal), find_one_and_update=AsyncMock(return_value={**proposal, "proposal": {"status": "accepted", "amount": 250}}))
     monkeypatch.setattr(server, "my_conversation", AsyncMock())
-    monkeypatch.setattr(server, "db", SimpleNamespace(requests=requests, messages=messages))
+    monkeypatch.setattr(server, "db", proposal_db(requests=requests, messages=messages))
+    monkeypatch.setattr(server, "send_notice", AsyncMock())
     result = asyncio.run(server.respond_proposal("chat", "offer", server.ProposalStatusIn(status="accepted"), {"user_id": "owner"}))
     assert result["proposal"]["status"] == "accepted"
     change = requests.update_one.call_args.args[1]

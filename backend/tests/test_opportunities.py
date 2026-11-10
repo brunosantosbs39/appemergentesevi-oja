@@ -52,29 +52,19 @@ class OpportunityTests(unittest.TestCase):
         self.assertEqual(inbox.docs["request:user"]["user_id"],"user")
 
     def test_closed_request_does_not_send(self):
-        class Users:
-            async def rows(self):
-                yield {"user_id":"user","distance_km":2}
-            def aggregate(self,*args,**kwargs): return self.rows()
-        class Requests:
-            async def find_one(self,*args,**kwargs): return None
-        calls=[]
-        async def notice(*args,**kwargs): calls.append(args)
-        with patch.object(op,"send_notice",notice):
-            run(op.notify_opportunity(SimpleNamespace(users=Users(),requests=Requests()),self.request))
-        self.assertEqual(calls,[])
+        from unittest.mock import Mock
+        db = Mock()
+        self.assertEqual(run(op.opportunity_batch(db, {**self.request, "status": "cancelado"})), (True, {}))
+        db.users.aggregate.assert_not_called()
 
     def test_matching_request_sends_notice_with_dedup_key(self):
-        class Users:
-            async def rows(self):
-                yield {"user_id":"user","distance_km":2}
-            def aggregate(self,*args,**kwargs): return self.rows()
-        class Requests:
-            async def find_one(self,*args,**kwargs): return {"_id":"request"}
+        from unittest.mock import AsyncMock, Mock
+        db = Mock()
+        db.users.aggregate.return_value.to_list = AsyncMock(return_value=[{"user_id":"user","distance_km":2}])
         calls=[]
         async def notice(*args,**kwargs): calls.append((args,kwargs))
         with patch.object(op,"send_notice",notice):
-            run(op.notify_opportunity(SimpleNamespace(users=Users(),requests=Requests()),self.request))
+            run(op.opportunity_batch(db, {**self.request, "status":"pendente"}))
         self.assertEqual(calls[0][1]["dedup_key"],"opportunity:request:user")
         self.assertIn("contratante escolhe",calls[0][0][3])
 
