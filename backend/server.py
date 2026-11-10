@@ -219,7 +219,7 @@ class RequestCreate(Pricing):
     title: str = Field(..., min_length=3, max_length=100)
     description: str = Field("", max_length=2000)
     budget: Optional[float] = Field(None, ge=0, le=1000000)
-    address: str = Field("", max_length=200)
+    address: str = Field("", max_length=550)
     lat: float = Field(..., ge=-90, le=90)
     lng: float = Field(..., ge=-180, le=180)
     image: Optional[str] = None
@@ -637,7 +637,13 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     if body.branch_id and not body.company_id:
         raise HTTPException(400, "Selecione a empresa da filial")
     if body.company_id:
-        await owned_company(db, body.company_id, me["user_id"], body.branch_id)
+        company = await owned_company(db, body.company_id, me["user_id"], body.branch_id)
+        unit = company if not body.branch_id else await db.company_branches.find_one(
+            {"_id": body.branch_id, "company_id": body.company_id, "owner_id": me["user_id"]})
+        if not unit:
+            raise HTTPException(404, "Unidade não encontrada")
+        if unit.get("address"):
+            body.address = unit["address"]
     if body.service_date:
         try: datetime.strptime(body.service_date, "%Y-%m-%d")
         except ValueError: raise HTTPException(400, "Data de serviço inválida")

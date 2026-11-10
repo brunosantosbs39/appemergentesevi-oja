@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Target } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
@@ -42,7 +42,10 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e?.target ? e.target.value : e }));
 
   const unit = f.branch_id ? companyList.data?.branches.find(b=>b.id===f.branch_id) : companyList.data?.companies.find(c=>c.id===f.company_id);
-  const savedAddress = targetPro && unit?.address?.trim();
+  const savedAddress = unit?.address?.trim();
+  useEffect(() => {
+    setPos(unit?.lat != null && unit?.lng != null ? {lat:unit.lat,lng:unit.lng} : me.lat != null ? {lat:me.lat,lng:me.lng} : DEFAULT_POS);
+  }, [unit?.id, unit?.lat, unit?.lng, me.lat, me.lng]);
   const selectDate = e => {
     const date = e.target.value;
     setF(s=>({...s, service_date:date}));

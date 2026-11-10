@@ -7,7 +7,25 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
+try:
+    from backend.registration import Address
+except ModuleNotFoundError:
+    from registration import Address
+
 class AddressIn(BaseModel):
+    address_fields: Optional[Address] = None
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lng: Optional[float] = Field(None, ge=-180, le=180)
+
+    def location(self):
+        fields = self.address_fields
+        if not fields:
+            return {"address": self.address.strip(), "address_fields": None, "lat": None, "lng": None}
+        address = ", ".join(x for x in (fields.street, fields.number, fields.complement, fields.district,
+                                       fields.city + "/" + fields.state, "CEP " + fields.postal_code) if x)
+        return {"address": address, "address_fields": fields.model_dump(), "city": fields.city,
+                "lat": self.lat, "lng": self.lng}
+
     address: str = Field("", max_length=200)
 
 class CompanyIn(AddressIn):
@@ -44,12 +62,14 @@ def totals(rows):
     result = {"planned_cents": 0, "completed_cents": 0, "paid_manual_cents": 0, "cancelled_cents": 0}
     for row in rows:
         key = {"planned":"planned_cents", "completed":"completed_cents", "paid":"paid_manual_cents", "cancelled":"cancelled_cents"}[row["status"]]
-        result[key] += row["amount_cents"]
+        if row.get("settled"):
+            key = "paid_app_cents"
+        result[key] = result.get(key, 0) + row["amount_cents"]
     return result
 
 def request_row(r):
     status = "cancelled" if r["status"] == "cancelado" else "completed" if r["status"] == "concluido" else "planned"
-    return {"id":r["id"], "source":"request", "branch_id":r.get("branch_id"), "worker":r.get("title", "Pedido"),
+    return {"id":r["id"], "source":"request", "settled":(r.get("service_fund") or {}).get("status") == "released", "branch_id":r.get("branch_id"), "worker":r.get("title", "Pedido"),
         "service_date":r.get("service_date") or r["created_at"][:10], "days":r.get("daily_count", 1),
         "amount_cents":int((Decimal(str(r.get("agreed_budget", r.get("budget")) or 0))*100).quantize(Decimal("1"))),
         "billing_type":r.get("billing_type","fixed"), "quantity":r.get("quantity",1), "unpriced":r.get("agreed_budget", r.get("budget")) is None, "status":status}
@@ -67,7 +87,7 @@ def build_router(db, onboarded):
     async def create(body:CompanyIn, me=Depends(onboarded)):
         name=body.name.strip()
         if len(name)<2: raise HTTPException(400,"Informe o nome da empresa")
-        doc={"_id":str(uuid4()),"owner_id":me["user_id"],"name":name,"address":body.address.strip(),"created_at":datetime.now(timezone.utc).isoformat()}
+        doc={"_id":str(uuid4()),"owner_id":me["user_id"],"name":name,**body.location(),"created_at":datetime.now(timezone.utc).isoformat()}
         await db.companies.insert_one(dict(doc))
         return {**doc,"id":doc["_id"]}
 
@@ -75,7 +95,7 @@ def build_router(db, onboarded):
     async def branch(cid:str, body:BranchIn, me=Depends(onboarded)):
         await owned(db,cid,me["user_id"])
         if len(body.name.strip())<2: raise HTTPException(400,"Informe o nome da filial")
-        doc={"_id":str(uuid4()),"company_id":cid,"owner_id":me["user_id"],"name":body.name.strip(),"address":body.address.strip(),"city":body.city.strip()}
+        doc={"_id":str(uuid4()),"company_id":cid,"owner_id":me["user_id"],"name":body.name.strip(),"city":body.city.strip(),**body.location()}
         await db.company_branches.insert_one(dict(doc))
         return {**doc,"id":doc["_id"]}
 
@@ -83,7 +103,7 @@ def build_router(db, onboarded):
     async def address(cid:str, body:AddressIn, branch_id:Optional[str]=None, me=Depends(onboarded)):
         await owned(db,cid,me["user_id"],branch_id)
         collection = db.company_branches if branch_id else db.companies
-        await collection.update_one({"_id":branch_id or cid,"owner_id":me["user_id"]},{"$set":{"address":body.address.strip()}})
+        await collection.update_one({"_id":branch_id or cid,"owner_id":me["user_id"]},{"$set":body.location()})
         return {"saved":True}
 
     @router.post("/{cid}/daily")
@@ -118,12 +138,13 @@ def build_router(db, onboarded):
 
     @router.get("/{cid}/dashboard")
     async def dashboard(cid:str,start:date,end:date,branch_id:Optional[str]=None,me=Depends(onboarded)):
-        await owned(db,cid,me["user_id"],branch_id)
+        matrix = branch_id == "matrix"
+        await owned(db,cid,me["user_id"],None if matrix else branch_id)
         if end<start or (end-start).days>366: raise HTTPException(400,"Escolha um período de até 367 dias")
         base={"company_id":cid,"owner_id":me["user_id"]}
         rq={"company_id":cid,"client_id":me["user_id"]}
         if branch_id:
-            base["branch_id"]=branch_id;rq["branch_id"]=branch_id
+            base["branch_id"]=None if matrix else branch_id;rq["branch_id"]=base["branch_id"]
         base["service_date"]={"$gte":start.isoformat(),"$lte":end.isoformat()}
         rq["$or"]=[{"service_date":{"$gte":start.isoformat(),"$lte":end.isoformat()}},
             {"service_date":None,"created_at":{"$gte":start.isoformat(),"$lt":end.isoformat()+"T99"}}]

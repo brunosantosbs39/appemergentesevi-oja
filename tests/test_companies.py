@@ -24,6 +24,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(row["status"],"completed")
     def test_unpriced_request_flagged(self):
         self.assertTrue(c.request_row({"id":"a","status":"pendente","budget":None,"created_at":"2026-10-29"})["unpriced"])
+    def test_unit_address_accepts_legacy_and_formats_full_destination(self):
+        self.assertEqual(c.AddressIn(address="Rua antiga").location()["address"], "Rua antiga")
+        unit=c.BranchIn(name="Centro",address_fields={"postal_code":"01001-000","street":"Praça da Sé","number":"12","complement":"Sala 2","district":"Sé","city":"São Paulo","state":"SP"})
+        self.assertIn("Praça da Sé, 12, Sala 2, Sé, São Paulo/SP", unit.location()["address"])
+
+    def test_negotiated_order_cost_is_assigned_once_to_its_branch(self):
+        row=c.request_row({"id":"job","branch_id":"filial","created_at":"2026-11-10","status":"concluido","budget":120,"agreed_budget":150,"service_fund":{"status":"released"}})
+        self.assertEqual(row["branch_id"],"filial")
+        result=c.totals([row])
+        self.assertEqual(result["paid_app_cents"],15000)
+        self.assertEqual(result["completed_cents"],0)
+
     def test_owner_required(self):
         db=SimpleNamespace(companies=SimpleNamespace(find_one=AsyncMock(return_value=None)))
         with self.assertRaises(HTTPException) as err:run(c.owned(db,"company","intruder"))
