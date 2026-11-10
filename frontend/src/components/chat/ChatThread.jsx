@@ -1,3 +1,4 @@
+import { hasContact, contactNotice } from "@/lib/chatContact";
 import { useCrypto } from "@/context/CryptoContext";
 import { EncryptedText, ChatProtection } from "@/components/crypto/ChatProtection";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -9,7 +10,6 @@ import { errMsg, useApi } from "@/lib/api";
 import { brl } from "@/lib/constants";
 import { useMe } from "@/context/MeContext";
 import { UserAvatar } from "@/components/common/UserAvatar";
-import { AudioRecorder } from "@/components/chat/AudioRecorder";
 import { AudioMessage } from "@/components/chat/AudioMessage";
 import { ProposalDialog } from "@/components/chat/ProposalDialog";
 import { ApplyButton } from "@/components/requests/ApplyButton";
@@ -56,7 +56,6 @@ export const ChatThread = ({ id }) => {
   const [proposalOpen, setProposalOpen] = useState(false);
   const [responding, setResponding] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
-  const [audioActive, setAudioActive] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [away, setAway] = useState(false);
@@ -164,7 +163,8 @@ export const ChatThread = ({ id }) => {
   };
   const send = async (event) => {
     event?.preventDefault();
-    if (!text.trim() || audioActive || sealing || !protection.ready || !peerReady) return;
+    if (!text.trim() || sealing || !protection.ready || !peerReady) return;
+    if (hasContact(text)) return toast.error(contactNotice);
     setSealing(true);
     const content = text.trim();
     try {
@@ -210,11 +210,10 @@ export const ChatThread = ({ id }) => {
     </div>
     {actionsOpen && <div className="sj-actions"><Link to={`/perfil/${conv.other.user_id}`} onClick={() => setActionsOpen(false)}>Ver perfil</Link>{canCounter && <button type="button" onClick={() => { setProposalOpen(true); setActionsOpen(false); }}><FileText size={18} /> Enviar contraproposta</button>}{conv.request && <Link to="/pedidos">Ver vaga e check-in/check-out</Link>}</div>}
     <ProposalDialog open={proposalOpen} onOpenChange={setProposalOpen} conversationId={id} onSent={(data) => { nearBottom.current = true; merge([data]); }} />
-    <form onSubmit={send} className={`sj-composer ${audioActive ? "audio-active" : ""}`}>
-      {!audioActive && <button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label={actionsOpen ? "Fechar opções" : "Mais opções"}>{actionsOpen ? <X size={24} /> : <Plus size={24} />}</button>}
-      {!audioActive && <textarea disabled={!protection.ready || !peerReady || sealing} ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
-      <AudioRecorder peerId={conv.other.user_id} disabled={!protection.ready || !peerReady || sealing} conversationId={id} compact hideTrigger={!!text.trim()} onStateChange={setAudioActive} onSent={(data) => { nearBottom.current = true; merge([data]); window.dispatchEvent(new Event("conversations-changed")); window.dispatchEvent(new Event("chat-refresh")); }} />
-      {text.trim() && !audioActive && <button type="submit" disabled={sealing || !protection.ready || !peerReady} className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
+    <form onSubmit={send} className="sj-composer">
+      {<button type="button" className="sj-icon-button" onClick={() => setActionsOpen((value) => !value)} aria-label={actionsOpen ? "Fechar opções" : "Mais opções"}>{actionsOpen ? <X size={24} /> : <Plus size={24} />}</button>}
+      {<textarea disabled={!protection.ready || !peerReady || sealing} ref={inputRef} value={text} onChange={(e) => typing(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !window.matchMedia("(pointer: coarse)").matches) { e.preventDefault(); send(); } }} placeholder="Mensagem" aria-label="Escreva uma mensagem" rows={1} maxLength={2000} data-testid="chat-message-input" />}
+      {text.trim() && <button type="submit" disabled={sealing || !protection.ready || !peerReady} className="sj-send" aria-label="Enviar mensagem" data-testid="chat-send-message-button"><Send size={20} /></button>}
     </form>
   </section>;
 };

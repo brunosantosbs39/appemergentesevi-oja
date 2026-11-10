@@ -26,6 +26,7 @@ try:  # launched as `backend.server`
     from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
+    from backend.chat_contact import has_contact
     from backend.pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
     from backend.service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
     from backend.production_wallet import selected as real_selected, guard as real_guard
@@ -43,6 +44,7 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
+    from chat_contact import has_contact
     from pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
     from service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
     from production_wallet import selected as real_selected, guard as real_guard
@@ -1035,25 +1037,8 @@ async def send_encrypted_message(cid: str, body: Envelope, me: dict = Depends(on
 
 @api.post("/conversations/{cid}/encrypted-audio")
 async def send_encrypted_audio(cid: str, envelope: str = Form(..., max_length=20000), file: UploadFile = File(...), me: dict = Depends(onboarded)):
-    conv = await my_conversation(cid, me["user_id"])
-    try:
-        body = Envelope.model_validate_json(envelope)
-    except ValueError:
-        raise HTTPException(400, "Mensagem criptografada inválida")
-    await validate_envelope(db, conv, me["user_id"], body, "audio")
-    existing = await db.messages.find_one({"conversation_id": cid, "sender_id": me["user_id"], "client_id": body.header.client_id}, {"_id": 0})
-    if existing:
-        if existing.get("e2ee") != body.model_dump():
-            raise HTTPException(409, "Identificador já usado por outra mensagem")
-        return existing
-    data = await file.read(MAX_UPLOAD + 17)
-    if len(data) != body.attachment.size or len(data) > MAX_UPLOAD + 16 or hashlib.sha256(data).hexdigest() != body.attachment.sha256:
-        raise HTTPException(400, "Áudio criptografado incompleto ou alterado")
-    path = f"{APP_NAME}/audio/{me['user_id']}/{new_id()}.encrypted"
-    result = await run_in_threadpool(put_object, path, data, "application/octet-stream")
-    await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
-        "conversation_id": cid, "content_type": "application/octet-stream", "e2ee": True, "is_deleted": False, "created_at": now_iso()})
-    return await save_encrypted_message(conv, me, body, result["path"])
+    await my_conversation(cid, me["user_id"])
+    raise HTTPException(403, "Use mensagens de texto para manter os contatos dentro do ServiçoJá.")
 
 
 class TypingIn(BaseModel):
@@ -1087,6 +1072,8 @@ async def read_audio(cid: str, mid: str, me: dict = Depends(onboarded)):
 @api.post("/conversations/{cid}/proposals")
 async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded)):
     conv = await my_conversation(cid, me["user_id"])
+    if has_contact(body.description + " " + body.deadline):
+        raise HTTPException(400, "Telefones e convites para WhatsApp são bloqueados.")
     if len(body.description.strip()) < 3:
         raise HTTPException(400, "Descreva o serviço da proposta")
     if conv.get("request_id"):
