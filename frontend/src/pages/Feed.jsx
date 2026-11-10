@@ -1,3 +1,4 @@
+import { FeaturedPros } from "@/components/feed/FeaturedPros";
 import { RequestCard } from "@/components/requests/RequestCard";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -28,7 +29,7 @@ export default function Feed() {
   });
   const items = timeline.data?.pages.flatMap(page => page.items) || [];
   return (
-    <div className="mx-auto w-full max-w-3xl">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(190px,28%)]">
       <section className="min-w-0">
         <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Publicações e vagas em um raio de 25 km da sua localização cadastrada.">
           <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
@@ -46,6 +47,7 @@ export default function Feed() {
           {timeline.hasNextPage && <Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.fetchNextPage()}>Carregar anteriores</Button>}
         </div>
       </section>
+      <aside className="hidden lg:block"><FeaturedPros /></aside>
       <CreatePostDialog open={open} onOpenChange={setOpen} onCreated={() => timeline.refetch()} />
       <CreateRequestDialog open={!!hire} onOpenChange={(o) => !o && setHire(null)} targetPro={hire} />
     </div>

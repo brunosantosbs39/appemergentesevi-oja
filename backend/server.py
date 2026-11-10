@@ -406,6 +406,14 @@ async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: 
     return [with_presence(d) for d in await db.users.aggregate(pipeline, maxTimeMS=5000).to_list(limit)]
 
 
+@api.get("/presence/online")
+async def online_users(me: dict = Depends(onboarded)):
+    now = datetime.now(timezone.utc)
+    query = {"user_id":{"$ne":me["user_id"]}, "role":{"$in":["membro","profissional","contratante"]},
+             "last_seen":{"$gte":(now-timedelta(seconds=75)).isoformat(), "$lte":now.isoformat()}}
+    return await db.users.find(query, {"_id":0,"user_id":1,"avatar":1,"name":1}).sort("last_seen",-1).limit(12).to_list(12)
+
+
 @api.get("/users/{uid}")
 async def get_user(uid: str, me: dict = Depends(onboarded)):
     doc = await db.users.find_one({"user_id": uid}, {**PUBLIC, "lat": 1, "lng": 1})
@@ -1235,6 +1243,7 @@ async def startup():
     await db.files.create_index("storage_path")
     await db.rate_limits.create_index("expires_at", expireAfterSeconds=0)
     await db.users.create_index([("role", 1), ("lat", 1), ("lng", 1)])
+    await db.users.create_index([("last_seen", -1)])
     await db.users.create_index([("role", 1), ("categories", 1), ("lat", 1)])
     await db.requests.create_index([("status", 1), ("lat", 1), ("lng", 1)])
     await db.requests.create_index([("client_id", 1), ("created_at", -1)])

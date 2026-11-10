@@ -217,6 +217,12 @@ def build_router(db, onboarded):
     if production_wallet.selected():
         return production_wallet.build_router(db, onboarded)
     router=APIRouter(prefix='/api/wallet')
+    @router.get("/balance")
+    async def available_balance(me=Depends(onboarded)):
+        key = ident(me["user_id"])
+        row = await db.sandbox_wallet_state.find_one({"_id":"sandbox-v1"}, {"balances." + key:1}) if enabled() else None
+        return {"available_cents": (row or {}).get("balances", {}).get(key, 0)}
+
     @router.get('')
     async def wallet(me=Depends(onboarded)):
         if not enabled(): return {'enabled':False,'sandbox':True}

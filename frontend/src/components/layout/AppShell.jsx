@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { useApi } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -63,6 +65,18 @@ const Sidebar = ({ me, unread }) => (
   </aside>
 );
 
+function WalletShortcut({userId}) {
+  const api = useApi();
+  const balance = useQuery({queryKey:["wallet-balance",userId], queryFn:async ()=>(await api.get("/wallet/balance")).data,
+    refetchInterval:15000});
+  const cents = balance.data?.available_cents;
+  const amount = Number.isInteger(cents) ? (cents / 100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) : null;
+  return <Link to="/carteira#adicionar-saldo" data-testid="mobile-wallet-button" className="mr-auto flex min-h-11 items-center gap-2 border border-border px-3 text-sm font-semibold">
+    <Wallet className="h-4 w-4" aria-hidden="true" />
+    {amount === null ? (balance.isError ? "Consultar saldo" : "Carregando saldo…") : cents === 0 ? amount + " · Adicionar saldo" : "Saldo " + amount}
+  </Link>;
+}
+
 const MobileTop = () => (
   <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur-xl lg:hidden">
     <Logo to="/feed" />
@@ -104,7 +118,7 @@ export default function AppShell() {
       {!isChat && <MobileTop />}
       <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
         <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
-          {!isChat && <div className="mb-4 flex items-center justify-between gap-3 lg:justify-end"><Link to="/carteira#adicionar-saldo" aria-label="Abrir carteira e adicionar saldo" data-testid="mobile-wallet-button" className="flex min-h-11 items-center gap-2 border border-border px-3 text-sm font-semibold lg:hidden"><Wallet className="h-4 w-4" aria-hidden="true" />Carteira · Adicionar saldo</Link><NotificationCenter /></div>}
+          {!isChat && <div className="mb-4 flex items-center justify-end gap-3">{["/feed", "/carteira"].includes(pathname) && <WalletShortcut userId={me.user_id} />}<NotificationCenter /></div>}
           <Outlet />
         </div>
       </main>

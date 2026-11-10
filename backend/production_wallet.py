@@ -594,6 +594,11 @@ async def refresh_transfer(db, uid):
 
 def build_router(db, onboarded):
     router = APIRouter(prefix="/api/wallet")
+    @router.get("/balance")
+    async def available_balance(me=Depends(onboarded)):
+        row = await db.pix_balances.find_one({"_id": me["user_id"]}, {"available_cents": 1})
+        return {"available_cents": (row or {}).get("available_cents", 0)}
+
     @router.get("")
     async def wallet(background_tasks: BackgroundTasks, me=Depends(onboarded)):
         if enabled():
