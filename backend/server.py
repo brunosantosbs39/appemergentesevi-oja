@@ -463,6 +463,40 @@ async def list_posts(user_id: Optional[str] = None, category: Optional[str] = No
     return await enrich_posts(posts, me["user_id"])
 
 
+@api.get("/feed/regional")
+async def regional_feed(category: Optional[str] = None, before: Optional[str] = None,
+                        limit: int = Query(20, ge=1, le=50), me: dict = Depends(onboarded)):
+    lat, lng = me.get("lat"), me.get("lng")
+    if lat is None or lng is None:
+        return {"items": [], "next_cursor": None, "needs_location": True}
+    filters = [vacancy_open_query()]
+    if before:
+        stamp, ident = parse_cursor(before)
+        filters.append({"$or":[{"created_at":{"$lt":stamp}}, {"created_at":stamp,"id":{"$lt":ident}}]})
+    query = {"$and":filters}
+    if category and category != "todos":
+        query["category"] = category
+    jobs = nearby_pipeline({**query,"status":"pendente","target_pro_id":None}, lat, lng, 25, None, limit+1, recent=True)
+    posts = nearby_pipeline({**query,"kind":{"$ne":"portfolio"}}, lat, lng, 25, None, limit+1, recent=True)
+    # Remove closed or private linked vacancies before applying the page limit.
+    posts[-3:-3] = [
+        {"$lookup":{"from":"requests","localField":"request_id","foreignField":"id","as":"linked",
+                    "pipeline":[{"$project":{"status":1,"expires_at":1,"check_in_at":1,"target_pro_id":1}}]}},
+        {"$match":{"$or":[{"request_id":None},{"linked":{"$elemMatch":{"target_pro_id":None,"check_in_at":None,
+            "status":{"$in":["pendente","aceito"]},"$and":[vacancy_open_query()]}}}]}},
+        {"$unset":"linked"}]
+    post_rows = await db.posts.aggregate(posts).to_list(limit+1)
+    job_rows = await db.requests.aggregate(jobs).to_list(limit+1)
+    tagged = [(p,"post") for p in post_rows] + [(r,"request") for r in job_rows]
+    tagged.sort(key=lambda pair:(pair[0]["created_at"],pair[0]["id"]), reverse=True)
+    page = tagged[:limit]
+    enriched_posts = await enrich_posts([d for d,k in page if k=="post"], me["user_id"])
+    enriched_jobs = await enrich_requests([d for d,k in page if k=="request"],lat,lng,viewer_id=me["user_id"])
+    rows = {(k,d["id"]):d for k,docs in [("post",enriched_posts),("request",enriched_jobs)] for d in docs}
+    return {"items":[{"type":k,"item":rows[k,d["id"]]} for d,k in page],
+            "next_cursor":page_cursor(page[-1][0]["created_at"],page[-1][0]["id"]) if len(tagged)>limit else None}
+
+
 @api.post("/posts")
 async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
     await check_image(body.image, me["user_id"])
