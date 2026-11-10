@@ -47,7 +47,7 @@ export default function Feed() {
           {timeline.hasNextPage && <Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.fetchNextPage()}>Carregar anteriores</Button>}
         </div>
       </section>
-      <aside className="hidden lg:block"><FeaturedPros /></aside>
+      <aside className="order-first lg:order-none"><FeaturedPros /></aside>
       <CreatePostDialog open={open} onOpenChange={setOpen} onCreated={() => timeline.refetch()} />
       <CreateRequestDialog open={!!hire} onOpenChange={(o) => !o && setHire(null)} targetPro={hire} />
     </div>

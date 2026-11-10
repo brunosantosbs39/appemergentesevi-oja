@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -77,6 +78,30 @@ function WalletShortcut({userId}) {
   </Link>;
 }
 
+function VersionNotice() {
+  const [updated,setUpdated] = useState(false);
+  useEffect(()=>{
+    const loaded = Array.from(document.scripts).map(s=>s.src).find(src=>src.includes("/static/js/main."));
+    if (!loaded) return;
+    let active = true;
+    async function check(){
+      if(document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/asset-manifest.json",{cache:"no-store"});
+        if(!res.ok) return;
+        const manifest = await res.json();
+        const main = manifest.files?.["main.js"];
+        if(active && main && new URL(main,location.origin).pathname !== new URL(loaded).pathname) setUpdated(true);
+      } catch { /* A later focus or interval will retry. */ }
+    }
+    document.addEventListener("visibilitychange",check);
+    const timer=setInterval(check,60000);
+    check();
+    return ()=>{active=false;clearInterval(timer);document.removeEventListener("visibilitychange",check);};
+  },[]);
+  return updated ? <div role="status" className="flex items-center justify-between border bg-card p-3">Nova versão disponível.<button className="underline" onClick={()=>window.location.reload()}>Atualizar agora</button></div> : null;
+}
+
 const MobileTop = () => (
   <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-card/80 px-4 py-3 backdrop-blur-xl lg:hidden">
     <Logo to="/feed" />
@@ -119,6 +144,7 @@ export default function AppShell() {
       <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
         <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
           {!isChat && <div className="mb-4 flex items-center justify-end gap-3">{["/feed", "/carteira"].includes(pathname) && <WalletShortcut userId={me.user_id} />}<NotificationCenter /></div>}
+          <VersionNotice />
           <Outlet />
         </div>
       </main>

@@ -33,8 +33,7 @@ export default function UnitForm({title, initial, busy, onSave, edit=false}) {
     if(key === "postal_code") {setChangedCep(true);setCoords({lat:null,lng:null});setHint("");}
     setAddress(old=>({...old,[key]:key==="state"?value.toUpperCase():value}));
   };
-  return <details className="border border-border bg-card p-4">
-    <summary className="cursor-pointer font-semibold">{title}</summary>
+  return <>
     <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={e=>{
       e.preventDefault(); onSave({...(edit?{}:{name}),address_fields:{...address,postal_code:cep},...coords});
     }}>
@@ -44,5 +43,5 @@ export default function UnitForm({title, initial, busy, onSave, edit=false}) {
       {hint && <p role="status">{hint}</p>}
       <Button disabled={busy} className="sm:col-span-2">{edit?"Salvar endereço":title}</Button>
     </form>
-  </details>;
+  </>;
 }

@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import UnitForm from "@/components/UnitForm";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ const labels={planned:"Previsto",completed:"Concluído / a pagar",paid:"Pago inf
 export default function Companies() {
   const api=useApi(), cache=useQueryClient(), {me}=useMe();
   const [company,setCompany]=useState(""),[branch,setBranch]=useState("");
+  const [modal,setModal]=useState(null),[kind,setKind]=useState("company"),[parent,setParent]=useState("");
   const [formVersion,setFormVersion]=useState(0);
   const [rowFilter,setRowFilter]=useState("all");
   const [start,setStart]=useState(()=>localDate().slice(0,7)+"-01"),[end,setEnd]=useState(()=>{const d=new Date();return localDate(new Date(d.getFullYear(),d.getMonth()+1,0));});
@@ -39,7 +41,7 @@ export default function Companies() {
     if(intent.current&&intent.current.fingerprint!==fingerprint)throw new Error("Repita os dados anteriores para confirmar o lançamento antes de alterá-los.");
     if(!intent.current)intent.current={fingerprint,key:crypto.randomUUID()};
     await api.post(`/companies/${company}/daily`,{...body,idempotency_key:intent.current.key});
-    intent.current=null;setWorker("");setRate("");setNote("");toast.success("Lançamento registrado");
+    intent.current=null;setWorker("");setRate("");setNote("");setModal(null);toast.success("Lançamento registrado");
   }
   const input="block mt-1 w-full border border-border bg-background p-3";
   const unit=id=>branches.find(b=>b.id===id)?.name||"Matriz";
@@ -47,21 +49,34 @@ export default function Companies() {
   const total=b=>b.planned_cents+b.completed_cents+b.paid_manual_cents+(b.paid_app_cents||0);
   return <div className="space-y-6">
     <PageHeader eyebrow="Gestão de custos" title="Empresas e filiais" subtitle="Controle os custos de cada unidade. Estes registros não movimentam dinheiro." />
-    <UnitForm key={"new-company"+formVersion} title="Criar empresa" busy={busy} onSave={body=>run(async()=>{
-      const {data}=await api.post("/companies",body);setCompany(data.id);setBranch("");setFormVersion(v=>v+1);
-    })}/>
+    <div className="flex flex-wrap gap-2">
+      <Button onClick={()=>{setKind("company");setParent(company || companies[0]?.id || "");setModal("unit");}}>Criar empresa ou filial</Button>
+      {company && <Button variant="outline" onClick={()=>setModal("cost")}>Lançar custo</Button>}
+    </div>
+    <Dialog open={modal==="unit"} onOpenChange={open=>{if(!open && !busy)setModal(null);}}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogTitle>Criar empresa ou filial</DialogTitle>
+        <label>Tipo de unidade<select className={input} value={kind} onChange={e=>setKind(e.target.value)}>
+          <option value="company">Empresa (matriz)</option><option value="branch" disabled={!companies.length}>Filial</option>
+        </select></label>
+        {kind==="branch" && <label>Empresa da filial<select className={input} value={parent} onChange={e=>setParent(e.target.value)}>
+          {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+        <UnitForm title="Salvar cadastro" busy={busy} onSave={body=>run(async()=>{
+          const isBranch=kind==="branch";
+          const {data}=await api.post(isBranch?`/companies/${parent}/branches`:"/companies",body);
+          setCompany(isBranch?parent:data.id);setBranch(isBranch?data.id:"");setModal(null);
+          toast.success(isBranch?"Filial cadastrada":"Empresa cadastrada");
+        })}/>
+      </DialogContent>
+    </Dialog>
     {list.isPending&&<p role="status">Carregando empresas...</p>}
     {list.error&&<p role="alert">{errMsg(list.error)}</p>}
     {companies.length>0&&<label className="block">Empresa<select className={input} value={company} onChange={e=>{setCompany(e.target.value);setBranch("");}}><option value="">Selecione</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
     {company&&<>
-      <UnitForm key={company+formVersion} title="Adicionar filial" busy={busy} onSave={body=>run(async()=>{
-        const {data}=await api.post(`/companies/${company}/branches`,body);setBranch(data.id);setFormVersion(v=>v+1);
-      })}/>
       <div className="grid gap-3 sm:grid-cols-3"><label>Unidade<select className={input} value={branch} onChange={e=>setBranch(e.target.value)}><option value="">Todas as unidades</option><option value="matrix">Somente matriz</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label>De<input className={input} type="date" value={start} onChange={e=>setStart(e.target.value)}/></label><label>Até<input className={input} type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
-      <UnitForm key={company+":"+branch+":"+formVersion+":"+(branch && branch!=="matrix"?branches.find(b=>b.id===branch)?.address:companies.find(c=>c.id===company)?.address)} title={"Editar endereço de "+unit(branch)} initial={branch && branch!=="matrix"?branches.find(b=>b.id===branch):companies.find(c=>c.id===company)} busy={busy} edit onSave={body=>run(async()=>{
+      <details><summary className="cursor-pointer text-sm underline">Editar endereço da unidade</summary><UnitForm key={company+":"+branch+":"+formVersion+":"+(branch && branch!=="matrix"?branches.find(b=>b.id===branch)?.address:companies.find(c=>c.id===company)?.address)} title={"Editar endereço de "+unit(branch)} initial={branch && branch!=="matrix"?branches.find(b=>b.id===branch):companies.find(c=>c.id===company)} busy={busy} edit onSave={body=>run(async()=>{
         await api.patch(`/companies/${company}/address`,body,{params:branch && branch!=="matrix"?{branch_id:branch}:{}});
         setFormVersion(v=>v+1);toast.success("Endereço atualizado");
-      })}/>
+      })}/></details>
       {dashboard.isFetching&&<p role="status">Atualizando painel...</p>}
       {dashboard.error&&<p role="alert">{errMsg(dashboard.error)}</p>}
       {data&&!dashboard.error&&<>
@@ -69,10 +84,11 @@ export default function Companies() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Previsto","planned_cents"],["Concluído a pagar","completed_cents"],["Pago pelo app","paid_app_cents"],["Pago manualmente","paid_manual_cents"]].map(([label,key])=><section className="border border-border bg-card p-4" key={key}><h3 className="text-sm">{label}</h3><p className="mt-2 text-xl font-semibold">{money(data.totals[key])}</p></section>)}</div>
         <p className="text-sm text-muted-foreground">Cada vaga entra pelo orçamento anunciado. Ao aprovar um candidato, o painel passa a usar o valor combinado.</p>
         {data.unpriced_count>0&&<p role="status">{data.unpriced_count} pedido(s) sem valor combinado, fora dos totais monetários.</p>}
-        <section className="space-y-3"><h2 className="font-heading text-xl">Comparativo por unidade</h2>{data.by_branch.length===0?<p>Nenhum lançamento no período.</p>:data.by_branch.map(b=><div key={b.branch_id||"main"} className="border border-border p-4"><div className="flex justify-between"><strong>{unit(b.branch_id)}</strong><span>{money(total(b))}</span></div><progress aria-label={"Participação de "+unit(b.branch_id)} className="my-2 h-2 w-full" max={total(data.totals)||1} value={total(b)}/><p className="text-sm">Previsto: {money(b.planned_cents)} · Concluído: {money(b.completed_cents)} · Pago: {money((b.paid_app_cents||0)+b.paid_manual_cents)}</p></div>)}</section>
+        <section className="space-y-3"><h2 className="font-heading text-xl">Comparativo por unidade</h2>{data.by_branch.length===0?<p>Nenhum lançamento no período.</p>:[...data.by_branch].sort((a,b)=>total(b)-total(a)).map(b=><div key={b.branch_id||"main"} className="border border-border p-4"><div className="flex justify-between"><button type="button" className="font-semibold underline" aria-label={"Filtrar movimentações de "+unit(b.branch_id)} onClick={()=>setBranch(b.branch_id || "matrix")}>{unit(b.branch_id)}</button><span>{money(total(b))} · {total(data.totals) ? Math.round(100*total(b)/total(data.totals)) : 0}%</span></div><progress aria-label={"Participação de "+unit(b.branch_id)} className="my-2 h-2 w-full" max={total(data.totals)||1} value={total(b)}/><p className="text-sm">Previsto: {money(b.planned_cents)} · Concluído: {money(b.completed_cents)} · Pago: {money((b.paid_app_cents||0)+b.paid_manual_cents)}</p></div>)}</section>
       </>}
-      <form className="border border-border p-4 space-y-3" onSubmit={e=>{e.preventDefault();run(addDaily);}}>
-        <h2 className="font-heading text-xl">Lançar custo manualmente</h2><p className="text-sm">Unidade: {branch?unit(branch):"Matriz"}. Use para serviços fora dos pedidos do app.</p>
+      <Dialog open={modal==="cost"} onOpenChange={open=>{if(!open && !busy)setModal(null);}}><DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogTitle>Lançar custo</DialogTitle>
+      <form className="space-y-3" onSubmit={e=>{e.preventDefault();run(addDaily);}}>
+        <p className="text-sm">Unidade: {branch?unit(branch):"Matriz"}. Use para serviços fora dos pedidos do app.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label>Trabalhador<input className={input} value={worker} onChange={e=>setWorker(e.target.value)} minLength={2} maxLength={100} required /></label>
           <label>Data de competência<input className={input} type="date" value={day} onChange={e=>setDay(e.target.value)} required/></label>
@@ -81,8 +97,8 @@ export default function Companies() {
           <label>Situação<select className={input} value={status} onChange={e=>setStatus(e.target.value)}>{["planned","completed","paid"].map(s=><option key={s} value={s}>{labels[s]}</option>)}</select></label>
           <label>Observação<input className={input} value={note} onChange={e=>setNote(e.target.value)} maxLength={500}/></label>
         </div><Button disabled={busy}>Registrar lançamento</Button>
-      </form>
-      <section className="space-y-3"><h2 className="font-heading text-xl">Lançamentos do período</h2><label>Mostrar<select className={input} value={rowFilter} onChange={e=>setRowFilter(e.target.value)}><option value="all">Todos os lançamentos</option><option value="request">Vagas do app</option><option value="manual">Custos manuais</option></select></label>{!dashboard.error&&data?.rows.filter(r=>rowFilter==="all" || r.source===rowFilter).map(r=><article key={r.source+r.id} className="border border-border p-4"><strong>{r.worker}</strong><p>{r.service_date} · {unit(r.branch_id)} · {r.source==="manual"?"Manual":"Pedido do app"}</p><p className="text-sm">{({daily:"Diária",hourly:"Por hora",fixed:"Orçamento fechado"})[r.billing_type|| (r.source==="manual"?"daily":"fixed")]} · Quantidade: {r.quantity||r.days||1}</p><p>{r.unpriced?"A combinar":money(r.amount_cents)} · {r.settled?"Pago pelo app":labels[r.status]}</p>{r.note&&<p className="text-sm">{r.note}</p>}{r.source==="manual"&&<label className="block mt-2 text-sm">Atualizar situação<select className={input} value={r.status} disabled={busy} onChange={e=>run(()=>api.patch(`/companies/${company}/daily/${encodeURIComponent(r.id)}`,{status:e.target.value}))}>{Object.entries(labels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>}</article>)}</section>
+      </form></DialogContent></Dialog>
+      <section className="space-y-3"><h2 className="font-heading text-xl">Movimentações do período</h2><label>Mostrar<select className={input} value={rowFilter} onChange={e=>setRowFilter(e.target.value)}><option value="all">Todos os lançamentos</option><option value="request">Vagas do app</option><option value="manual">Custos manuais</option></select></label>{data && !data.rows.some(r=>rowFilter==="all" || r.source===rowFilter) && <p className="text-muted-foreground">Nenhuma movimentação para este filtro.</p>}{!dashboard.error&&data?.rows.filter(r=>rowFilter==="all" || r.source===rowFilter).map(r=><article key={r.source+r.id} className="border border-border p-4"><strong>{r.worker}</strong><p>{r.service_date} · {unit(r.branch_id)} · {r.source==="manual"?"Manual":"Pedido do app"}</p><p className="text-sm">{({daily:"Diária",hourly:"Por hora",fixed:"Orçamento fechado"})[r.billing_type|| (r.source==="manual"?"daily":"fixed")]} · Quantidade: {r.quantity||r.days||1}</p><p>{r.unpriced?"A combinar":money(r.amount_cents)} · {r.settled?"Pago pelo app":labels[r.status]}</p>{r.note&&<p className="text-sm">{r.note}</p>}{r.source==="manual"&&<label className="block mt-2 text-sm">Atualizar situação<select className={input} value={r.status} disabled={busy} onChange={e=>run(()=>api.patch(`/companies/${company}/daily/${encodeURIComponent(r.id)}`,{status:e.target.value}))}>{Object.entries(labels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>}</article>)}</section>
     </>}
   </div>;
 }
