@@ -25,7 +25,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status } : {});
       onUpdated(data);
       toast.success(label);
-      if (status === "concluido") onReview(data);
+
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -60,6 +60,15 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
         </Button>
+      )}
+      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && (
+        <ol aria-label="Etapas do serviço" className="my-2 grid w-full grid-cols-3 gap-2 text-center text-xs">
+          {[["aceito", "Check-in"], ["em_andamento", "Em andamento"], ["concluido", "Finalizado"]].map(([status, label], index) => (
+            <li key={status} aria-current={r.status === status ? "step" : undefined} className={r.status === status ? "border-t-2 border-foreground pt-2 font-bold" : "border-t border-border pt-2 text-muted-foreground"}>
+              {index + 1}. {label}
+            </li>
+          ))}
+        </ol>
       )}
       {isPro && r.status === "aceito" && <p className="w-full text-sm text-emerald-600">Serviço aprovado pelo contratante. Faça check-in ao chegar ao local.</p>}
       {isPro && r.status === "aceito" && (

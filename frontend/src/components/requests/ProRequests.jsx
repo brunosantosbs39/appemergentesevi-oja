@@ -75,7 +75,11 @@ export const ProRequests = () => {
   const mine = items?.filter((r) => r.professional_id === me.user_id) ?? null;
   const active = mine?.filter((r) => ["aceito", "em_andamento"].includes(r.status)) ?? null;
   const history = mine?.filter((r) => ["concluido", "cancelado"].includes(r.status)) ?? null;
-  const props = { me, onUpdated: update, onReview: setReviewReq };
+  const onUpdated = (request) => {
+    update(request);
+    if (request.status === "concluido") setTab("historico");
+  };
+  const props = { me, onUpdated, onReview: setReviewReq };
 
   return (
     <div>
