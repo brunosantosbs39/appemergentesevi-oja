@@ -28,6 +28,9 @@ class AddressIn(BaseModel):
 
     address: str = Field("", max_length=200)
 
+class UnitUpdate(AddressIn):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+
 class CompanyIn(AddressIn):
     name: str = Field(min_length=2, max_length=100)
 class BranchIn(CompanyIn):
@@ -100,10 +103,15 @@ def build_router(db, onboarded):
         return {**doc,"id":doc["_id"]}
 
     @router.patch("/{cid}/address")
-    async def address(cid:str, body:AddressIn, branch_id:Optional[str]=None, me=Depends(onboarded)):
+    async def address(cid:str, body:UnitUpdate, branch_id:Optional[str]=None, me=Depends(onboarded)):
         await owned(db,cid,me["user_id"],branch_id)
         collection = db.company_branches if branch_id else db.companies
-        await collection.update_one({"_id":branch_id or cid,"owner_id":me["user_id"]},{"$set":body.location()})
+        changes = body.location()
+        if body.name is not None:
+            if len(body.name.strip()) < 2:
+                raise HTTPException(422, "Informe o nome com pelo menos 2 caracteres")
+            changes["name"] = body.name.strip()
+        await collection.update_one({"_id":branch_id or cid,"owner_id":me["user_id"]},{"$set":changes})
         return {"saved":True}
 
     @router.post("/{cid}/daily")

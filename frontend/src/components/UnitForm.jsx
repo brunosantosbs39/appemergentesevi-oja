@@ -10,7 +10,7 @@ const fields = [
 export default function UnitForm({title, initial, busy, onSave, edit=false}) {
   const api = useApi();
   const [address,setAddress] = useState(initial?.address_fields || {});
-  const [name,setName] = useState("");
+  const [name,setName] = useState(initial?.name || "");
   const [coords,setCoords] = useState({lat:initial?.lat ?? null,lng:initial?.lng ?? null});
   const [changedCep,setChangedCep] = useState(false);
   const [hint,setHint] = useState("");
@@ -35,13 +35,13 @@ export default function UnitForm({title, initial, busy, onSave, edit=false}) {
   };
   return <>
     <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={e=>{
-      e.preventDefault(); onSave({...(edit?{}:{name}),address_fields:{...address,postal_code:cep},...coords});
+      e.preventDefault(); onSave({name:name.trim(),address_fields:{...address,postal_code:cep},...coords});
     }}>
-      {!edit && <label className="sm:col-span-2">Nome da unidade<input required minLength={2} maxLength={100} value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border bg-background p-3" /></label>}
+      {<label className="sm:col-span-2">Nome da unidade<input required minLength={2} maxLength={100} value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border bg-background p-3" /></label>}
       {initial?.address && !initial.address_fields && <p className="sm:col-span-2">Endereço atual: {initial.address}</p>}
       {fields.map(([key,label,max])=><label key={key}>{label}<input className="mt-1 w-full border bg-background p-3" required={key!=="complement"} maxLength={max} pattern={key==="postal_code"?"[0-9]{5}-?[0-9]{3}":key==="state"?"[A-Z]{2}":undefined} value={address[key] || ""} onChange={e=>change(key,e.target.value)} /></label>)}
       {hint && <p role="status">{hint}</p>}
-      <Button disabled={busy} className="sm:col-span-2">{edit?"Salvar endereço":title}</Button>
+      <Button disabled={busy} className="sm:col-span-2">{edit?"Salvar alterações":title}</Button>
     </form>
   </>;
 }

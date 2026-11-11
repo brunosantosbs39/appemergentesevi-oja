@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import UnitForm from "@/components/UnitForm";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ export default function Companies() {
   const api=useApi(), cache=useQueryClient(), {me}=useMe();
   const [company,setCompany]=useState(""),[branch,setBranch]=useState("");
   const [modal,setModal]=useState(null),[kind,setKind]=useState("company"),[parent,setParent]=useState("");
-  const [formVersion,setFormVersion]=useState(0);
+  const [editing,setEditing]=useState(null);
   const [rowFilter,setRowFilter]=useState("all");
   const [start,setStart]=useState(()=>localDate().slice(0,7)+"-01"),[end,setEnd]=useState(()=>{const d=new Date();return localDate(new Date(d.getFullYear(),d.getMonth()+1,0));});
   const [worker,setWorker]=useState(""),[day,setDay]=useState(localDate),[rate,setRate]=useState(""),[days,setDays]=useState("1"),[status,setStatus]=useState("planned"),[note,setNote]=useState("");
@@ -70,13 +70,24 @@ export default function Companies() {
     </Dialog>
     {list.isPending&&<p role="status">Carregando empresas...</p>}
     {list.error&&<p role="alert">{errMsg(list.error)}</p>}
-    {companies.length>0&&<label className="block">Empresa<select className={input} value={company} onChange={e=>{setCompany(e.target.value);setBranch("");}}><option value="">Selecione</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+    {companies.length>0&&<label className="block">Escolher empresa<select className={input} value={company} onChange={e=>{setCompany(e.target.value);setBranch("");}}><option value="">Selecione</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
     {company&&<>
       <div className="grid gap-3 sm:grid-cols-3"><label>Unidade<select className={input} value={branch} onChange={e=>setBranch(e.target.value)}><option value="">Todas as unidades</option><option value="matrix">Somente matriz</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label>De<input className={input} type="date" value={start} onChange={e=>setStart(e.target.value)}/></label><label>Até<input className={input} type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label></div>
-      <details><summary className="cursor-pointer text-sm underline">Editar endereço da unidade</summary><UnitForm key={company+":"+branch+":"+formVersion+":"+(branch && branch!=="matrix"?branches.find(b=>b.id===branch)?.address:companies.find(c=>c.id===company)?.address)} title={"Editar endereço de "+unit(branch)} initial={branch && branch!=="matrix"?branches.find(b=>b.id===branch):companies.find(c=>c.id===company)} busy={busy} edit onSave={body=>run(async()=>{
-        await api.patch(`/companies/${company}/address`,body,{params:branch && branch!=="matrix"?{branch_id:branch}:{}});
-        setFormVersion(v=>v+1);toast.success("Endereço atualizado");
-      })}/></details>
+      <div className="flex justify-end"><Button variant="outline" onClick={()=>{
+        const selectedBranch=branch && branch!=="matrix" ? branches.find(b=>b.id===branch) : null;
+        setEditing({companyId:company,branchId:selectedBranch?.id || null,unit:selectedBranch || companies.find(c=>c.id===company)});
+        setModal("edit");
+      }}>{branch && branch!=="matrix" ? "Editar filial" : "Editar empresa"}</Button></div>
+      <Dialog open={modal==="edit"} onOpenChange={open=>{if(!open && !busy){setModal(null);setEditing(null);}}}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          <DialogTitle>{editing?.branchId ? "Editar filial" : "Editar empresa"}</DialogTitle>
+          <DialogDescription>Atualize os dados de {editing?.unit?.name}. O endereço salvo estará disponível ao selecionar esta unidade em novos pedidos.</DialogDescription>
+          {editing && <UnitForm key={editing.unit.id} title="Salvar alterações" initial={editing.unit} busy={busy} edit onSave={body=>run(async()=>{
+            await api.patch(`/companies/${editing.companyId}/address`,body,{params:editing.branchId?{branch_id:editing.branchId}:{}});
+            setModal(null);setEditing(null);toast.success("Cadastro atualizado");
+          })}/>}
+        </DialogContent>
+      </Dialog>
       {dashboard.isFetching&&<p role="status">Atualizando painel...</p>}
       {dashboard.error&&<p role="alert">{errMsg(dashboard.error)}</p>}
       {data&&!dashboard.error&&<>

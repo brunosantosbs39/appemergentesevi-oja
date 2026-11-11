@@ -36,6 +36,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(result["paid_app_cents"],15000)
         self.assertEqual(result["completed_cents"],0)
 
+    def test_edit_name_and_address_stays_scoped_to_selected_branch(self):
+        companies=SimpleNamespace(find_one=AsyncMock(return_value={"_id":"company"}),update_one=AsyncMock())
+        branches=SimpleNamespace(find_one=AsyncMock(return_value={"_id":"branch"}),update_one=AsyncMock())
+        db=SimpleNamespace(companies=companies,company_branches=branches)
+        endpoint=next(r.endpoint for r in c.build_router(db,lambda:None).routes if r.path=="/api/companies/{cid}/address")
+        run(endpoint("company",c.UnitUpdate(name="  Centro  ",address="Rua Nova"),"branch",{"user_id":"owner"}))
+        query, change=branches.update_one.call_args.args
+        self.assertEqual(query,{"_id":"branch","owner_id":"owner"})
+        self.assertEqual(change["$set"]["name"],"Centro")
+        self.assertEqual(change["$set"]["address"],"Rua Nova")
+        companies.update_one.assert_not_awaited()
+        with self.assertRaises(HTTPException):
+            run(endpoint("company",c.UnitUpdate(name="   ",address="Rua Nova"),"branch",{"user_id":"owner"}))
+
     def test_owner_required(self):
         db=SimpleNamespace(companies=SimpleNamespace(find_one=AsyncMock(return_value=None)))
         with self.assertRaises(HTTPException) as err:run(c.owned(db,"company","intruder"))
