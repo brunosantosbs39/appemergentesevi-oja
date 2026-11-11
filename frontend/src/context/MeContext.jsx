@@ -46,7 +46,7 @@ export function MeProvider({ children }) {
     refresh().catch(() => setError(true));
   };
   if (!me) return <FullScreenState error={error} onRetry={retry} />;
-  return <MeContext.Provider value={{ me, setMe, refresh }}><CryptoProvider key={me.user_id} userId={me.user_id} enabled={!!me.role}>{children}</CryptoProvider></MeContext.Provider>;
+  return <MeContext.Provider value={{ me, setMe, refresh }}><CryptoProvider key={me.user_id} userId={me.user_id} enabled={!!me.registration_complete}>{children}</CryptoProvider></MeContext.Provider>;
 }
 
 export const useMe = () => useContext(MeContext);

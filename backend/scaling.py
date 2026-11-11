@@ -47,13 +47,16 @@ async def write_limit(db, uid, path):
         raise HTTPException(429, "Muitas tentativas. Aguarde um momento e tente novamente.", headers={"Retry-After": str(60 - epoch % 60)})
 
 
-def nearby_pipeline(query, lat, lng, radius, sort, limit, offset=0, target_uid=None):
+def nearby_pipeline(query, lat, lng, radius, sort, limit, offset=0, target_uid=None, approximate=False, recent=False):
     """Filter using indexed latitude/longitude; calculate and sort BEFORE paging.
 
     Works with existing profiles, without a destructive GeoJSON backfill.
     Handles the antimeridian and poles, using exact spherical distance.
     """
-    pipeline = []
+    # Quantize BEFORE radius filtering/distance sorting to avoid a location oracle.
+    pipeline = [{"$set": {axis: {"$cond": [{"$isNumber": "$" + axis},
+                {"$divide": [{"$round": [{"$multiply": ["$" + axis, 50]}, 0]}, 50]}, None]}
+                for axis in ("lat", "lng")}}] if approximate else []
     if lat is not None and lng is not None:
         spatial = {"lat": {"$gte": -90, "$lte": 90}, "lng": {"$gte": -180, "$lte": 180}}
         if radius > 0:
@@ -80,6 +83,8 @@ def nearby_pipeline(query, lat, lng, radius, sort, limit, offset=0, target_uid=N
             pipeline.append({"$match": {"$or": [within, {"target_pro_id": target_uid}]} if target_uid else within})
     else:
         pipeline.extend([{"$match": query}, {"$set": {"distance_km": None}}])
+    if recent:
+        return pipeline + [{"$sort":{"created_at":-1,"id":-1}}, {"$limit":limit}, {"$unset":"_id"}]
     pipeline.append({"$set": {"_distance": {"$ifNull": ["$distance_km", 1e20]}, "_direct": {"$cond": [{"$eq": ["$target_pro_id", target_uid]}, 0, 1]} if target_uid else 1}})
     ordering = {"rating_avg": -1, "rating_count": -1, "user_id": 1} if sort == "rating" else {"_direct": 1, "_distance": 1, "created_at": -1, "id": 1, "user_id": 1}
     pipeline.extend([{"$sort": ordering}, {"$skip": offset}, {"$limit": limit}, {"$project": {"_id": 0, "_distance": 0, "_direct": 0}}])
@@ -104,3 +109,9 @@ class ReadBurstGuard:
         self.windows[uid] = (window, count)
         if count > self.maximum:
             raise HTTPException(429, "Muitas consultas. Aguarde um momento.", headers={"Retry-After": str(60 - now % 60)})
+
+
+def approximate_coordinate(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return round(value * 50) / 50
+    return None

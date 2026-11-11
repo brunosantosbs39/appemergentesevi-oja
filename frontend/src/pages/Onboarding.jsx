@@ -1,156 +1,111 @@
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { LogoutButton } from "@/components/auth/LogoutButton";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useUser } from "@clerk/react";
-import { Briefcase, CheckCircle2, Crosshair, Loader2, UserSearch } from "lucide-react";
-import { toast } from "sonner";
-import { errMsg, useApi } from "@/lib/api";
-import { DEFAULT_POS } from "@/lib/constants";
-import { useMe } from "@/context/MeContext";
-import { Logo } from "@/components/common/Misc";
+import { MapContainer, TileLayer, CircleMarker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { CategoryChips } from "@/components/common/CategoryChips";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { Logo } from "@/components/common/Misc";
+import { errMsg, useApi } from "@/lib/api";
+import { useMe } from "@/context/MeContext";
+import "./AuthPages.css";
 
-const ROLES = [
-  { id: "contratante", title: "Quero contratar", text: "Publique pedidos e encontre profissionais perto de você.", icon: UserSearch },
-  { id: "profissional", title: "Sou profissional", text: "Receba pedidos próximos, publique seu portfólio e seja avaliado.", icon: Briefcase },
-];
-
-const RolePicker = ({ value, onChange }) => (
-  <div className="grid gap-3 sm:grid-cols-2">
-    {ROLES.map(({ id, title, text, icon: Icon }) => (
-      <button
-        key={id}
-        type="button"
-        onClick={() => onChange(id)}
-        data-testid={`onboarding-role-${id}`}
-        className={cn(
-          "relative rounded-none border-2 p-5 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5",
-          value === id ? "border-foreground bg-muted shadow-lg" : "border-border bg-card hover:border-border",
-        )}
-      >
-        {value === id && <CheckCircle2 className="absolute right-4 top-4 h-5 w-5 text-foreground" />}
-        <span className={cn("grid h-11 w-11 place-items-center rounded-none", value === id ? "bg-secondary text-secondary-foreground" : "bg-secondary text-foreground")}>
-          <Icon className="h-5 w-5" />
-        </span>
-        <p className="mt-4 font-heading text-lg font-bold text-foreground">{title}</p>
-        <p className="mt-1 text-sm text-foreground">{text}</p>
-      </button>
-    ))}
-  </div>
-);
+function PickPoint({ onPick }) {
+  const map = useMapEvents({click: e => onPick({lat:e.latlng.lat,lng:e.latlng.lng})});
+  return <button type="button" style={{position:"absolute",bottom:22,left:12,zIndex:1000,background:"#fff",color:"#000",padding:"8px 12px"}} onClick={e=>{e.stopPropagation();const center=map.getCenter();onPick({lat:center.lat,lng:center.lng});}}>Usar centro do mapa</button>;
+}
+const empty = {postal_code:"",street:"",number:"",complement:"",district:"",city:"",state:""};
 
 export default function Onboarding() {
   const { me, setMe } = useMe();
   const { user } = useUser();
-  const api = useApi();
-  const navigate = useNavigate();
-  const [role, setRole] = useState(null);
-  const [name, setName] = useState(user?.fullName || user?.firstName || "");
-  const [city, setCity] = useState("");
-  const [cats, setCats] = useState([]);
-  const [headline, setHeadline] = useState("");
-  const [rate, setRate] = useState("");
-  const [bio, setBio] = useState("");
-  const [pos, setPos] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  if (me.role) return <Navigate to="/feed" replace />;
-
-  const locate = () =>
-    navigator.geolocation?.getCurrentPosition(
-      (p) => setPos({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => toast.error("Não foi possível obter sua localização. Usaremos São Paulo como padrão."),
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!role) return toast.error("Escolha como você vai usar o ServiçoJá");
-    if (name.trim().length < 2) return toast.error("Informe seu nome");
-    if (role === "profissional" && cats.length === 0) return toast.error("Escolha pelo menos uma categoria");
-    setBusy(true);
-    const p = pos || DEFAULT_POS;
-    const body = { role, name: name.trim(), city, lat: p.lat, lng: p.lng };
-    if (role === "profissional") Object.assign(body, { categories: cats, headline, bio, hourly_rate: rate === "" ? null : Number(rate) });
-    try {
-      const { data } = await api.put("/me", body);
-      setMe(data);
-      toast.success("Cadastro concluído!");
-      navigate("/feed", { replace: true });
-    } catch (err) {
-      toast.error(errMsg(err));
-    } finally {
-      setBusy(false);
-    }
+  const api = useApi(), navigate = useNavigate();
+  const [name,setName] = useState(me.name || user?.fullName || "");
+  const [roles,setRoles] = useState(me.categories || []);
+  const [custom,setCustom] = useState((me.custom_roles || []).join(", "));
+  const [address,setAddress] = useState({...empty,...me.address});
+  const [region,setRegion] = useState(null), [point,setPoint] = useState(null);
+  const [busy,setBusy] = useState(false), [looking,setLooking] = useState(false);
+  const [error,setError] = useState(""), [confirmed,setConfirmed] = useState(false);
+  const generation = useRef(0);
+  const lookupTimer = useRef(null);
+  const postalDigits = address.postal_code.replace(/\D/g,"");
+  const change = (key,value) => {
+    setAddress(prev=>({...prev,[key]:value}));
+    setConfirmed(false);
+    if(key==="postal_code" && value.replace(/\D/g, "") !== postalDigits){generation.current++;clearTimeout(lookupTimer.current);setRegion(null);setPoint(null);setLooking(false);setError("");setAddress(prev=>({...prev,street:"",district:"",city:"",state:""}));}
   };
-
-  return (
-    <div className="min-h-screen bg-background px-4 py-10" data-testid="onboarding-page">
-      <form onSubmit={submit} className="mx-auto max-w-2xl space-y-8">
-        <div className="flex items-center justify-between gap-4"><Logo /><div className="flex items-center gap-2"><ThemeToggle compact /><LogoutButton /></div></div>
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-foreground">Bem-vindo(a)</p>
-          <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">Como você vai usar o ServiçoJá?</h1>
-          <p className="mt-2 text-muted-foreground">Essa é apenas sua preferência inicial. Na mesma conta você pode contratar e buscar oportunidades, sem precisar ser empresa.</p>
+  const lookup = useCallback(async () => {
+    clearTimeout(lookupTimer.current);
+    const cep=postalDigits;
+    if(cep.length!==8){setError("Informe um CEP com 8 dígitos.");return;}
+    const version=++generation.current;setLooking(true);setError("");
+    try {
+      const {data}=await api.get("/me/address/"+cep);
+      if(version!==generation.current)return;
+      setRegion(data);setPoint(null);setConfirmed(false);
+      setAddress(prev=>({...prev,postal_code:cep,street:data.street || "",district:data.district || "",city:data.city || "",state:data.state || ""}));
+    } catch(e){if(version===generation.current)setError(errMsg(e));}
+    finally{if(version===generation.current)setLooking(false);}
+  }, [api, postalDigits]);
+  const invalidateLookup = useCallback(() => {generation.current++;}, []);
+  useEffect(() => {
+    if(postalDigits.length===8 && !me.registration_complete) lookupTimer.current=setTimeout(lookup,350);
+    return () => {clearTimeout(lookupTimer.current);invalidateLookup();};
+  }, [postalDigits, lookup, me.registration_complete, invalidateLookup]);
+  if(me.registration_complete) return <Navigate to="/mapa" replace />;
+  const save = async e => {
+    e.preventDefault();
+    if(!region || region.postal_code!==address.postal_code.replace(/\D/g,"")){setError("Consulte seu CEP antes de concluir.");return;}
+    if(!confirmed){setError("Confirme o endereço e a região informados.");return;}
+    if(region.lat==null && !point){setError("Selecione sua região no mapa.");return;}
+    setBusy(true);setError("");
+    try{
+      const {data}=await api.put("/me/registration",{name:name.trim(),address,location:point,categories:roles,custom_roles:custom.split(",").map(x=>x.trim()).filter(Boolean)});
+      setMe(data);navigate("/mapa",{replace:true});
+    }catch(e){setError(errMsg(e));}finally{setBusy(false);}
+  };
+  const field = (key,label,autocomplete,options={}) => <label className="access-field" htmlFor={"registration-"+key}>{label}<input id={"registration-"+key} value={address[key]} onChange={e=>change(key,e.target.value)} autoComplete={autocomplete} required={key!=="complement"} maxLength={key==="number"?20:key==="complement"?100:150} {...options}/></label>;
+  return <div className="access-page">
+    <header><Logo /><div className="flex items-center gap-3"><ThemeToggle compact /><LogoutButton /></div></header>
+    <main className="access-card registration-card">
+      <h1>Complete seu cadastro</h1>
+      <p className="access-subtitle">Etapa 2 de 2 · Obrigatória para todos, inclusive quem entra com Google. Seu endereço define a região inicial de oportunidades.</p>
+      <form onSubmit={save}>
+        <label className="access-field" htmlFor="registration-name">Nome completo<input id="registration-name" autoComplete="name" required minLength={2} maxLength={80} value={name} onChange={e=>setName(e.target.value)} /></label>
+        <label className="access-field" htmlFor="registration-email">E-mail da conta<input id="registration-email" type="email" value={user?.primaryEmailAddress?.emailAddress || ""} readOnly /></label>
+        <h2>Funções que você desempenha</h2>
+        <CategoryChips multiple includeAll={false} value={roles} onChange={v=>setRoles(v.slice(0,5))} />
+        <label className="access-field">Adicionar funções fora da lista<input value={custom} maxLength={400} placeholder="Separe as funções por vírgula" onChange={e=>setCustom(e.target.value)} /></label>
+        <h2>Seu endereço</h2>
+        <p className="access-hint">Rua, número e complemento ficam no seu cadastro privado. O mapa usa uma região aproximada, que você pode ajustar.</p>
+        <div className="registration-grid">
+          {field("postal_code","CEP","postal-code",{inputMode:"numeric",maxLength:9,placeholder:"00000-000"})}
+          <div><button type="button" className="access-google" disabled={looking || busy} onClick={lookup}>{looking?"Consultando…":"Buscar endereço pelo CEP"}</button></div>
+          <p className="access-hint registration-full" role="status" aria-live="polite">{looking ? "Buscando endereço…" : region ? (!region.street || !region.district ? "Região encontrada. Complete a rua e o bairro que não vieram na consulta." : "Endereço preenchido. Confira os dados e informe o número.") : "Digite os 8 números do CEP para preencher o endereço automaticamente."}</p>
+          <div className="registration-full">{field("street","Rua / avenida","address-line1")}</div>
+          {field("number","Número (ou S/N)","off")}
+          {field("complement","Complemento (opcional)","address-line2")}
+          {field("district","Bairro","address-level3")}
+          {field("city","Cidade","address-level2",{readOnly:true})}
+          {field("state","Estado","address-level1",{readOnly:true,maxLength:2})}
         </div>
-        <RolePicker value={role} onChange={setRole} />
-        {role && (
-          <div className="animate-fade-up space-y-5 rounded-none border border-border bg-card p-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Seu nome</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} data-testid="onboarding-name-input" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bairro / cidade</Label>
-                <Input value={city} onChange={(e) => setCity(e.target.value)} maxLength={80} placeholder="Ex.: Moema, São Paulo" data-testid="onboarding-city-input" />
-              </div>
-            </div>
-            {role === "profissional" && (
-              <>
-                <div className="space-y-2">
-                  <Label>Categorias que você atende</Label>
-                  <CategoryChips value={cats} onChange={setCats} includeAll={false} multiple testid="onboarding-category" />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-                  <div className="space-y-1.5">
-                    <Label>Título profissional</Label>
-                    <Input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} placeholder="Ex.: Eletricista residencial • NR10" data-testid="onboarding-headline-input" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Valor/hora (R$)</Label>
-                    <Input type="number" min="0" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Opcional" data-testid="onboarding-rate-input" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Sobre você</Label>
-                  <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={1000} placeholder="Experiência, especialidades, região de atendimento..." data-testid="onboarding-bio-input" />
-                </div>
-              </>
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-none bg-card p-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Sua localização</p>
-                <p className="text-xs text-muted-foreground" data-testid="onboarding-location-status">
-                  {pos ? "Localização capturada" : "Usada para mostrar profissionais e pedidos próximos"}
-                </p>
-              </div>
-              <Button type="button" variant="outline" className="rounded-none" onClick={locate} data-testid="onboarding-locate-button">
-                <Crosshair className="h-4 w-4" /> {pos ? "Atualizar" : "Usar minha localização"}
-              </Button>
-            </div>
-          </div>
-        )}
-        <Button type="submit" disabled={busy || !role} className="h-12 w-full rounded-none text-base font-semibold" data-testid="onboarding-submit-button">
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Concluir cadastro
-        </Button>
+        {region && <section className="registration-region" aria-label="Sua região">
+          <p><strong>{region.city} / {region.state}</strong></p>
+          <p className="access-hint">{region.lat!=null ? "Usaremos a região aproximada do CEP. Se necessário, toque no mapa para ajustar." : "O CEP não possui coordenadas. Aproxime o mapa e toque na sua região para continuar."}</p>
+          <MapContainer key={region.postal_code} center={region.lat!=null?[region.lat,region.lng]:[-14,-52]} zoom={region.lat!=null?13:4} style={{height:280,width:"100%"}}>
+            <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <PickPoint onPick={p=>{setPoint(p);setConfirmed(false);}} />
+            {(point || region.lat!=null) && <CircleMarker center={point?[point.lat,point.lng]:[region.lat,region.lng]} radius={10} />}
+          </MapContainer>
+          <p role="status" className="access-hint">{point?"Ponto escolhido no mapa.":"Região aproximada do CEP."} Você poderá usar “Minha localização” dentro do app quando desejar.</p>
+
+        </section>}
+        <label className="flex items-start gap-3 text-sm"><input type="checkbox" required checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} className="mt-1" />Confirmo meu endereço e a região que será usada para encontrar oportunidades.</label>
+        {error && <p role="alert" className="access-error">{error}</p>}
+        <button className="access-primary" disabled={busy || looking}>{busy?"Salvando cadastro…":"Concluir cadastro e ver minha região"}</button>
       </form>
-    </div>
-  );
+    </main>
+  </div>;
 }

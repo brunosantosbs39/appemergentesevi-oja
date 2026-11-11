@@ -15,7 +15,7 @@ const Stat = ({ icon: Icon, value, label, testid }) => (
 );
 
 export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
-  const isPro = user.role === "profissional";
+  const isPro = !!user.role;
   return (
     <section className="overflow-hidden rounded-[2rem] border border-border bg-card">
       <div className="bg-grid relative h-32 bg-secondary sm:h-40">
@@ -42,15 +42,16 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
             {user.name || "Sem nome"} {isPro && <BadgeCheck className="h-6 w-6 text-foreground" />}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="profile-role-badge">{isPro ? "Profissional" : "Contratante"}</span>
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="profile-role-badge">Conta única</span>
             {user.headline && <span className="font-medium text-foreground">{user.headline}</span>}
             <PresenceBadge user={user} />
             {user.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{user.city}</span>}
             {user.distance_km != null && !isMe && <span className="inline-flex items-center gap-1"><Navigation className="h-3.5 w-3.5" />{km(user.distance_km)} de você</span>}
           </div>
-          {isPro && user.categories?.length > 0 && (
+          {(user.custom_roles?.length > 0 || user.categories?.length > 0) && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {user.categories.map((c) => {
+              {user.custom_roles?.map(role => <span key={role} className="rounded-full border px-3 py-1 text-xs">{role}</span>)}
+              {(user.categories || []).filter(c=>c !== "outros" || !user.custom_roles?.length).map((c) => {
                 const { label, icon: Icon } = catOf(c);
                 return <span key={c} className="inline-flex items-center gap-1 rounded-full border border-foreground bg-muted px-3 py-1 text-xs font-semibold text-foreground"><Icon className="h-3.5 w-3.5" />{label}</span>;
               })}
@@ -63,11 +64,9 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
             <RatingBadge avg={user.rating_avg} count={user.rating_count} testid="user-profile-rating-badge" />
             <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Avaliação</p>
           </div>
-          {isPro ? (
-            <Stat icon={Briefcase} value={user.jobs_done || 0} label="Serviços feitos" testid="profile-stat-jobs" />
-          ) : (
-            <Stat icon={ClipboardList} value={user.requests_count || 0} label="Pedidos" testid="profile-stat-requests" />
-          )}
+          <Stat icon={Briefcase} value={user.jobs_done || 0} label="Serviços feitos" testid="profile-stat-jobs" />
+          <Stat icon={ClipboardList} value={user.requests_count || 0} label="Pedidos" testid="profile-stat-requests" />
+          
           <Stat icon={Grid3x3} value={user.posts_count || 0} label="Postagens" testid="profile-stat-posts" />
           {isPro && user.hourly_rate != null && <Stat icon={Briefcase} value={brl(user.hourly_rate)} label="Por hora" testid="profile-stat-rate" />}
         </div>

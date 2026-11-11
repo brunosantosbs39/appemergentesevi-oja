@@ -19,6 +19,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
   const [intent, setIntent] = useState("hire");
   const [image, setImage] = useState(null);
   const [caption, setCaption] = useState("");
+  const [categoryDetail, setCategoryDetail] = useState("");
   const [category, setCategory] = useState(me.categories?.[0] || "outros");
   const [locName, setLocName] = useState(me.city || "");
   const [coords, setCoords] = useState(me.lat != null ? { lat: me.lat, lng: me.lng } : null);
@@ -43,7 +44,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
     if (!image) return toast.error("Adicione uma foto");
     setBusy(true);
     try {
-      const { data } = await api.post("/posts", { kind, intent: kind === "publication" ? "opportunity" : null, expires_at: kind === "publication" && expiry ? new Date(expiry).toISOString() : null, request_id: kind === "publication" ? requestId || null : null, image, caption, category, location_name: locName || null, ...(coords || {}) });
+      const { data } = await api.post("/posts", { kind, intent: kind === "publication" ? "opportunity" : null, expires_at: kind === "publication" && expiry ? new Date(expiry).toISOString() : null, request_id: kind === "publication" ? requestId || null : null, image, caption, category, category_detail:category==="outros"?categoryDetail.trim():"", location_name: locName || null, ...(coords || {}) });
       onCreated(data);
       toast.success(kind === "portfolio" ? "Trabalho adicionado ao portfólio!" : "Postagem publicada!");
       setImage(null);
@@ -86,6 +87,7 @@ export const CreatePostDialog = ({ open, onOpenChange, onCreated, kind = "public
                   {CATEGORIES.map((c) => <SelectItem key={c.slug} value={c.slug}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {category==="outros" && <label className="block">Função ou área de atuação<input className="w-full border bg-background p-2" value={categoryDetail} maxLength={100} onChange={e=>setCategoryDetail(e.target.value)} /></label>}
             </div>
             <div className="space-y-1.5">
               <Label>Local</Label>

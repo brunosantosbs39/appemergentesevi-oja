@@ -36,7 +36,7 @@ export const RequestCard = ({ request: r, me, children }) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{cat.label}</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{r.category_detail || cat.label}</span>
             <StatusBadge status={r.status} />
             {r.target_pro_id && r.status === "pendente" && (
               <span className="inline-flex items-center gap-1 rounded-none bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase text-black">
@@ -48,8 +48,9 @@ export const RequestCard = ({ request: r, me, children }) => {
           {r.description && <p className="mt-1 line-clamp-3 text-sm text-foreground">{r.description}</p>}
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-semibold text-foreground" data-testid="service-request-budget">
-              <Wallet className="h-3.5 w-3.5 text-foreground" /> {brl(r.agreed_budget ?? r.budget)}
+              <Wallet className="h-3.5 w-3.5 text-foreground" /> {brl(r.agreed_budget ?? r.my_application?.negotiated_budget ?? r.budget)}
             </span>
+            {r.service_date && r.service_time && <span>Agendado para {r.service_date.split("-").reverse().join("/")} às {r.service_time}</span>}
             {r.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {r.address}</span>}
             {r.distance_km != null && (
               <span className="inline-flex items-center gap-1" data-testid="service-request-distance">
@@ -65,14 +66,19 @@ export const RequestCard = ({ request: r, me, children }) => {
       {other ? (
         <Party user={other} label={iAmClient ? "Profissional" : "Contratante"} />
       ) : (
-        iAmClient && r.status === "pendente" && (
+        iAmClient && r.status === "pendente" && !r.direct_invitation && (
           <p className="mt-4 flex items-center gap-2 rounded-none bg-amber-50 p-3 text-sm text-amber-800">
             <span className="radar-dot" /> Aguardando candidaturas. Você escolhe e aprova o profissional.
           </p>
         )
       )}
-      {!iAmClient && r.status === "pendente" && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
+      {!iAmClient && r.status === "pendente" && !r.direct_invitation && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
       <ApplyButton request={r} />
+      {r.attendance_policy_version && <div className="mt-3 border border-border p-3 text-xs space-y-1">
+        <p>Início combinado: {new Date(r.service_start_at).toLocaleString("pt-BR")} (horário deste aparelho).</p>
+        <p>Tolerância: 15 min. Sem check-in após 1 hora: bloqueio por 24 horas na primeira falta; 30 dias a partir da segunda.</p>
+        {r.no_show_at && <p className="font-semibold">Cancelado por falta de check-in. O saldo reservado, quando existente, retorna ao contratante.</p>}
+      </div>}
       <ServiceAttendance request={r} />
       {children && <div className="mt-4 flex flex-wrap gap-2">{children}</div>}
     </article>

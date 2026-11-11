@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Literal, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, UploadFile, Request, Query, Form, BackgroundTasks
 from fastapi.responses import Response, JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
@@ -22,18 +22,42 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.registration import build_router as registration_router, complete as registration_complete
+    from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
+    from backend.production_wallet import indexes as pix_indexes
+    from backend.opportunities import notify_opportunity
+    from backend.attendance import schedule as attendance_schedule, acceptance as attendance_acceptance, enforce as enforce_attendance, absent as record_absence
+    from backend.chat_contact import has_contact
+    from backend.pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
+    from backend.service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
+    from backend.production_wallet import selected as real_selected, guard as real_guard
+    from backend.companies import build_router as companies_router, owned as owned_company
+    from backend.sandbox_wallet import build_router as wallet_router
+    from backend.completion import confirm_completion
     from backend.e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from backend.clerk_auth import clerk_router, require_user
     from backend.storage import APP_NAME, get_object, init_storage, put_object
     from backend.seed import seed_demo
-    from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard, approximate_coordinate
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from registration import build_router as registration_router, complete as registration_complete
+    from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
+    from production_wallet import indexes as pix_indexes
+    from opportunities import notify_opportunity
+    from attendance import schedule as attendance_schedule, acceptance as attendance_acceptance, enforce as enforce_attendance, absent as record_absence
+    from chat_contact import has_contact
+    from pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
+    from service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
+    from production_wallet import selected as real_selected, guard as real_guard
+    from companies import build_router as companies_router, owned as owned_company
+    from sandbox_wallet import build_router as wallet_router
+    from completion import confirm_completion
     from e2ee import IdentityIn, Envelope, validate_identity, validate_envelope, public_identity
     from clerk_auth import clerk_router, require_user
     from storage import APP_NAME, get_object, init_storage, put_object
     from seed import seed_demo
-    from scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard
+    from scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard, approximate_coordinate
     from notifications import send_notice, validate_subscription, notification_tasks
 
 mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
@@ -57,13 +81,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("servicoja")
 
 CATEGORIES = {"eletricista", "encanador", "pintor", "pedreiro", "marceneiro", "diarista", "jardineiro", "beleza",
-              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros"}
+              "ti_design", "fotografo", "professor", "mecanico", "montador", "outros", "producao_eventos", "tecnico_som", "iluminacao", "montagem_palco", "roadie", "dj", "musico", "seguranca_eventos", "recepcao_eventos", "garcom", "tecnico_led", "carregador_eventos", "cantor", "auxiliar_cozinha", "cozinheiro", "churrasqueiro", "confeiteiro", "copeiro", "bartender", "promotor_eventos", "operador_camera"}
 STATUS_LABELS = {"pendente": "Pendente", "aceito": "Aceito", "em_andamento": "Em andamento",
                  "concluido": "Concluído", "cancelado": "Cancelado"}
 MIME_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
             "image/heic": "heic", "image/heif": "heif"}
 MAX_UPLOAD = 4 * 1024 * 1024
-PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "headline": 1, "bio": 1, "categories": 1,
+PUBLIC = {"_id": 0, "user_id": 1, "name": 1, "role": 1, "avatar": 1, "cover": 1, "custom_roles": 1, "headline": 1, "bio": 1, "categories": 1,
           "city": 1, "hourly_rate": 1, "rating_avg": 1, "rating_count": 1, "jobs_done": 1, "created_at": 1, "is_demo": 1, "last_seen": 1}
 # who may move a request to each status, and from which statuses
 TRANSITIONS = {
@@ -100,8 +124,10 @@ def with_presence(doc: dict) -> dict:
 
 
 # ---------- auth ----------
-async def current_member(request: Request, user: dict = Depends(require_user), _notifications=Depends(notification_tasks)) -> dict:
+async def current_member(request: Request, background_tasks: BackgroundTasks, user: dict = Depends(require_user), _notifications=Depends(notification_tasks)) -> dict:
     uid = user["user_id"]
+    if request.url.path in ("/api/me/presence", "/api/notifications"):
+        background_tasks.add_task(safe_drain, db)
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         await write_limit(db, uid, request.url.path)
     else:
@@ -117,7 +143,7 @@ async def current_member(request: Request, user: dict = Depends(require_user), _
 
 
 async def onboarded(me: dict = Depends(current_member)) -> dict:
-    if not me.get("role"):
+    if not registration_complete(me):
         raise HTTPException(403, "Complete seu cadastro primeiro")
     return me
 
@@ -141,10 +167,11 @@ async def check_image(path: Optional[str], uid: str):
 # ---------- models ----------
 class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=80)
-    role: Optional[Literal["profissional", "contratante"]] = None
+    role: Optional[Literal["profissional", "contratante", "membro"]] = None
     headline: Optional[str] = Field(None, max_length=120)
     bio: Optional[str] = Field(None, max_length=1000)
     categories: Optional[List[str]] = None
+    custom_roles: Optional[List[str]] = Field(None, max_length=5)
     city: Optional[str] = Field(None, max_length=80)
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lng: Optional[float] = Field(None, ge=-180, le=180)
@@ -161,6 +188,7 @@ class PostCreate(BaseModel):
     image: str
     caption: str = Field("", max_length=2200)
     category: Optional[str] = None
+    category_detail: str = Field("", max_length=100)
     location_name: Optional[str] = Field(None, max_length=120)
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lng: Optional[float] = Field(None, ge=-180, le=180)
@@ -181,13 +209,20 @@ class ProposalStatusIn(BaseModel):
     status: Literal["accepted", "declined"]
 
 
-class RequestCreate(BaseModel):
+class RequestCreate(Pricing):
+    service_utc_offset_minutes: int = Field(-180, ge=-720, le=840)
+    service_time: Optional[str] = Field(None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    category_detail: str = Field("", max_length=100)
+    company_id: Optional[str] = None
+    branch_id: Optional[str] = None
+    service_date: Optional[str] = Field(None, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+    daily_count: int = Field(1, ge=1, le=366)
     expires_at: Optional[datetime] = None
     category: str
     title: str = Field(..., min_length=3, max_length=100)
     description: str = Field("", max_length=2000)
     budget: Optional[float] = Field(None, ge=0, le=1000000)
-    address: str = Field("", max_length=200)
+    address: str = Field("", max_length=550)
     lat: float = Field(..., ge=-90, le=90)
     lng: float = Field(..., ge=-180, le=180)
     image: Optional[str] = None
@@ -196,10 +231,11 @@ class RequestCreate(BaseModel):
 
 class StatusIn(BaseModel):
     status: Literal["em_andamento", "concluido", "cancelado", "pendente"]
+    reason: str = Field("", max_length=500)
 
 
 class ReviewIn(BaseModel):
-    rating: int = Field(..., ge=1, le=5)
+    rating: int = Field(..., strict=True, ge=1, le=5)
     comment: str = Field("", max_length=500)
 
 
@@ -234,7 +270,7 @@ async def notification_config(me: dict = Depends(current_member)):
 
 @api.get("/notifications")
 async def list_notifications(me: dict = Depends(current_member)):
-    return await db.notifications.find({"user_id": me["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return await db.notifications.find({"user_id": me["user_id"]}, {"_id": 0, "delivery": 0}).sort("created_at", -1).to_list(100)
 
 
 @api.post("/notifications/{nid}/read")
@@ -293,7 +329,18 @@ async def root():
 
 @api.get("/me")
 async def get_me(me: dict = Depends(current_member)):
-    return me
+    return {**me, "registration_complete": registration_complete(me)}
+
+
+@api.get("/me/attendance")
+async def attendance_status(me: dict = Depends(current_member)):
+    try:
+        await enforce_attendance(db, me["user_id"])
+    except HTTPException as error:
+        if error.status_code != 403:
+            raise
+    user = await db.users.find_one({"user_id":me["user_id"]}, {"_id":0,"attendance_absences":1,"attendance_blocked_until":1})
+    return user or {}
 
 
 @api.post("/me/presence")
@@ -305,19 +352,29 @@ async def heartbeat(me: dict = Depends(current_member)):
 
 @api.put("/me")
 async def update_me(body: ProfileUpdate, me: dict = Depends(current_member)):
+    if not registration_complete(me):
+        raise HTTPException(403, "Complete seu cadastro com endereço primeiro")
     data = body.model_dump(exclude_unset=True)
+    if "custom_roles" in data:
+        roles = list(dict.fromkeys(v.strip() for v in data["custom_roles"] or []))
+        if any(not 2 <= len(v) <= 80 for v in roles):
+            raise HTTPException(400, "Cada função precisa ter de 2 a 80 caracteres.")
+        data["custom_roles"] = roles
     if "categories" in data:
         cats = [c for c in dict.fromkeys(data["categories"] or []) if c in CATEGORIES]
         data["categories"] = cats[:5]
+        if data.get("custom_roles") and "outros" not in data["categories"]:
+            data["categories"].append("outros")
     if data.get("cover"):
         await check_image(data["cover"], me["user_id"])
     if data.get("avatar"):
         await check_image(data["avatar"], me["user_id"])
-    if not data.get("role") and not me.get("role"):
-        raise HTTPException(400, "Escolha se você é Profissional ou Contratante")
+    # Legacy role values remain readable; all completed profiles have both capabilities.
+    data["role"] = "membro"
     if data:
         await db.users.update_one({"user_id": me["user_id"]}, {"$set": data})
-    return await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    result = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    return {**result, "registration_complete": registration_complete(result)}
 
 
 # ---------- files ----------
@@ -352,16 +409,24 @@ async def download(path: str):
 async def professionals(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(0, ge=0, le=20000),
                         category: Optional[str] = None, q: Optional[str] = Query(None, max_length=100), sort: str = "distance",
                         limit: int = Query(100, ge=1, le=200), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
-    query = {"role": "profissional", "user_id": {"$ne": me["user_id"]}}
+    query = {"role": {"$in": ["profissional", "contratante", "membro"]}, "user_id": {"$ne": me["user_id"]}}
     if category and category != "todos":
         query["categories"] = category
     if q:
         rx = {"$regex": re.escape(q), "$options": "i"}
         query["$or"] = [{"name": rx}, {"headline": rx}]
-    pipeline = nearby_pipeline(query, lat, lng, radius_km, sort, limit, offset)
+    pipeline = nearby_pipeline(query, lat, lng, radius_km, sort, limit, offset, approximate=True)
     # Public projection prevents private profile fields from reaching the client.
     pipeline.append({"$project": {**PUBLIC, "lat": 1, "lng": 1, "distance_km": 1}})
     return [with_presence(d) for d in await db.users.aggregate(pipeline, maxTimeMS=5000).to_list(limit)]
+
+
+@api.get("/presence/online")
+async def online_users(me: dict = Depends(onboarded)):
+    now = datetime.now(timezone.utc)
+    query = {"user_id":{"$ne":me["user_id"]}, "role":{"$in":["membro","profissional","contratante"]},
+             "last_seen":{"$gte":(now-timedelta(seconds=75)).isoformat(), "$lte":now.isoformat()}}
+    return await db.users.find(query, {"_id":0,"user_id":1,"avatar":1,"name":1}).sort("last_seen",-1).limit(12).to_list(12)
 
 
 @api.get("/users/{uid}")
@@ -369,8 +434,8 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
     doc = await db.users.find_one({"user_id": uid}, {**PUBLIC, "lat": 1, "lng": 1})
     if not doc:
         raise HTTPException(404, "Usuário não encontrado")
-    lat, lng = doc.pop("lat", None), doc.pop("lng", None)
-    if doc.get("role") == "profissional":
+    lat, lng = approximate_coordinate(doc.pop("lat", None)), approximate_coordinate(doc.pop("lng", None))
+    if doc.get("role"):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
     doc["posts_count"] = await db.posts.count_documents({"user_id": uid})
     doc["requests_count"] = await db.requests.count_documents({"client_id": uid})
@@ -421,13 +486,58 @@ async def list_posts(user_id: Optional[str] = None, category: Optional[str] = No
     return await enrich_posts(posts, me["user_id"])
 
 
+@api.get("/feed/regional")
+async def regional_feed(category: Optional[str] = None, before: Optional[str] = None,
+                        limit: int = Query(20, ge=1, le=50), me: dict = Depends(onboarded)):
+    lat, lng = me.get("lat"), me.get("lng")
+    if lat is None or lng is None:
+        return {"items": [], "next_cursor": None, "needs_location": True}
+    filters = [vacancy_open_query()]
+    if before:
+        stamp, ident = parse_cursor(before)
+        filters.append({"$or":[{"created_at":{"$lt":stamp}}, {"created_at":stamp,"id":{"$lt":ident}}]})
+    query = {"$and":filters}
+    if category and category != "todos":
+        query["category"] = category
+    jobs = nearby_pipeline({**query,"status":"pendente","target_pro_id":None}, lat, lng, 25, None, limit+1, recent=True)
+    posts = nearby_pipeline({**query,"kind":{"$ne":"portfolio"}}, lat, lng, 25, None, limit+1, recent=True)
+    # Remove closed or private linked vacancies before applying the page limit.
+    posts[-3:-3] = [
+        {"$lookup":{"from":"requests","localField":"request_id","foreignField":"id","as":"linked",
+                    "pipeline":[{"$project":{"status":1,"expires_at":1,"check_in_at":1,"target_pro_id":1}}]}},
+        {"$match":{"$or":[{"request_id":None},{"linked":{"$elemMatch":{"target_pro_id":None,"check_in_at":None,
+            "status":{"$in":["pendente","aceito"]},"$and":[vacancy_open_query()]}}}]}},
+        {"$unset":"linked"}]
+    # Older publications may lack a map point. Only derive a region for posts
+    # without an explicit destination, and never return the author's coordinates.
+    legacy = [
+        {"$match":{**query,"kind":{"$ne":"portfolio"},"$or":[{"lat":None},{"lng":None}]}},
+        {"$lookup":{"from":"users","localField":"user_id","foreignField":"user_id","as":"author_region",
+                    "pipeline":[{"$project":{"_id":0,"lat":1,"lng":1,"city":1}}]}},
+        {"$set":{"author_region":{"$first":"$author_region"}}},
+        {"$match":{"$or":[{"location_name":{"$in":[None,""]}},{"$expr":{"$eq":["$location_name","$author_region.city"]}}]}},
+        {"$set":{"lat":"$author_region.lat","lng":"$author_region.lng"}},
+        *posts[:-3], {"$unset":["lat","lng","author_region"]}, *posts[-3:]]
+    posts = [*posts, {"$unionWith":{"coll":"posts","pipeline":legacy}},
+             {"$sort":{"created_at":-1,"id":-1}}, {"$limit":limit+1}]
+    post_rows = await db.posts.aggregate(posts).to_list(limit+1)
+    job_rows = await db.requests.aggregate(jobs).to_list(limit+1)
+    tagged = [(p,"post") for p in post_rows] + [(r,"request") for r in job_rows]
+    tagged.sort(key=lambda pair:(pair[0]["created_at"],pair[0]["id"]), reverse=True)
+    page = tagged[:limit]
+    enriched_posts = await enrich_posts([d for d,k in page if k=="post"], me["user_id"])
+    enriched_jobs = await enrich_requests([d for d,k in page if k=="request"],lat,lng,viewer_id=me["user_id"])
+    rows = {(k,d["id"]):d for k,docs in [("post",enriched_posts),("request",enriched_jobs)] for d in docs}
+    return {"items":[{"type":k,"item":rows[k,d["id"]]} for d,k in page],
+            "next_cursor":page_cursor(page[-1][0]["created_at"],page[-1][0]["id"]) if len(tagged)>limit else None}
+
+
 @api.post("/posts")
 async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     await check_image(body.image, me["user_id"])
     if body.category and body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
-    if body.kind == "portfolio" and me["role"] != "profissional":
-        raise HTTPException(403, "O portfólio é exclusivo de profissionais")
     if body.request_id and not await db.requests.find_one({"id": body.request_id, "client_id": me["user_id"]}):
         raise HTTPException(400, "Escolha uma vaga publicada por você")
     expiry = expiration_iso(body.expires_at) if body.kind == "publication" else None
@@ -528,11 +638,19 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
     ids += [a["professional_id"] for r in items if r.get("client_id") == viewer_id for a in r.get("applications", [])]
     um = await users_map(ids)
     for r in items:
+        r.pop("attendance_job", None)
+        r.pop("alert_job", None)
+        if viewer_id not in (r.get("client_id"), r.get("professional_id")):
+            r.pop("last_cancellation", None)
         r["is_expired"] = bool(r.get("expires_at") and r["expires_at"] <= now_iso())
         r["client"] = um.get(r.get("client_id"))
         r["professional"] = um.get(r.get("professional_id"))
         r["target_pro"] = um.get(r.get("target_pro_id"))
         r["distance_km"] = distance_km(lat, lng, r.get("lat"), r.get("lng"))
+        fund = r.pop("service_fund", None)
+        if fund:
+            r["payment_status"] = fund["status"]
+        present_request(r, viewer_id)
         applications = r.pop("applications", [])
         for application in applications:
             if application["status"] == "pending" and (r["status"] != "pendente" or r["is_expired"]):
@@ -546,27 +664,60 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 
 @api.post("/requests")
-async def create_request(body: RequestCreate, me: dict = Depends(onboarded)):
+async def create_request(body: RequestCreate, background_tasks: BackgroundTasks, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
+    if body.branch_id and not body.company_id:
+        raise HTTPException(400, "Selecione a empresa da filial")
+    if body.company_id:
+        company = await owned_company(db, body.company_id, me["user_id"], body.branch_id)
+        unit = company if not body.branch_id else await db.company_branches.find_one(
+            {"_id": body.branch_id, "company_id": body.company_id, "owner_id": me["user_id"]})
+        if not unit:
+            raise HTTPException(404, "Unidade não encontrada")
+        if unit.get("address"):
+            body.address = unit["address"]
+    if body.service_date:
+        try: datetime.strptime(body.service_date, "%Y-%m-%d")
+        except ValueError: raise HTTPException(400, "Data de serviço inválida")
     if body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
+    if body.category == "outros" and len(body.category_detail.strip()) < 2:
+        raise HTTPException(400, "Descreva a categoria do serviço.")
     if body.target_pro_id:
+        if not body.service_date or not body.service_time or not body.address.strip():
+            raise HTTPException(400, "Informe data, hora e endereço do serviço.")
+        if not body.unit_cents or body.image:
+            raise HTTPException(400, "Informe o valor do pedido direto e envie sem foto.")
         if body.target_pro_id == me["user_id"] or not await db.users.find_one(
-                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante"]}}, {"_id": 1}):
+                {"user_id": body.target_pro_id, "role": {"$in": ["profissional", "contratante", "membro"]}}, {"_id": 1}):
             raise HTTPException(400, "Profissional inválido")
     await check_image(body.image, me["user_id"])
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc.update(attendance_schedule(body.service_date, body.service_time, body.service_utc_offset_minutes))
+    doc["direct_invitation"] = bool(body.target_pro_id)
+    doc["pricing_version"] = 1
+    doc["wallet_reservation"] = real_selected()
+    doc["quantity"] = float(body.quantity)
+    if body.unit_cents is not None:
+        doc["budget"] = body.total_cents() / 100
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
+    if not body.target_pro_id:
+        doc["alert_job"] = pending_job()
     await db.requests.insert_one(dict(doc))
+    if body.target_pro_id:
+        await send_notice(db, body.target_pro_id, "Pedido direto", "Você recebeu uma solicitação de serviço.", "/pedidos")
+    else:
+        background_tasks.add_task(safe_drain, db)
     return (await enrich_requests([doc], viewer_id=me["user_id"]))[0]
 
 
 @api.get("/requests/mine")
 async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = None, limit: int = 100):
     uid = me["user_id"]
-    query = {"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}]}
+    query = {"$or": [{"client_id": uid}, {"professional_id": uid}, {"applications.professional_id": uid}, {"direct_invitation": True, "target_pro_id": uid}]}
     if before:
         stamp, ident = parse_cursor(before)
         query["$and"] = [{"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]}]
@@ -574,13 +725,34 @@ async def my_requests(me: dict = Depends(onboarded), before: Optional[str] = Non
     return await enrich_requests(items, me.get("lat"), me.get("lng"), viewer_id=uid)
 
 
+@api.get("/requests/feed")
+async def feed_requests(category: Optional[str] = None, before: Optional[str] = None,
+                        limit: int = Query(20, ge=1, le=50), me: dict = Depends(onboarded)):
+    query = {"status": "pendente", "target_pro_id": None, "$and": [vacancy_open_query()]}
+    if category and category != "todos":
+        query["category"] = category
+    if before:
+        stamp, ident = parse_cursor(before)
+        query["$and"].append({"$or": [{"created_at": {"$lt": stamp}}, {"created_at": stamp, "id": {"$lt": ident}}]})
+    rows = await db.requests.find(query, {"_id": 0}).sort([("created_at", -1), ("id", -1)]).to_list(limit + 1)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {"items": await enrich_requests(rows, me.get("lat"), me.get("lng"), viewer_id=me["user_id"]),
+            "next_cursor": page_cursor(rows[-1]["created_at"], rows[-1]["id"]) if more else None}
+
+
 @api.get("/requests/available")
 async def available_requests(lat: Optional[float] = Query(None, ge=-90, le=90), lng: Optional[float] = Query(None, ge=-180, le=180), radius_km: float = Query(25, ge=0, le=20000),
-                             category: Optional[str] = None, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
+                             category: Optional[str] = None, my_categories: bool = False, limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0, le=10000), me: dict = Depends(onboarded)):
     uid = me["user_id"]
     lat = lat if lat is not None else me.get("lat")
     lng = lng if lng is not None else me.get("lng")
     query = {"status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid}, "$or": [{"target_pro_id": None}, {"target_pro_id": uid}]}
+    if my_categories:
+        categories = [c for c in me.get("categories", []) if c in CATEGORIES]
+        if not categories or (category and category != "todos" and category not in categories):
+            return []
+        query["category"] = {"$in": categories}
     if category and category != "todos":
         query["category"] = category
     pipeline = nearby_pipeline(query, lat, lng, radius_km, "distance", limit, offset, target_uid=uid)
@@ -599,15 +771,49 @@ async def get_request(rid: str, me: dict = Depends(onboarded)):
     return (await enrich_requests([r], me.get("lat"), me.get("lng"), viewer_id=me["user_id"]))[0]
 
 
+@api.post("/requests/{rid}/direct-accept")
+async def accept_direct_invitation(rid: str, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
+    uid = me["user_id"]
+    query = {"id": rid, "direct_invitation": True, "status": "pendente", "target_pro_id": uid,
+             "client_id": {"$ne": uid}}
+    invite = await db.requests.find_one(query, {"_id": 0})
+    if not invite:
+        raise HTTPException(409, "Pedido direto indisponível.")
+    gross = cents(invite["budget"])
+    net = worker_offer(gross)
+    stamp = now_iso()
+    changes = {"status":"aceito", "professional_id":uid, "agreed_budget":gross / 100,
+               "agreed_net_cents":net, "accepted_at":stamp, "updated_at":stamp}
+    changes.update(attendance_acceptance(invite))
+    if invite.get("wallet_reservation"):
+        real_guard()
+        try:
+            result = await reserve_service(db, query, changes, gross, net, stamp)
+        except HTTPException as error:
+            if error.status_code == 409:
+                raise HTTPException(409, "Não foi possível reservar o pagamento do contratante. Confira o pedido antes de tentar novamente.")
+            raise
+    else:
+        result = await db.requests.find_one_and_update(query, {"$set":changes}, projection={"_id":0},
+                                                      return_document=ReturnDocument.AFTER)
+    if not result:
+        raise HTTPException(409, "Pedido direto indisponível.")
+    conv = await get_or_create_conversation(invite["client_id"], uid, rid)
+    await add_message(conv, None, "O profissional aceitou o pedido direto.", system=True)
+    return {"conversation_id":conv["id"], "request":(await enrich_requests([result],viewer_id=uid))[0]}
+
+
 @api.post("/requests/{rid}/accept")
 @api.post("/requests/{rid}/apply")
 async def accept_request(rid: str, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     uid = me["user_id"]
     application = {"professional_id": uid, "status": "pending", "applied_at": now_iso()}
     r = await db.requests.find_one_and_update(
         {"id": rid, "status": "pendente", "$and": [vacancy_open_query()], "client_id": {"$ne": uid},
          "$or": [{"target_pro_id": None}, {"target_pro_id": uid}],
-         "applications.professional_id": {"$ne": uid}},
+         "direct_invitation": {"$ne": True}, "applications.professional_id": {"$ne": uid}},
         {"$push": {"applications": application}, "$set": {"updated_at": now_iso()}},
         projection={"_id": 0}, return_document=ReturnDocument.AFTER)
     if not r:
@@ -626,17 +832,27 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
     stamp = now_iso()
     changes = {"applications.$.status": body.status, "applications.$.responded_at": stamp, "updated_at": stamp}
     if body.status == "approved":
+        await enforce_attendance(db, professional_id)
+        await enforce_attendance(db, me["user_id"])
         current = await db.requests.find_one({"id": rid, "client_id": me["user_id"]}, {"_id": 0})
+        if current:
+            changes.update(attendance_acceptance(current))
         candidate = next((a for a in (current or {}).get("applications", []) if a["professional_id"] == professional_id), {})
         changes["agreed_budget"] = candidate.get("negotiated_budget", (current or {}).get("budget"))
+        if current and current.get("pricing_version") and changes["agreed_budget"] is not None:
+            changes["agreed_net_cents"] = candidate.get("quote_net_cents", worker_offer(cents(changes["agreed_budget"])))
         changes.update({"status": "aceito", "professional_id": professional_id, "accepted_at": stamp, "approved_by": me["user_id"]})
     selection_query = {"id": rid, "$and": [vacancy_open_query()], "client_id": me["user_id"], "status": "pendente",
                        "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}}
     if body.status == "approved" and current:
         selection_query["updated_at"] = current.get("updated_at")
-    r = await db.requests.find_one_and_update(
-        selection_query,
-        {"$set": changes}, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if body.status == "approved" and current and current.get("wallet_reservation"):
+        real_guard()
+        r = await reserve_service(db, selection_query, changes, cents(changes["agreed_budget"] or 0),
+                                  changes.get("agreed_net_cents", 0), stamp)
+    else:
+        r = await db.requests.find_one_and_update(selection_query, {"$set": changes}, projection={"_id": 0},
+                                                  return_document=ReturnDocument.AFTER)
     if not r:
         raise HTTPException(409, "Candidatura indisponível ou ação não autorizada")
     conv = await get_or_create_conversation(r["client_id"], professional_id, rid)
@@ -659,6 +875,15 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     stamp = now_iso()
     update = {"status": body.status, "updated_at": stamp}
     before = await db.requests.find_one(query, {"_id": 0})
+    if before and before.get("attendance_policy_version") and before["status"] == "aceito" and before.get("attendance_due_at", "z") <= stamp:
+        await record_absence(db, rid)
+        raise HTTPException(409, "O prazo de 1 hora sem check-in terminou. A falta foi registrada; atualize os pedidos.")
+    if before and body.status in ("pendente", "cancelado"):
+        reason = body.reason.strip()
+        if len(reason) < 5:
+            raise HTTPException(422, "Informe o motivo com pelo menos 5 caracteres.")
+        update["last_cancellation"] = {"by": uid, "reason": reason, "at": stamp,
+                                       "previous_status": before["status"]}
     if body.status == "em_andamento":
         update.update({"check_in_at": stamp, "check_in_by": uid})
     if body.status == "concluido":
@@ -667,17 +892,35 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
             update["service_duration_seconds"] = max(0, int((datetime.fromisoformat(stamp) - datetime.fromisoformat(before["check_in_at"])).total_seconds()))
     if body.status == "pendente":
         update.update({"professional_id": None, "target_pro_id": None})
-    r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
-                                              return_document=ReturnDocument.AFTER)
+    if before and before.get("direct_invitation") and body.status == "pendente":
+        update.update(status="cancelado", target_pro_id=uid)
+    if before:
+        query["status"] = before["status"]
+        query["updated_at"] = before.get("updated_at")
+    funded_checkout = before and before.get("service_fund", {}).get("status") == "reserved" and body.status == "concluido"
+    if funded_checkout:
+        r = await checkout_service(db, query, update, stamp)
+    elif before and before.get("service_fund", {}).get("status") == "reserved" and body.status in ("pendente", "cancelado"):
+        if before.get("check_in_at"):
+            raise HTTPException(409, "O serviço já começou. Entre em contato com o suporte para cancelar.")
+        r = await refund_service(db, query, update, stamp)
+    else:
+        r = await db.requests.find_one_and_update(query, {"$set": update}, projection={"_id": 0},
+                                                  return_document=ReturnDocument.AFTER) if before else None
     if not r:
+        if body.status == "concluido":
+            finished = await db.requests.find_one({"id": rid, "professional_id": uid, "status": "concluido",
+                "service_fund.status": "released"}, {"_id": 0})
+            if finished:
+                return (await enrich_requests([finished], me.get("lat"), me.get("lng"), viewer_id=uid))[0]
         exists = await db.requests.find_one({"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 1})
         if not exists:
             raise HTTPException(404, "Pedido não encontrado")
         raise HTTPException(409, "Ação não permitida no status atual do pedido")
-    if body.status == "concluido":
+    if body.status == "concluido" and not funded_checkout:
         await db.users.update_one({"user_id": r["professional_id"]}, {"$inc": {"jobs_done": 1}})
     if body.status == "pendente":
-        await notify_request(before, "O profissional desistiu do pedido. Ele voltou para a fila de pedidos.")
+        await notify_request(before, "O profissional desistiu do pedido.")
     elif body.status in ("em_andamento", "concluido"):
         event = "Check-in registrado: serviço iniciado" if body.status == "em_andamento" else "Check-out registrado: serviço finalizado"
         await notify_request(r, f"{event}. Horário registrado: {stamp} (UTC). Consulte os detalhes no pedido.")
@@ -692,22 +935,26 @@ async def review_request(rid: str, body: ReviewIn, me: dict = Depends(onboarded)
     r = await db.requests.find_one({"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 0})
     if not r:
         raise HTTPException(404, "Pedido não encontrado")
-    if r["status"] != "concluido":
-        raise HTTPException(409, "Só é possível avaliar serviços concluídos")
+    if r["status"] != "concluido" or not r.get("check_out_at") or not r.get("professional_id") or r["professional_id"] == r["client_id"]:
+        raise HTTPException(409, "Só é possível avaliar serviços concluídos com outra pessoa após o check-out")
     is_client = r["client_id"] == uid
     side = "client_reviewed" if is_client else "pro_reviewed"
     target = r["professional_id"] if is_client else r["client_id"]
-    res = await db.requests.update_one({"id": rid, side: False}, {"$set": {side: True}})
-    if res.modified_count == 0:
-        raise HTTPException(409, "Você já avaliou este serviço")
     review = {"id": new_id(), "request_id": rid, "from_id": uid, "to_id": target, "rating": body.rating,
               "comment": body.comment.strip(), "category": r["category"], "created_at": now_iso()}
-    await db.reviews.insert_one(dict(review))
-    agg = await db.reviews.aggregate([{"$match": {"to_id": target}},
-                                      {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}}]).to_list(1)
-    if agg:
-        await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
-                                                                 "rating_count": agg[0]["n"]}})
+    async def save_review(session):
+        res = await db.requests.update_one({"id": rid, "status": "concluido", side: False},
+            {"$set": {side: True}}, session=session)
+        if res.modified_count == 0:
+            raise HTTPException(409, "Você já avaliou este serviço")
+        await db.reviews.insert_one(dict(review), session=session)
+        agg = await db.reviews.aggregate([{"$match": {"to_id": target}},
+            {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}}], session=session).to_list(1)
+        if agg:
+            await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
+                "rating_count": agg[0]["n"]}}, session=session)
+    async with await db.client.start_session() as session:
+        await session.with_transaction(save_review)
     return review
 
 
@@ -721,6 +968,17 @@ async def check_out_service(rid: str, me: dict = Depends(onboarded)):
     return await change_status(rid, StatusIn(status="concluido"), me)
 
 
+@api.post("/requests/{rid}/confirm-completion")
+async def confirm_service_completion(rid: str, me: dict = Depends(onboarded)):
+    funded = await db.requests.find_one({"id": rid, "service_fund.status": {"$in": ["reserved","released"]},
+        "$or": [{"client_id": me["user_id"]}, {"professional_id": me["user_id"]}]}, {"_id":1})
+    if funded:
+        result = await settle_service(db, rid, me["user_id"], now_iso(), confirm_completion)
+    else:
+        result = await confirm_completion(db.requests, rid, me["user_id"], now_iso())
+    return (await enrich_requests([result], viewer_id=me["user_id"]))[0]
+
+
 # ---------- conversations ----------
 async def conv_summaries(convs: list, uid: str) -> list:
     um = await users_map(p for c in convs for p in c["participants"] if p != uid)
@@ -728,8 +986,9 @@ async def conv_summaries(convs: list, uid: str) -> list:
     rm = {}
     if rids:
         docs = await db.requests.find({"id": {"$in": rids}}, {"_id": 0, "id": 1, "title": 1, "category": 1,
-                                                               "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
+                                                               "direct_invitation": 1, "target_pro_id": 1, "pricing_version": 1, "agreed_net_cents": 1, "agreed_budget": 1, "status": 1, "budget": 1, "client_id": 1, "professional_id": 1, "applications": 1, "expires_at": 1}).to_list(1000)
         for doc in docs:
+            present_request(doc, uid)
             applications = doc.pop("applications", [])
             doc["my_application"] = next((a for a in applications if a["professional_id"] == uid), None)
         rm = {d["id"]: d for d in docs}
@@ -828,7 +1087,7 @@ async def sync_conversation(cid: str, after: Optional[str] = None, mark_read: bo
             await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
                 {"$set": {f"unread.{uid}": 0}, "$max": {f"read_at.{uid}": seen}})
     summary = (await conv_summaries([conv], uid))[0]
-    return {"conversation": summary, "messages": messages, "cursor": cursor, "has_more": more,
+    return {"conversation": summary, "messages": [present_message(m, uid) for m in messages], "cursor": cursor, "has_more": more,
             "history_cursor": page_cursor(messages[0]["created_at"], messages[0]["id"]) if messages and not after else None,
             "has_history": not after and len(messages) == 50}
 
@@ -850,7 +1109,7 @@ async def list_messages(cid: str, after: Optional[str] = None, mark_read: bool =
         seen = msgs[-1]["created_at"] if msgs else now_iso()
         await db.conversations.update_one({"id": cid, "last_at": conv.get("last_at")},
             {"$set": {f"unread.{me['user_id']}": 0, f"read_at.{me['user_id']}": seen}})
-    return msgs
+    return [present_message(m, me["user_id"]) for m in msgs]
 
 
 @api.post("/conversations/{cid}/messages")
@@ -888,25 +1147,8 @@ async def send_encrypted_message(cid: str, body: Envelope, me: dict = Depends(on
 
 @api.post("/conversations/{cid}/encrypted-audio")
 async def send_encrypted_audio(cid: str, envelope: str = Form(..., max_length=20000), file: UploadFile = File(...), me: dict = Depends(onboarded)):
-    conv = await my_conversation(cid, me["user_id"])
-    try:
-        body = Envelope.model_validate_json(envelope)
-    except ValueError:
-        raise HTTPException(400, "Mensagem criptografada inválida")
-    await validate_envelope(db, conv, me["user_id"], body, "audio")
-    existing = await db.messages.find_one({"conversation_id": cid, "sender_id": me["user_id"], "client_id": body.header.client_id}, {"_id": 0})
-    if existing:
-        if existing.get("e2ee") != body.model_dump():
-            raise HTTPException(409, "Identificador já usado por outra mensagem")
-        return existing
-    data = await file.read(MAX_UPLOAD + 17)
-    if len(data) != body.attachment.size or len(data) > MAX_UPLOAD + 16 or hashlib.sha256(data).hexdigest() != body.attachment.sha256:
-        raise HTTPException(400, "Áudio criptografado incompleto ou alterado")
-    path = f"{APP_NAME}/audio/{me['user_id']}/{new_id()}.encrypted"
-    result = await run_in_threadpool(put_object, path, data, "application/octet-stream")
-    await db.files.insert_one({"id": new_id(), "storage_path": result["path"], "owner_id": me["user_id"],
-        "conversation_id": cid, "content_type": "application/octet-stream", "e2ee": True, "is_deleted": False, "created_at": now_iso()})
-    return await save_encrypted_message(conv, me, body, result["path"])
+    await my_conversation(cid, me["user_id"])
+    raise HTTPException(403, "Use mensagens de texto para manter os contatos dentro do ServiçoJá.")
 
 
 class TypingIn(BaseModel):
@@ -939,63 +1181,88 @@ async def read_audio(cid: str, mid: str, me: dict = Depends(onboarded)):
 
 @api.post("/conversations/{cid}/proposals")
 async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     conv = await my_conversation(cid, me["user_id"])
+    if has_contact(body.description + " " + body.deadline):
+        raise HTTPException(400, "Telefones e convites para WhatsApp são bloqueados.")
     if len(body.description.strip()) < 3:
         raise HTTPException(400, "Descreva o serviço da proposta")
     if conv.get("request_id"):
         request = await db.requests.find_one({"id": conv["request_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
-        if not request or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
+        if not request or request.get("direct_invitation") or request["client_id"] == me["user_id"] or request["client_id"] not in conv["participants"]:
             raise HTTPException(409, "A contraproposta deve ser enviada pelo trabalhador para uma vaga aberta")
-    return await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
-                             request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": round(body.amount, 2),
-                                       "deadline": body.deadline.strip(), "status": "pending"})
+    quote = {}
+    if conv.get("request_id") and request.get("pricing_version"):
+        quote["client_cents"] = client_quote(cents(body.amount))
+    msg = await add_message(conv, me["user_id"], "Contraproposta de valor", kind="proposal",
+                             request_id=conv.get("request_id"), proposal={"description": body.description.strip(), "amount": cents(body.amount) / 100,
+                                       "deadline": body.deadline.strip(), "status": "pending", **quote})
+    return present_message(msg, me["user_id"])
 
 
 @api.patch("/conversations/{cid}/proposals/{mid}")
 async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict = Depends(onboarded)):
     await my_conversation(cid, me["user_id"])
-    proposal_message = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "proposal"}, {"_id": 0})
-    if proposal_message and proposal_message.get("request_id") and body.status == "accepted":
-        if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
-            raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
-        rid = proposal_message["request_id"]
-        request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0})
-        if not request:
-            raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
-        applicant = proposal_message["sender_id"]
-        amount = proposal_message["proposal"]["amount"]
-        application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
-        query = {"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}
-        if application:
-            query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
-            change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}
-        else:
-            query["applications.professional_id"] = {"$ne": applicant}
-            change = {"$push": {"applications": {"professional_id": applicant, "status": "pending", "applied_at": now_iso(), "negotiated_budget": amount}}, "$set": {"updated_at": now_iso()}}
-        result = await db.requests.update_one(query, change)
-        if result.matched_count == 0:
-            raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
-    msg = await db.messages.find_one_and_update(
-        {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
-        {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"], "updated_at": now_iso()}},
-        projection={"_id": 0}, return_document=ReturnDocument.AFTER)
-    if not msg:
-        raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+    async def respond(session):
+        proposal_message = await db.messages.find_one({"id": mid, "conversation_id": cid, "kind": "proposal"}, {"_id": 0}, session=session)
+        if proposal_message and proposal_message.get("request_id") and body.status == "accepted":
+            if proposal_message.get("sender_id") == me["user_id"] or proposal_message["proposal"]["status"] != "pending":
+                raise HTTPException(409, "Esta contraproposta não pode ser aceita por você")
+            rid = proposal_message["request_id"]
+            request = await db.requests.find_one({"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}, {"_id": 0}, session=session)
+            if not request:
+                raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
+            applicant = proposal_message["sender_id"]
+            await enforce_attendance(db, applicant)
+            amount = proposal_message["proposal"]["amount"]
+            net = cents(amount)
+            priced = "client_cents" in proposal_message["proposal"]
+            if priced:
+                amount = proposal_message["proposal"]["client_cents"] / 100
+            application = next((a for a in request.get("applications", []) if a["professional_id"] == applicant), None)
+            query = {"id": rid, "client_id": me["user_id"], "status": "pendente", "$and": [vacancy_open_query()]}
+            if application:
+                query["applications"] = {"$elemMatch": {"professional_id": applicant, "status": "pending"}}
+                change = {"$set": {"applications.$.negotiated_budget": amount, "updated_at": now_iso()}}
+            else:
+                query["applications.professional_id"] = {"$ne": applicant}
+                change = {"$push": {"applications": {"professional_id": applicant, "status": "pending", "applied_at": now_iso(), "negotiated_budget": amount}}, "$set": {"updated_at": now_iso()}}
+            if priced:
+                if application:
+                    change["$set"]["applications.$.quote_net_cents"] = net
+                else:
+                    change["$push"]["applications"]["quote_net_cents"] = net
+            result = await db.requests.update_one(query, change, session=session)
+            if result.matched_count == 0:
+                raise HTTPException(409, "A vaga ou candidatura mudou. Atualize a conversa.")
+        msg = await db.messages.find_one_and_update(
+            {"id": mid, "conversation_id": cid, "kind": "proposal", "sender_id": {"$ne": me["user_id"]}, "proposal.status": "pending"},
+            {"$set": {"proposal.status": body.status, "proposal.responded_at": now_iso(), "proposal.responded_by": me["user_id"], "updated_at": now_iso()}},
+            projection={"_id": 0}, return_document=ReturnDocument.AFTER, session=session)
+        if not msg:
+            raise HTTPException(409, "Esta proposta já foi respondida ou não pode ser alterada por você")
+        return msg
+    async with await db.client.start_session() as session:
+        msg = await session.with_transaction(respond)
     await send_notice(db, msg["sender_id"], "Resposta à contraproposta", "Sua contraproposta foi aceita." if body.status == "accepted" else "Sua contraproposta foi recusada.", f"/chat/{cid}")
-    return msg
+    return present_message(msg, me["user_id"])
 
 
 # Never let identity backups, messages or authenticated responses enter browser/CDN caches.
 @app.middleware("http")
 async def private_api_cache(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/crypto/", "/api/conversations")):
+    if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "private, no-store"
-        response.headers["Vary"] = "Authorization, Cookie"
+        response.headers["Vary"] = ", ".join(filter(None, [response.headers.get("Vary"), "Authorization", "Cookie"]))
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
+app.include_router(registration_router(db, current_member))
+app.include_router(jobs_router(db))
+app.include_router(companies_router(db, onboarded))
+app.include_router(wallet_router(db, onboarded))
 app.include_router(api)
 app.include_router(clerk_router)
 
@@ -1011,6 +1278,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    await job_indexes(db)
+    await pix_indexes(db)
+    await db.requests.create_index([("status", 1), ("target_pro_id", 1), ("created_at", -1), ("id", -1)])
+    await db.requests.create_index([("status", 1), ("target_pro_id", 1), ("category", 1), ("created_at", -1), ("id", -1)])
+    await db.companies.create_index("owner_id")
+    await db.company_branches.create_index([("owner_id", 1), ("company_id", 1)])
+    await db.company_daily.create_index([("owner_id", 1), ("company_id", 1), ("service_date", 1)])
     await db.e2ee_identities.create_index("user_id", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.posts.create_index("id", unique=True)
@@ -1022,6 +1296,7 @@ async def startup():
     await db.messages.create_index([("conversation_id", 1), ("sender_id", 1), ("client_id", 1)], unique=True,
                                    partialFilterExpression={"client_id": {"$type": "string"}})
     await db.requests.create_index("applications.professional_id")
+    await db.requests.create_index([("professional_id", 1), ("status", 1), ("attendance_due_at", 1)])
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.push_subscriptions.create_index("endpoint", unique=True)
     await db.push_subscriptions.create_index("user_id")
@@ -1030,6 +1305,7 @@ async def startup():
     await db.files.create_index("storage_path")
     await db.rate_limits.create_index("expires_at", expireAfterSeconds=0)
     await db.users.create_index([("role", 1), ("lat", 1), ("lng", 1)])
+    await db.users.create_index([("last_seen", -1)])
     await db.users.create_index([("role", 1), ("categories", 1), ("lat", 1)])
     await db.requests.create_index([("status", 1), ("lat", 1), ("lng", 1)])
     await db.requests.create_index([("client_id", 1), ("created_at", -1)])

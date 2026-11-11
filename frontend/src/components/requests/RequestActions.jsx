@@ -1,10 +1,12 @@
 import { ApplicationsPanel } from "@/components/requests/ApplicationsPanel";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2, MessageCircle, Play, Star } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export const RequestActions = ({ request: r, onUpdated, onReview }) => {
@@ -12,6 +14,8 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
   const { me } = useMe();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(null);
+  const [cancellation, setCancellation] = useState(null);
+  const [reason, setReason] = useState("");
   const isClient = r.client_id === me.user_id;
   const isPro = r.professional_id === me.user_id;
   const otherId = isClient ? r.professional_id : r.client_id;
@@ -22,15 +26,27 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
     setBusy(status);
     try {
       const action = status === "em_andamento" ? "check-in" : status === "concluido" ? "check-out" : "status";
-      const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status } : {});
+      const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status, reason: reason.trim() } : {});
       onUpdated(data);
       toast.success(label);
-      if (status === "concluido") onReview(data);
+      setCancellation(null);
+      setReason("");
+
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
       setBusy(null);
     }
+  };
+  const confirm = async () => {
+    if (busy) return;
+    setBusy("confirm");
+    try {
+      const { data } = await api.post(`/requests/${r.id}/confirm-completion`, {});
+      onUpdated(data);
+      toast.success("Sua confirmação foi registrada. Nenhum pagamento foi movimentado.");
+    } catch (e) { toast.error(errMsg(e)); }
+    finally { setBusy(null); }
   };
   const chat = async () => {
     try {
@@ -44,11 +60,40 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
 
   return (
     <>
+      <Dialog open={!!cancellation} onOpenChange={(open) => { if (!open && !busy) setCancellation(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{cancellation === "pendente" ? "Desistir do serviço?" : "Cancelar pedido?"}</DialogTitle>
+            <DialogDescription>
+              {cancellation === "pendente" ? "Sua participação será encerrada. O contratante poderá escolher outro profissional." : "O pedido será encerrado e não receberá novas candidaturas."}
+              {r.payment_status === "reserved" && !r.check_in_at ? " O saldo reservado será devolvido à carteira do contratante." : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <label htmlFor={`cancel-reason-${r.id}`} className="text-sm font-medium">Motivo</label>
+          <Textarea id={`cancel-reason-${r.id}`} value={reason} onChange={e => setReason(e.target.value)} maxLength={500} disabled={!!busy} placeholder="Explique o motivo (mínimo de 5 caracteres)" />
+          <p className="text-xs text-muted-foreground">O motivo ficará registrado no pedido para as partes envolvidas.</p>
+          <Button variant="outline" disabled={!!busy} onClick={() => setCancellation(null)}>Manter serviço</Button>
+          <Button disabled={!!busy || reason.trim().length < 5} onClick={() => run(cancellation, cancellation === "pendente" ? "Desistência registrada" : "Pedido cancelado")}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar {cancellation === "pendente" ? "desistência" : "cancelamento"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      {r.last_cancellation && (isClient || isPro) && <p className="w-full text-sm text-muted-foreground">Último cancelamento ou desistência: {r.last_cancellation.reason}</p>}
+      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={r.payment_status ? "/carteira#extrato" : `/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{!r.payment_status && isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
       {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
         </Button>
+      )}
+      {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && (
+        <ol aria-label="Etapas do serviço" className="my-2 grid w-full grid-cols-3 gap-2 text-center text-xs">
+          {[["aceito", "Check-in"], ["em_andamento", "Em andamento"], ["concluido", "Finalizado"]].map(([status, label], index) => (
+            <li key={status} aria-current={r.status === status ? "step" : undefined} className={r.status === status ? "border-t-2 border-foreground pt-2 font-bold" : "border-t border-border pt-2 text-muted-foreground"}>
+              {index + 1}. {label}
+            </li>
+          ))}
+        </ol>
       )}
       {isPro && r.status === "aceito" && <p className="w-full text-sm text-emerald-600">Serviço aprovado pelo contratante. Faça check-in ao chegar ao local.</p>}
       {isPro && r.status === "aceito" && (
@@ -58,18 +103,28 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       )}
       {isPro && r.status === "em_andamento" && (
         <Button disabled={!!busy} className="rounded-none" onClick={() => run("concluido", "Check-out registrado: serviço finalizado!")} data-testid="complete-service-button">
-          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} Check-out · Finalizar
+          {spin("concluido") || <CheckCircle2 className="h-4 w-4" />} {r.payment_status === "reserved" ? "Check-out · Finalizar e receber" : "Check-out · Finalizar"}
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => { setReason(""); setCancellation("pendente"); }} data-testid="release-service-button">
           Desistir
         </Button>
       )}
-      {isClient && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
-        <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
+      {isClient && !(r.payment_status === "reserved" && r.check_in_at) && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => { setReason(""); setCancellation("cancelado"); }} data-testid="cancel-service-button">
           Cancelar
         </Button>
+      )}
+      {r.status === "concluido" && r.check_out_at && r.payment_status === "released" && (isClient || isPro) && <p className="text-sm">Pagamento liberado na carteira do profissional.</p>}
+      {r.status === "concluido" && r.check_out_at && r.payment_status !== "released" && (isClient || isPro) && (
+        <div className="w-full border border-border bg-card p-4 space-y-3">
+          <p className="text-sm">{r.completion_confirmed_at ? "Conclusão confirmada pelos dois." : "A conclusão precisa da confirmação das duas pessoas."}</p>
+          {(r.completion_confirmations || []).includes(me.user_id)
+            ? <p className="text-sm text-muted-foreground">Sua confirmação já foi registrada.</p>
+            : <Button disabled={!!busy} variant="outline" onClick={confirm} data-testid="confirm-completion-button">{spin("confirm")} Confirmar conclusão</Button>}
+          <p className="text-xs text-muted-foreground">{r.payment_status ? "Quando os dois confirmarem, o valor combinado será liberado na carteira do profissional." : "As duas partes confirmam a conclusão do serviço."}</p>
+        </div>
       )}
       {r.status === "concluido" && otherId && !reviewed && (
         <Button disabled={!!busy} className="rounded-none bg-amber-500 text-black hover:bg-amber-600" onClick={() => onReview(r)} data-testid="rate-service-button">

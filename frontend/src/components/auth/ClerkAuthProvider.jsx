@@ -1,3 +1,5 @@
+import { authLocalization } from "@/lib/authLocalization";
+import { Logo } from "@/components/common/Misc";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClerkProvider } from "@clerk/react";
@@ -54,33 +56,59 @@ export default function ClerkAuthProvider({ children }) {
   const appearance = resolvedTheme === "light" ? lightAppearance : darkAppearance;
   const [config, setConfig] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   // Retries while the backend restarts (e.g. right after provisioning): the app's
   // Clerk components crash if they ever render without <ClerkProvider>.
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false, retryTimer, timeout, controller;
+    setUnavailable(false);
     const load = async (attempt = 0) => {
+      controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const cfg = await (await fetch(`${BACKEND_URL}/api/clerk/config`)).json();
-        if (cfg.enabled) return cancelled || setConfig(cfg);
+        const response = await fetch(`${BACKEND_URL}/api/clerk/config`, { signal: controller.signal });
+        if (!response.ok) throw new Error("Access unavailable");
+        const cfg = await response.json();
+        if (cfg.enabled && typeof cfg.publishable_key === "string" && cfg.publishable_key) {
+          if (!cancelled) setConfig(cfg);
+          return;
+        }
       } catch {}
+      finally { clearTimeout(timeout); }
       if (cancelled) return;
-      if (attempt >= 20) return setUnavailable(true);
-      setTimeout(() => load(attempt + 1), 1500);
+      if (attempt >= 3) return setUnavailable(true);
+      retryTimer = setTimeout(() => load(attempt + 1), 1000 * 2 ** attempt);
     };
     load();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelled = true; clearTimeout(retryTimer); clearTimeout(timeout); controller?.abort(); };
+  }, [retry]);
 
-  if (unavailable) return <p role="alert" style={{ padding: 24 }}>O acesso está temporariamente indisponível. Tente novamente em instantes.</p>;
-  if (!config) return null;
+  function navigateAuth(to, replace = false) {
+    const dest = new URL(to, window.location.origin);
+    if (!["https:", "http:"].includes(dest.protocol)) return;
+    if (dest.origin !== window.location.origin) {
+      if (replace) window.location.replace(dest.href);
+      else window.location.assign(dest.href);
+    } else {
+      navigate(dest.pathname + dest.search + dest.hash, { replace });
+    }
+  }
+  if (!config) return <div className="auth-loading">
+    <Logo />
+    {unavailable ? <><h1>Vamos tentar novamente?</h1>
+      <p role="alert">Não foi possível carregar o acesso. Confira sua conexão e tente de novo.</p>
+      <button type="button" onClick={() => setRetry(value => value + 1)}>Tentar novamente</button>
+    </> : <p role="status" aria-live="polite">Preparando seu acesso ao ServiçoJá…</p>}
+  </div>;
   return (
     <ClerkProvider
       publishableKey={config.publishable_key}
       proxyUrl={config.proxy_url || undefined}
       appearance={appearance}
-      routerPush={(to) => navigate(to)}
-      routerReplace={(to) => navigate(to, { replace: true })}
+      localization={authLocalization}
+      routerPush={(to) => navigateAuth(to)}
+      routerReplace={(to) => navigateAuth(to, true)}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/"

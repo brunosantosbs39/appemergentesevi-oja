@@ -10,6 +10,17 @@ import pytest
 from starlette.datastructures import Headers, UploadFile
 
 
+@pytest.fixture(autouse=True)
+def allow_attendance_for_migration_tests(monkeypatch):
+    # Attendance has dedicated real-Mongo integration tests; these fixtures focus
+    # on migration, authorization and role compatibility with small database fakes.
+    from unittest.mock import AsyncMock
+    monkeypatch.setenv("MONGO_URL", "mongodb://localhost:27017")
+    with patch("motor.motor_asyncio.AsyncIOMotorClient"):
+        server = importlib.import_module("backend.server")
+    monkeypatch.setattr(server, "enforce_attendance", AsyncMock())
+
+
 def test_blob_adapter_keeps_storage_path_and_private_access(monkeypatch):
     from backend import storage
     from vercel.blob import sync as blob
@@ -57,20 +68,20 @@ def test_profile_cover_validates_owner_and_supports_removal(monkeypatch):
     monkeypatch.setenv("MONGO_URL", "mongodb://localhost:27017")
     with patch("motor.motor_asyncio.AsyncIOMotorClient"):
         server = importlib.import_module("backend.server")
-    member = {"user_id": "owner", "role": "contratante"}
+    member = {"user_id": "owner", "role": "contratante", "registration_completed_at": "2026-01-01", "address": {"city":"Test"}, "email":"owner@example.com"}
     users = SimpleNamespace(update_one=AsyncMock(), find_one=AsyncMock(return_value={**member, "cover": "image-path"}))
     monkeypatch.setattr(server, "db", SimpleNamespace(users=users))
     validate = AsyncMock()
     monkeypatch.setattr(server, "check_image", validate)
     result = asyncio.run(server.update_me(server.ProfileUpdate(cover="image-path"), member))
     validate.assert_awaited_once_with("image-path", "owner")
-    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": "image-path"}})
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": "image-path", "role": "membro"}})
     assert result["cover"] == "image-path"
     assert server.PUBLIC["cover"] == 1
     validate.reset_mock()
     asyncio.run(server.update_me(server.ProfileUpdate(cover=None), member))
     validate.assert_not_awaited()
-    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": None}})
+    users.update_one.assert_awaited_with({"user_id": "owner"}, {"$set": {"cover": None, "role": "membro"}})
     validate.side_effect = server.HTTPException(403, "Arquivo não autorizado")
     users.update_one.reset_mock()
     with pytest.raises(server.HTTPException):
@@ -87,6 +98,19 @@ def test_presence_expires_and_handles_legacy_profiles(monkeypatch):
     assert server.with_presence({"last_seen": (datetime.now(timezone.utc) - timedelta(seconds=76)).isoformat()})["is_online"] is False
 
 
+def proposal_db(**collections):
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+
+    @asynccontextmanager
+    async def session_context():
+        async def with_transaction(callback):
+            return await callback(object())
+        yield SimpleNamespace(with_transaction=with_transaction)
+
+    return SimpleNamespace(client=SimpleNamespace(start_session=AsyncMock(side_effect=session_context)), **collections)
+
+
 def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     from unittest.mock import AsyncMock
     from pydantic import ValidationError
@@ -99,7 +123,7 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
     monkeypatch.setattr(server, "add_message", message)
     files = SimpleNamespace(insert_one=AsyncMock(), find_one=AsyncMock(return_value={"conversation_id": "chat"}))
     messages = SimpleNamespace(find_one=AsyncMock(return_value={"audio_path": "private/audio"}), find_one_and_update=AsyncMock(return_value={"id": "proposal", "sender_id": "recipient"}))
-    monkeypatch.setattr(server, "db", SimpleNamespace(files=files, messages=messages))
+    monkeypatch.setattr(server, "db", proposal_db(files=files, messages=messages))
     monkeypatch.setattr(server, "put_object", Mock(return_value={"path": "private/audio"}))
     monkeypatch.setattr(server, "get_object", Mock(return_value=(b"audio", "audio/webm")))
     file = UploadFile(filename="voice.webm", file=io.BytesIO(b"audio"), headers=Headers({"content-type": "audio/webm;codecs=opus"}))
@@ -119,6 +143,7 @@ def test_chat_audio_and_proposals_enforce_conversation_membership(monkeypatch):
         server.ProposalIn(description="Service", amount=float("nan"))
     asyncio.run(server.send_proposal("chat", server.ProposalIn(description=" Pintura ", amount=125.5, deadline="Sexta"), member))
     assert message.call_args.kwargs["proposal"]["status"] == "pending"
+    monkeypatch.setattr(server, "send_notice", AsyncMock())
     asyncio.run(server.respond_proposal("chat", "proposal", server.ProposalStatusIn(status="accepted"), member))
     query = messages.find_one_and_update.call_args.args[0]
     assert query["sender_id"] == {"$ne": "sender"}
@@ -143,11 +168,13 @@ def test_check_in_out_records_server_time_and_rejects_invalid_transitions(monkey
     member = {"user_id": "pro", "role": "profissional"}
     state = {"id": "job", "status": "aceito", "client_id": "client", "professional_id": "pro"}
     async def find_one(query, projection):
+        if isinstance(query.get("status"), str):
+            return None
         if "$or" in query:
             return dict(state) if any(state.get(key) == val for part in query["$or"] for key, val in part.items()) else None
         return dict(state) if state["status"] in query["status"]["$in"] and state["professional_id"] == query.get("professional_id") else None
     async def update(query, changes, **kwargs):
-        if state["status"] not in query["status"]["$in"] or state["professional_id"] != query.get("professional_id"):
+        if state["status"] not in (query["status"]["$in"] if isinstance(query["status"], dict) else [query["status"]]) or state["professional_id"] != query.get("professional_id"):
             return None
         state.update(changes["$set"])
         return dict(state)
@@ -217,6 +244,8 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
     async def find(query, projection):
         if "status" not in query and "client_id" in query:
             return copy.deepcopy(state) if query["client_id"] == state["client_id"] else None
+        if isinstance(query.get("status"), str):
+            return None
         if "$or" in query:
             return copy.deepcopy(state) if any(state.get(k) == v for part in query["$or"] for k, v in part.items()) else None
         if state["status"] in query["status"]["$in"] and state.get("professional_id") == query.get("professional_id"):
@@ -240,7 +269,7 @@ def test_application_approval_is_required_for_attendance_and_only_owner_selects(
             for key, value in changes["$set"].items():
                 if key.startswith("applications.$."):
                     candidate[key.split(".")[-1]] = value
-        elif state["status"] not in query["status"]["$in"] or state.get("professional_id") != query.get("professional_id"):
+        elif state["status"] not in (query["status"]["$in"] if isinstance(query["status"], dict) else [query["status"]]) or state.get("professional_id") != query.get("professional_id"):
             return None
         state.update({k: v for k, v in changes["$set"].items() if not k.startswith("applications.$.")})
         return copy.deepcopy(state)
@@ -282,7 +311,8 @@ def test_accepted_counterproposal_attaches_new_price_to_candidate(monkeypatch):
     requests = SimpleNamespace(find_one=AsyncMock(return_value=request), update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1)))
     messages = SimpleNamespace(find_one=AsyncMock(return_value=proposal), find_one_and_update=AsyncMock(return_value={**proposal, "proposal": {"status": "accepted", "amount": 250}}))
     monkeypatch.setattr(server, "my_conversation", AsyncMock())
-    monkeypatch.setattr(server, "db", SimpleNamespace(requests=requests, messages=messages))
+    monkeypatch.setattr(server, "db", proposal_db(requests=requests, messages=messages))
+    monkeypatch.setattr(server, "send_notice", AsyncMock())
     result = asyncio.run(server.respond_proposal("chat", "offer", server.ProposalStatusIn(status="accepted"), {"user_id": "owner"}))
     assert result["proposal"]["status"] == "accepted"
     change = requests.update_one.call_args.args[1]
@@ -310,8 +340,7 @@ def test_portfolio_and_publications_have_separate_lifetimes(monkeypatch):
     assert publication["expires_at"] == expiry.isoformat()
     with pytest.raises(server.HTTPException):
         server.expiration_iso(datetime.now(timezone.utc) - timedelta(seconds=1))
-    with pytest.raises(server.HTTPException):
-        asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image"), {"user_id": "client", "role": "contratante"}))
+    assert asyncio.run(server.create_post(server.PostCreate(kind="portfolio", image="image"), {"user_id": "client", "role": "contratante"}))["kind"] == "portfolio"
 
 
 def test_web_push_subscription_validation_and_delivery(monkeypatch):
@@ -326,12 +355,17 @@ def test_web_push_subscription_validation_and_delivery(monkeypatch):
         with pytest.raises(notices.HTTPException):
             notices.validate_subscription({"endpoint": endpoint, "keys": keys})
     cursor = SimpleNamespace(to_list=AsyncMock(return_value=[{"endpoint": subscription["endpoint"], "subscription": subscription}]))
-    db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock()), push_subscriptions=SimpleNamespace(find=Mock(return_value=cursor), delete_one=AsyncMock()))
+    db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock(), update_one=AsyncMock()), push_subscriptions=SimpleNamespace(find=Mock(return_value=cursor), delete_one=AsyncMock()))
     monkeypatch.setenv("VAPID_PRIVATE_KEY", "test-key")
     send = Mock()
     monkeypatch.setattr(pywebpush, "webpush", send)
     asyncio.run(notices.send_notice(db, "recipient", "Nova mensagem", "Atualização", "/chat/chat"))
     assert db.notifications.insert_one.call_args.args[0]["user_id"] == "recipient"
+    send.assert_not_called()  # Delivery is persisted, not sent during the request.
+    notice = db.notifications.insert_one.call_args.args[0]
+    notice["_id"] = "notice-test"
+    notice["delivery"]["token"] = "worker-test"
+    asyncio.run(notices.push_job(db, notice))
     assert send.call_args.kwargs["subscription_info"] == subscription
     assert send.call_args.kwargs["ttl"] == 3600
     send.side_effect = RuntimeError("unavailable")
@@ -430,7 +464,7 @@ def test_professional_can_hire_without_changing_profile(monkeypatch):
         return items
     monkeypatch.setattr(server, "enrich_requests", enrich)
     member = {"user_id": "plumber", "role": "profissional"}
-    result = asyncio.run(server.create_request(server.RequestCreate(category="pintor", title="Pintar minha casa", lat=-16.6, lng=-49.2), member))
+    result = asyncio.run(server.create_request(server.RequestCreate(category="pintor", title="Pintar minha casa", lat=-16.6, lng=-49.2), background_tasks=server.BackgroundTasks(), me=member))
     assert result["client_id"] == "plumber"
     assert result["professional_id"] is None
     assert result["status"] == "pendente"

@@ -19,7 +19,7 @@ export const StatusBadge = ({ status, testid = "service-status-badge" }) => {
 };
 
 export const EmptyState = ({ icon: Icon, title, text, action, testid }) => (
-  <div data-testid={testid} className="flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-14 text-center">
+  <div data-testid={testid} className="sj-empty-state flex flex-col items-center justify-center rounded-none border border-dashed border-border bg-card px-6 py-14 text-center">
     {Icon && (
       <div className="mb-4 grid h-14 w-14 place-items-center rounded-none bg-muted text-foreground">
         <Icon className="h-6 w-6" />
@@ -32,11 +32,11 @@ export const EmptyState = ({ icon: Icon, title, text, action, testid }) => (
 );
 
 export const PageHeader = ({ eyebrow, title, subtitle, children }) => (
-  <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-    <div>
+  <header className="sj-page-header mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="min-w-0">
       {eyebrow && <p className="font-mono text-[11px] font-medium uppercase tracking-widest text-foreground">{eyebrow}</p>}
       <h1 className="mt-1 font-heading text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">{title}</h1>
-      {subtitle && <p className="mt-1 text-sm text-muted-foreground sm:text-base">{subtitle}</p>}
+      {subtitle && <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">{subtitle}</p>}
     </div>
     {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
   </header>

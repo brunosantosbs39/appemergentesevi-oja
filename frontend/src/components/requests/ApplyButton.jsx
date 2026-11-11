@@ -1,3 +1,4 @@
+import { ProposalDialog } from "@/components/chat/ProposalDialog";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -13,19 +14,32 @@ export const ApplyButton = ({ request, onApplied }) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [proposalChat, setProposalChat] = useState(null);
   if (request.client_id === me.user_id || request.status !== "pendente" || request.is_expired || request.expires_at && new Date(request.expires_at) <= new Date()) return null;
+  const direct = request.direct_invitation && request.target_pro_id === me.user_id;
   const apply = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      const { data } = await api.post(`/requests/${request.id}/apply`);
+      const { data } = await api.post(`/requests/${request.id}/${direct ? "direct-accept" : "apply"}`);
       setApplied(true); onApplied?.(data.request);
-      toast.success("Candidatura enviada pelo valor anunciado. Aguarde aprovação do contratante.");
+      toast.success(direct ? "Pedido aceito." : "Candidatura enviada pelo valor anunciado. Aguarde aprovação do contratante.");
       navigate(`/chat/${data.conversation_id}`);
     } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
   };
-  return <Button type="button" disabled={busy || applied || !!request.my_application} onClick={apply} className="mt-3 h-auto min-h-11 w-full whitespace-normal" data-testid="vacancy-apply-button">
+  const openProposal = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post("/conversations", { user_id: request.client_id, request_id: request.id });
+      setProposalChat(data.id);
+    } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
+  };
+  return <>{!direct && !applied && !request.my_application && <>
+    <Button type="button" variant="outline" disabled={busy} onClick={openProposal} className="mt-3 w-full">Fazer contraproposta</Button>
+    {proposalChat && <ProposalDialog open conversationId={proposalChat} onOpenChange={() => setProposalChat(null)} onSent={() => { toast.success("Contraproposta enviada."); navigate("/chat/" + proposalChat); }} />}
+  </>}<Button type="button" disabled={busy || applied || !!request.my_application} onClick={apply} className="mt-3 h-auto min-h-11 w-full whitespace-normal" data-testid="vacancy-apply-button">
     {busy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
-    {applied || request.my_application ? "Candidatura enviada" : `Candidatar-se${request.budget != null ? ` por ${brl(request.budget)}` : " à vaga"}`}
-  </Button>;
+    {direct ? (applied ? "Pedido aceito" : "Aceitar pedido por " + brl(request.budget)) : applied || request.my_application ? "Candidatura enviada" : `Candidatar-se${request.budget != null ? ` por ${brl(request.budget)}` : " à vaga"}`}
+  </Button></>;
 };

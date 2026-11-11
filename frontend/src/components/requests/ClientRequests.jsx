@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardList, Loader2, Plus } from "lucide-react";
 import { useMe } from "@/context/MeContext";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export const RequestList = ({ items, empty, onUpdated, onReview, me }) => {
 
 export const ClientRequests = () => {
   const { me } = useMe();
-  const { items, setItems, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
+  const { items, setItems, error, reload, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
   const [open, setOpen] = useState(false);
   const [reviewReq, setReviewReq] = useState(null);
   const mine = items?.filter((r) => r.client_id === me.user_id) ?? null;
@@ -37,11 +37,25 @@ export const ClientRequests = () => {
       <Plus className="h-4 w-4" /> Novo pedido
     </Button>
   );
+  useEffect(() => {
+    if (reviewReq) return;
+    const pending = items?.find(r => r.status === "concluido" && r.check_out_at &&
+      (r.client_id === me.user_id ? !r.client_reviewed : r.professional_id === me.user_id && !r.pro_reviewed) &&
+      !sessionStorage.getItem("review-prompt:" + me.user_id + ":" + r.id));
+    if (pending) {
+      sessionStorage.setItem("review-prompt:" + me.user_id + ":" + pending.id, "1");
+      setReviewReq(pending);
+    }
+  }, [items, me.user_id, reviewReq]);
   const props = { me, onUpdated: update, onReview: setReviewReq };
 
   return (
     <div>
       <PageHeader eyebrow="Quero contratar" title="Meus pedidos" subtitle="Publique uma vaga, analise as candidaturas e aprove o profissional que irá atender.">{newBtn}</PageHeader>
+      {error && <div role="alert" className="mb-4 border border-border bg-card p-4 text-sm">
+        <p>Não foi possível atualizar seus pedidos. Os dados já carregados foram mantidos.</p>
+        <Button type="button" variant="outline" className="mt-2" onClick={reload}>Tentar novamente</Button>
+      </div>}
       <Tabs defaultValue="ativos">
         <TabsList className="rounded-none bg-muted/70 p-1">
           <TabsTrigger value="ativos" className="rounded-none px-5" data-testid="client-tab-active">Ativos {active ? `(${active.length})` : ""}</TabsTrigger>
@@ -56,7 +70,7 @@ export const ClientRequests = () => {
       </Tabs>
       {hasMore && <Button type="button" variant="outline" disabled={loadingMore} className="mt-5" onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar mais pedidos e histórico"}</Button>}
       <CreateRequestDialog open={open} onOpenChange={setOpen} onCreated={(r) => setItems((prev) => [r, ...(prev || [])])} />
-      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, "client_reviewed")} />
+      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, reviewReq.client_id === me.user_id ? "client_reviewed" : "pro_reviewed")} />
     </div>
   );
 };
