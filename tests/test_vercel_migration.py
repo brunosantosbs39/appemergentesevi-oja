@@ -10,6 +10,17 @@ import pytest
 from starlette.datastructures import Headers, UploadFile
 
 
+@pytest.fixture(autouse=True)
+def allow_attendance_for_migration_tests(monkeypatch):
+    # Attendance has dedicated real-Mongo integration tests; these fixtures focus
+    # on migration, authorization and role compatibility with small database fakes.
+    from unittest.mock import AsyncMock
+    monkeypatch.setenv("MONGO_URL", "mongodb://localhost:27017")
+    with patch("motor.motor_asyncio.AsyncIOMotorClient"):
+        server = importlib.import_module("backend.server")
+    monkeypatch.setattr(server, "enforce_attendance", AsyncMock())
+
+
 def test_blob_adapter_keeps_storage_path_and_private_access(monkeypatch):
     from backend import storage
     from vercel.blob import sync as blob

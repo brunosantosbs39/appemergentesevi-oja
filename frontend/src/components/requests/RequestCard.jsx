@@ -74,6 +74,11 @@ export const RequestCard = ({ request: r, me, children }) => {
       )}
       {!iAmClient && r.status === "pendente" && !r.direct_invitation && <ContactButton userId={r.client_id} requestId={r.id} label="Conversar com o anunciante" className="mt-4 w-full" testid="vacancy-chat-button" />}
       <ApplyButton request={r} />
+      {r.attendance_policy_version && <div className="mt-3 border border-border p-3 text-xs space-y-1">
+        <p>Início combinado: {new Date(r.service_start_at).toLocaleString("pt-BR")} (horário deste aparelho).</p>
+        <p>Tolerância: 15 min. Sem check-in após 1 hora: bloqueio por 24 horas na primeira falta; 30 dias a partir da segunda.</p>
+        {r.no_show_at && <p className="font-semibold">Cancelado por falta de check-in. O saldo reservado, quando existente, retorna ao contratante.</p>}
+      </div>}
       <ServiceAttendance request={r} />
       {children && <div className="mt-4 flex flex-wrap gap-2">{children}</div>}
     </article>

@@ -17,7 +17,7 @@ def pending():
     return {"state": "ready", "available_at": now(), "attempts": 0}
 
 async def indexes(db):
-    for name, field in (("requests", "alert_job"), ("notifications", "delivery"), ("pix_deposits", "sync_job")):
+    for name, field in (("requests", "attendance_job"), ("requests", "alert_job"), ("notifications", "delivery"), ("pix_deposits", "sync_job")):
         await db[name].create_index([(field + ".state", 1), (field + ".available_at", 1)])
         await db[name].create_index([(field + ".state", 1), (field + ".lease_until", 1)])
 
@@ -83,17 +83,20 @@ async def drain(db, maximum=6):
         return {"processed": 0}
     try:
         try:
+            from backend.attendance import attendance_job
             from backend.opportunities import opportunity_batch
             from backend.notifications import push_job
         except ModuleNotFoundError:
+            from attendance import attendance_job
             from opportunities import opportunity_batch
             from notifications import push_job
         processed = 0
         # Round robin: fan-out cannot starve push or payment reconciliation.
-        handlers = [("requests", "alert_job", opportunity_batch),
+        handlers = [("requests", "attendance_job", attendance_job),
+                    ("requests", "alert_job", opportunity_batch),
                     ("notifications", "delivery", push_job),
                     ("pix_deposits", "sync_job", reconcile_job)]
-        for _ in range(maximum // 3):
+        for _ in range(max(1, maximum // len(handlers))):
             for args in handlers:
                 processed += int(await process_one(db, *args))
         return {"processed": processed}

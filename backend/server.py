@@ -26,6 +26,7 @@ try:  # launched as `backend.server`
     from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from backend.production_wallet import indexes as pix_indexes
     from backend.opportunities import notify_opportunity
+    from backend.attendance import schedule as attendance_schedule, acceptance as attendance_acceptance, enforce as enforce_attendance, absent as record_absence
     from backend.chat_contact import has_contact
     from backend.pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
     from backend.service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
@@ -44,6 +45,7 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
     from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from production_wallet import indexes as pix_indexes
     from opportunities import notify_opportunity
+    from attendance import schedule as attendance_schedule, acceptance as attendance_acceptance, enforce as enforce_attendance, absent as record_absence
     from chat_contact import has_contact
     from pricing import Pricing, cents, worker_offer, client_quote, present_message, present_request
     from service_funds import approve as reserve_service, refund as refund_service, checkout as checkout_service, settle as settle_service
@@ -208,6 +210,7 @@ class ProposalStatusIn(BaseModel):
 
 
 class RequestCreate(Pricing):
+    service_utc_offset_minutes: int = Field(-180, ge=-720, le=840)
     service_time: Optional[str] = Field(None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
     category_detail: str = Field("", max_length=100)
     company_id: Optional[str] = None
@@ -327,6 +330,17 @@ async def root():
 @api.get("/me")
 async def get_me(me: dict = Depends(current_member)):
     return {**me, "registration_complete": registration_complete(me)}
+
+
+@api.get("/me/attendance")
+async def attendance_status(me: dict = Depends(current_member)):
+    try:
+        await enforce_attendance(db, me["user_id"])
+    except HTTPException as error:
+        if error.status_code != 403:
+            raise
+    user = await db.users.find_one({"user_id":me["user_id"]}, {"_id":0,"attendance_absences":1,"attendance_blocked_until":1})
+    return user or {}
 
 
 @api.post("/me/presence")
@@ -520,6 +534,7 @@ async def regional_feed(category: Optional[str] = None, before: Optional[str] = 
 
 @api.post("/posts")
 async def create_post(body: PostCreate, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     await check_image(body.image, me["user_id"])
     if body.category and body.category not in CATEGORIES:
         raise HTTPException(400, "Categoria inválida")
@@ -623,6 +638,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
     ids += [a["professional_id"] for r in items if r.get("client_id") == viewer_id for a in r.get("applications", [])]
     um = await users_map(ids)
     for r in items:
+        r.pop("attendance_job", None)
         r.pop("alert_job", None)
         if viewer_id not in (r.get("client_id"), r.get("professional_id")):
             r.pop("last_cancellation", None)
@@ -649,6 +665,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
 
 @api.post("/requests")
 async def create_request(body: RequestCreate, background_tasks: BackgroundTasks, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     if body.branch_id and not body.company_id:
         raise HTTPException(400, "Selecione a empresa da filial")
     if body.company_id:
@@ -678,6 +695,7 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     doc = {"id": new_id(), "client_id": me["user_id"], "professional_id": None, **body.model_dump(),
            "status": "pendente", "client_reviewed": False, "pro_reviewed": False,
            "created_at": now_iso(), "updated_at": now_iso()}
+    doc.update(attendance_schedule(body.service_date, body.service_time, body.service_utc_offset_minutes))
     doc["direct_invitation"] = bool(body.target_pro_id)
     doc["pricing_version"] = 1
     doc["wallet_reservation"] = real_selected()
@@ -755,6 +773,7 @@ async def get_request(rid: str, me: dict = Depends(onboarded)):
 
 @api.post("/requests/{rid}/direct-accept")
 async def accept_direct_invitation(rid: str, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     uid = me["user_id"]
     query = {"id": rid, "direct_invitation": True, "status": "pendente", "target_pro_id": uid,
              "client_id": {"$ne": uid}}
@@ -766,6 +785,7 @@ async def accept_direct_invitation(rid: str, me: dict = Depends(onboarded)):
     stamp = now_iso()
     changes = {"status":"aceito", "professional_id":uid, "agreed_budget":gross / 100,
                "agreed_net_cents":net, "accepted_at":stamp, "updated_at":stamp}
+    changes.update(attendance_acceptance(invite))
     if invite.get("wallet_reservation"):
         real_guard()
         try:
@@ -787,6 +807,7 @@ async def accept_direct_invitation(rid: str, me: dict = Depends(onboarded)):
 @api.post("/requests/{rid}/accept")
 @api.post("/requests/{rid}/apply")
 async def accept_request(rid: str, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     uid = me["user_id"]
     application = {"professional_id": uid, "status": "pending", "applied_at": now_iso()}
     r = await db.requests.find_one_and_update(
@@ -811,7 +832,11 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
     stamp = now_iso()
     changes = {"applications.$.status": body.status, "applications.$.responded_at": stamp, "updated_at": stamp}
     if body.status == "approved":
+        await enforce_attendance(db, professional_id)
+        await enforce_attendance(db, me["user_id"])
         current = await db.requests.find_one({"id": rid, "client_id": me["user_id"]}, {"_id": 0})
+        if current:
+            changes.update(attendance_acceptance(current))
         candidate = next((a for a in (current or {}).get("applications", []) if a["professional_id"] == professional_id), {})
         changes["agreed_budget"] = candidate.get("negotiated_budget", (current or {}).get("budget"))
         if current and current.get("pricing_version") and changes["agreed_budget"] is not None:
@@ -850,6 +875,9 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     stamp = now_iso()
     update = {"status": body.status, "updated_at": stamp}
     before = await db.requests.find_one(query, {"_id": 0})
+    if before and before.get("attendance_policy_version") and before["status"] == "aceito" and before.get("attendance_due_at", "z") <= stamp:
+        await record_absence(db, rid)
+        raise HTTPException(409, "O prazo de 1 hora sem check-in terminou. A falta foi registrada; atualize os pedidos.")
     if before and body.status in ("pendente", "cancelado"):
         reason = body.reason.strip()
         if len(reason) < 5:
@@ -1153,6 +1181,7 @@ async def read_audio(cid: str, mid: str, me: dict = Depends(onboarded)):
 
 @api.post("/conversations/{cid}/proposals")
 async def send_proposal(cid: str, body: ProposalIn, me: dict = Depends(onboarded)):
+    await enforce_attendance(db, me["user_id"])
     conv = await my_conversation(cid, me["user_id"])
     if has_contact(body.description + " " + body.deadline):
         raise HTTPException(400, "Telefones e convites para WhatsApp são bloqueados.")
@@ -1184,6 +1213,7 @@ async def respond_proposal(cid: str, mid: str, body: ProposalStatusIn, me: dict 
             if not request:
                 raise HTTPException(409, "Apenas o contratante pode aceitar um novo valor enquanto a vaga estiver aberta")
             applicant = proposal_message["sender_id"]
+            await enforce_attendance(db, applicant)
             amount = proposal_message["proposal"]["amount"]
             net = cents(amount)
             priced = "client_cents" in proposal_message["proposal"]
@@ -1266,6 +1296,7 @@ async def startup():
     await db.messages.create_index([("conversation_id", 1), ("sender_id", 1), ("client_id", 1)], unique=True,
                                    partialFilterExpression={"client_id": {"$type": "string"}})
     await db.requests.create_index("applications.professional_id")
+    await db.requests.create_index([("professional_id", 1), ("status", 1), ("attendance_due_at", 1)])
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.push_subscriptions.create_index("endpoint", unique=True)
     await db.push_subscriptions.create_index("user_id")

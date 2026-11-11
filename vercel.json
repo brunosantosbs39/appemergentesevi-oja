@@ -7,7 +7,12 @@
       "installCommand": "npx --yes yarn@1.22.22 install --frozen-lockfile",
       "buildCommand": "npx --yes yarn@1.22.22 build",
       "outputDirectory": "build",
-      "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "backend": {
       "root": "backend",
@@ -16,7 +21,25 @@
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": { "service": "backend" } },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
-  ]
+    {
+      "source": "/api/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
+  ],
+  "schedules": {
+    "servicoja-worker": {
+      "schedule": "*/15 * * * *",
+      "jitter": 15,
+      "path": "/api/internal/jobs",
+      "requestMethod": "GET"
+    }
+  }
 }

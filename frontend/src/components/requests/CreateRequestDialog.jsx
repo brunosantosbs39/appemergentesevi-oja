@@ -59,7 +59,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
     if (f.title.trim().length < 3) return toast.error("Descreva o serviço no título");
     setBusy(true);
     try {
-      const body = { ...f, address:savedAddress || f.address.trim(), service_time:targetPro ? f.service_time : null, category_detail:f.category==="outros" ? f.category_detail.trim() : "", company_id:f.company_id||null, branch_id:f.branch_id||null, service_date:f.service_date||null, daily_count:Number(f.daily_count), expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: null, unit_cents:f.budget===""?null:Math.round(Number(f.budget)*100), quantity:f.billing_type==="fixed"?1:Number(f.quantity), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
+      const body = { ...f, address:savedAddress || f.address.trim(), service_time:f.service_time || null, service_utc_offset_minutes:f.service_date && f.service_time ? -new Date(`${f.service_date}T${f.service_time}:00`).getTimezoneOffset() : -180, category_detail:f.category==="outros" ? f.category_detail.trim() : "", company_id:f.company_id||null, branch_id:f.branch_id||null, service_date:f.service_date||null, daily_count:Number(f.daily_count), expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: null, unit_cents:f.budget===""?null:Math.round(Number(f.budget)*100), quantity:f.billing_type==="fixed"?1:Number(f.quantity), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
       const { data } = await api.post("/requests", body);
       toast.success(targetPro ? `Pedido enviado para ${targetPro.name}` : "Pedido publicado! Profissionais próximos já podem ver.");
       onCreated?.(data);
@@ -103,10 +103,12 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
       <Field label="O que você precisa?">
         <Input value={f.title} onChange={set("title")} maxLength={100} placeholder="Ex.: Trocar chuveiro queimado" data-testid="request-title-input" />
       </Field>
-      {targetPro && <div className="grid gap-3 sm:grid-cols-2">
-        <label>Data do serviço<Input type="date" value={f.service_date} onChange={selectDate} required /></label>
-        <label>Hora de início<Input ref={timeInput} type="time" value={f.service_time} onChange={set("service_time")} required /></label>
+      {<div className="grid gap-3 sm:grid-cols-2">
+        <label>Data do serviço<Input type="date" value={f.service_date} onChange={selectDate} required={!!targetPro || !!f.service_time} /></label>
+        <label>Hora de início<Input ref={timeInput} type="time" value={f.service_time} onChange={set("service_time")} required={!!targetPro} /></label>
       </div>}
+      <p className="text-xs text-muted-foreground">Horário local deste aparelho. {targetPro ? "" : "Agendamento opcional; sem horário definido não há falta automática."}</p>
+      {f.service_date && f.service_time && <p className="border border-border p-3 text-sm">Tolerância de 15 minutos. Após 1 hora sem check-in: falta automática e bloqueio de candidaturas e publicações por 24 horas na primeira falta e 30 dias a partir da segunda.</p>}
       {!targetPro && <><Field label="Detalhes">
         <Textarea value={f.description} onChange={set("description")} rows={3} maxLength={2000} placeholder="Conte mais sobre o serviço, horário preferido..." data-testid="request-description-input" />
       </Field>

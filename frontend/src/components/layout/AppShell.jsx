@@ -143,6 +143,19 @@ const BottomNav = ({ unread }) => (
   </nav>
 );
 
+function AttendanceNotice() {
+  const api = useApi();
+  const { me } = useMe();
+  const { data } = useQuery({ queryKey: ["attendance", me.user_id], queryFn: async () => (await api.get("/me/attendance")).data, refetchInterval: 30000 });
+  const until = data?.attendance_blocked_until;
+  if (!until || new Date(until) <= new Date()) return null;
+  return <div role="status" className="mb-4 border border-border bg-card p-4 text-sm">
+    <p className="font-semibold">Publicações e candidaturas temporariamente bloqueadas</p>
+    <p>Faltas registradas: {data.attendance_absences}. Liberação: {new Date(until).toLocaleString("pt-BR")}.</p>
+    <p>Você ainda pode acompanhar serviços já aceitos, conversar e acessar sua carteira.</p>
+  </div>;
+}
+
 export default function AppShell() {
   const { me } = useMe();
   const unread = useUnread();
@@ -155,8 +168,9 @@ export default function AppShell() {
       {!isChat && <MobileTop />}
       <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
         <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
-          {!isChat && <div className="mb-4 flex items-center justify-end gap-3">{["/feed", "/carteira"].includes(pathname) && <WalletShortcut userId={me.user_id} />}<NotificationCenter /></div>}
+          {["/feed", "/carteira"].includes(pathname) && <div className="mb-4 flex items-center justify-end gap-3"><WalletShortcut userId={me.user_id} />{pathname === "/feed" && <NotificationCenter />}</div>}
           <VersionNotice />
+          {!isChat && <AttendanceNotice />}
           <Outlet />
         </div>
       </main>
@@ -164,4 +178,3 @@ export default function AppShell() {
     </div>
   );
 }
-
