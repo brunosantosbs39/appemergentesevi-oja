@@ -5,6 +5,8 @@ import { CheckCircle2, Loader2, MessageCircle, Play, Star } from "lucide-react";
 import { toast } from "sonner";
 import { errMsg, useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export const RequestActions = ({ request: r, onUpdated, onReview }) => {
@@ -12,6 +14,8 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
   const { me } = useMe();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(null);
+  const [cancellation, setCancellation] = useState(null);
+  const [reason, setReason] = useState("");
   const isClient = r.client_id === me.user_id;
   const isPro = r.professional_id === me.user_id;
   const otherId = isClient ? r.professional_id : r.client_id;
@@ -22,9 +26,11 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
     setBusy(status);
     try {
       const action = status === "em_andamento" ? "check-in" : status === "concluido" ? "check-out" : "status";
-      const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status } : {});
+      const { data } = await api.post(`/requests/${r.id}/${action}`, action === "status" ? { status, reason: reason.trim() } : {});
       onUpdated(data);
       toast.success(label);
+      setCancellation(null);
+      setReason("");
 
     } catch (e) {
       toast.error(errMsg(e));
@@ -54,6 +60,25 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
 
   return (
     <>
+      <Dialog open={!!cancellation} onOpenChange={(open) => { if (!open && !busy) setCancellation(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{cancellation === "pendente" ? "Desistir do serviço?" : "Cancelar pedido?"}</DialogTitle>
+            <DialogDescription>
+              {cancellation === "pendente" ? "Sua participação será encerrada. O contratante poderá escolher outro profissional." : "O pedido será encerrado e não receberá novas candidaturas."}
+              {r.payment_status === "reserved" && !r.check_in_at ? " O saldo reservado será devolvido à carteira do contratante." : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <label htmlFor={`cancel-reason-${r.id}`} className="text-sm font-medium">Motivo</label>
+          <Textarea id={`cancel-reason-${r.id}`} value={reason} onChange={e => setReason(e.target.value)} maxLength={500} disabled={!!busy} placeholder="Explique o motivo (mínimo de 5 caracteres)" />
+          <p className="text-xs text-muted-foreground">O motivo ficará registrado no pedido para as partes envolvidas.</p>
+          <Button variant="outline" disabled={!!busy} onClick={() => setCancellation(null)}>Manter serviço</Button>
+          <Button disabled={!!busy || reason.trim().length < 5} onClick={() => run(cancellation, cancellation === "pendente" ? "Desistência registrada" : "Pedido cancelado")}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar {cancellation === "pendente" ? "desistência" : "cancelamento"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      {r.last_cancellation && (isClient || isPro) && <p className="w-full text-sm text-muted-foreground">Último cancelamento ou desistência: {r.last_cancellation.reason}</p>}
       {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={r.payment_status ? "/carteira#extrato" : `/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{!r.payment_status && isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
       {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
@@ -82,12 +107,12 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
         </Button>
       )}
       {isPro && r.status === "aceito" && (
-        <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => run("pendente", "Você desistiu do pedido")} data-testid="release-service-button">
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => { setReason(""); setCancellation("pendente"); }} data-testid="release-service-button">
           Desistir
         </Button>
       )}
       {isClient && !(r.payment_status === "reserved" && r.check_in_at) && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
-        <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => run("cancelado", "Pedido cancelado")} data-testid="cancel-service-button">
+        <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => { setReason(""); setCancellation("cancelado"); }} data-testid="cancel-service-button">
           Cancelar
         </Button>
       )}
@@ -114,4 +139,3 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
     </>
   );
 };
-

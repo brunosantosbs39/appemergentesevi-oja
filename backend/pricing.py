@@ -12,6 +12,9 @@ def client_quote(net):
     return (net * 110 + 50) // 100
 
 def present_request(r, uid):
+    cancellation = r.get("last_cancellation")
+    if cancellation and uid not in (r.get("client_id"), cancellation.get("by")):
+        r.pop("last_cancellation", None)
     priced = r.pop("pricing_version", None)
     worker = uid != r.get("client_id")
     net = r.pop("agreed_net_cents", None)

@@ -228,10 +228,11 @@ class RequestCreate(Pricing):
 
 class StatusIn(BaseModel):
     status: Literal["em_andamento", "concluido", "cancelado", "pendente"]
+    reason: str = Field("", max_length=500)
 
 
 class ReviewIn(BaseModel):
-    rating: int = Field(..., ge=1, le=5)
+    rating: int = Field(..., strict=True, ge=1, le=5)
     comment: str = Field("", max_length=500)
 
 
@@ -623,6 +624,8 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
     um = await users_map(ids)
     for r in items:
         r.pop("alert_job", None)
+        if viewer_id not in (r.get("client_id"), r.get("professional_id")):
+            r.pop("last_cancellation", None)
         r["is_expired"] = bool(r.get("expires_at") and r["expires_at"] <= now_iso())
         r["client"] = um.get(r.get("client_id"))
         r["professional"] = um.get(r.get("professional_id"))
@@ -847,6 +850,12 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     stamp = now_iso()
     update = {"status": body.status, "updated_at": stamp}
     before = await db.requests.find_one(query, {"_id": 0})
+    if before and body.status in ("pendente", "cancelado"):
+        reason = body.reason.strip()
+        if len(reason) < 5:
+            raise HTTPException(422, "Informe o motivo com pelo menos 5 caracteres.")
+        update["last_cancellation"] = {"by": uid, "reason": reason, "at": stamp,
+                                       "previous_status": before["status"]}
     if body.status == "em_andamento":
         update.update({"check_in_at": stamp, "check_in_by": uid})
     if body.status == "concluido":
@@ -898,22 +907,26 @@ async def review_request(rid: str, body: ReviewIn, me: dict = Depends(onboarded)
     r = await db.requests.find_one({"id": rid, "$or": [{"client_id": uid}, {"professional_id": uid}]}, {"_id": 0})
     if not r:
         raise HTTPException(404, "Pedido não encontrado")
-    if r["status"] != "concluido":
-        raise HTTPException(409, "Só é possível avaliar serviços concluídos")
+    if r["status"] != "concluido" or not r.get("check_out_at") or not r.get("professional_id") or r["professional_id"] == r["client_id"]:
+        raise HTTPException(409, "Só é possível avaliar serviços concluídos com outra pessoa após o check-out")
     is_client = r["client_id"] == uid
     side = "client_reviewed" if is_client else "pro_reviewed"
     target = r["professional_id"] if is_client else r["client_id"]
-    res = await db.requests.update_one({"id": rid, side: False}, {"$set": {side: True}})
-    if res.modified_count == 0:
-        raise HTTPException(409, "Você já avaliou este serviço")
     review = {"id": new_id(), "request_id": rid, "from_id": uid, "to_id": target, "rating": body.rating,
               "comment": body.comment.strip(), "category": r["category"], "created_at": now_iso()}
-    await db.reviews.insert_one(dict(review))
-    agg = await db.reviews.aggregate([{"$match": {"to_id": target}},
-                                      {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}}]).to_list(1)
-    if agg:
-        await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
-                                                                 "rating_count": agg[0]["n"]}})
+    async def save_review(session):
+        res = await db.requests.update_one({"id": rid, "status": "concluido", side: False},
+            {"$set": {side: True}}, session=session)
+        if res.modified_count == 0:
+            raise HTTPException(409, "Você já avaliou este serviço")
+        await db.reviews.insert_one(dict(review), session=session)
+        agg = await db.reviews.aggregate([{"$match": {"to_id": target}},
+            {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}}], session=session).to_list(1)
+        if agg:
+            await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
+                "rating_count": agg[0]["n"]}}, session=session)
+    async with await db.client.start_session() as session:
+        await session.with_transaction(save_review)
     return review
 
 

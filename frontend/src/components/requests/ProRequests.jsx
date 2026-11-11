@@ -51,7 +51,7 @@ export const ProRequests = () => {
     } finally { setLoadingAvailable(false); }
   };
   const [reviewReq, setReviewReq] = useState(null);
-  const { items, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
+  const { items, error, reload, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
 
   useEffect(() => {
     locate();
@@ -101,6 +101,10 @@ export const ProRequests = () => {
           </SelectContent>
         </Select>
       </PageHeader>
+      {error && <div role="alert" className="mb-4 border border-border bg-card p-4 text-sm">
+        <p>Não foi possível atualizar seus pedidos. Os dados já carregados foram mantidos.</p>
+        <Button type="button" variant="outline" className="mt-2" onClick={reload}>Tentar novamente</Button>
+      </div>}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap justify-start rounded-none bg-muted/70 p-1">
           <TabsTrigger value="disponiveis" className="rounded-none px-4" data-testid="pro-tab-available">Disponíveis</TabsTrigger>

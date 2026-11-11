@@ -26,7 +26,7 @@ export const RequestList = ({ items, empty, onUpdated, onReview, me }) => {
 
 export const ClientRequests = () => {
   const { me } = useMe();
-  const { items, setItems, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
+  const { items, setItems, error, reload, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
   const [open, setOpen] = useState(false);
   const [reviewReq, setReviewReq] = useState(null);
   const mine = items?.filter((r) => r.client_id === me.user_id) ?? null;
@@ -52,6 +52,10 @@ export const ClientRequests = () => {
   return (
     <div>
       <PageHeader eyebrow="Quero contratar" title="Meus pedidos" subtitle="Publique uma vaga, analise as candidaturas e aprove o profissional que irá atender.">{newBtn}</PageHeader>
+      {error && <div role="alert" className="mb-4 border border-border bg-card p-4 text-sm">
+        <p>Não foi possível atualizar seus pedidos. Os dados já carregados foram mantidos.</p>
+        <Button type="button" variant="outline" className="mt-2" onClick={reload}>Tentar novamente</Button>
+      </div>}
       <Tabs defaultValue="ativos">
         <TabsList className="rounded-none bg-muted/70 p-1">
           <TabsTrigger value="ativos" className="rounded-none px-5" data-testid="client-tab-active">Ativos {active ? `(${active.length})` : ""}</TabsTrigger>
