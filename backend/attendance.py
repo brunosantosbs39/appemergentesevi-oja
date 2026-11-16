@@ -3,9 +3,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from pymongo import ReturnDocument
 try:
+    from backend.commitments import reopen
     from backend.notifications import send_notice
     from backend.service_funds import change_balance, entry
 except ModuleNotFoundError:
+    from commitments import reopen
     from notifications import send_notice
     from service_funds import change_balance, entry
 
@@ -46,6 +48,7 @@ async def absent(db, rid, moment=None):
             return_document=ReturnDocument.AFTER, session=session)
         if not r:
             return None
+        await reopen(db, r, moment.isoformat(), session)
         uid = r['professional_id']
         user = await db.users.find_one_and_update({'user_id':uid}, {'$inc':{'attendance_absences':1}},
             return_document=ReturnDocument.AFTER, session=session)

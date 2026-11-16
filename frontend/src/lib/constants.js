@@ -46,6 +46,8 @@ export const CATEGORIES = [
 export const catOf = (slug) => CATEGORIES.find((c) => c.slug === slug) || CATEGORIES[CATEGORIES.length - 1];
 
 export const STATUS = {
+  excluido: { label: "Excluída", cls: "bg-muted text-foreground border-border" },
+  preenchido: { label: "Preenchida", cls: "bg-muted text-foreground border-border" },
   pendente: { label: "Pendente", cls: "bg-amber-100 text-amber-800 border-amber-300" },
   aceito: { label: "Aceito", cls: "bg-blue-100 text-blue-800 border-blue-300" },
   em_andamento: { label: "Em andamento", cls: "bg-muted text-foreground border-foreground" },

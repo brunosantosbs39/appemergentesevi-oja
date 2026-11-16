@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 try:  # launched as `backend.server`
+    from backend.commitments import approve as approve_commitment, cancel as cancel_commitment
     from backend.registration import build_router as registration_router, complete as registration_complete
     from backend.jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from backend.production_wallet import indexes as pix_indexes
@@ -41,6 +42,7 @@ try:  # launched as `backend.server`
     from backend.scaling import page_cursor, parse_cursor, write_limit, nearby_pipeline, ReadBurstGuard, approximate_coordinate
     from backend.notifications import send_notice, validate_subscription, notification_tasks
 except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from commitments import approve as approve_commitment, cancel as cancel_commitment
     from registration import build_router as registration_router, complete as registration_complete
     from jobs import pending as pending_job, safe_drain, indexes as job_indexes, build_router as jobs_router
     from production_wallet import indexes as pix_indexes
@@ -210,6 +212,7 @@ class ProposalStatusIn(BaseModel):
 
 
 class RequestCreate(Pricing):
+    worker_count: int = Field(1, strict=True, ge=1, le=100)
     service_utc_offset_minutes: int = Field(-180, ge=-720, le=840)
     service_time: Optional[str] = Field(None, pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
     category_detail: str = Field("", max_length=100)
@@ -481,7 +484,7 @@ async def list_posts(user_id: Optional[str] = None, category: Optional[str] = No
         closed = set()
         if linked:
             requests = await db.requests.find({"id": {"$in": linked}}, {"_id": 0, "id": 1, "status": 1, "expires_at": 1, "check_in_at": 1}).to_list(200)
-            closed = {r["id"] for r in requests if r.get("check_in_at") or r["status"] in ("concluido", "cancelado") or r.get("expires_at") and r["expires_at"] <= now_iso()}
+            closed = {r["id"] for r in requests if r.get("check_in_at") or r["status"] in ("aceito", "preenchido", "concluido", "cancelado") or r.get("expires_at") and r["expires_at"] <= now_iso()}
         posts = [p for p in posts if p.get("request_id") not in closed]
     return await enrich_posts(posts, me["user_id"])
 
@@ -506,7 +509,7 @@ async def regional_feed(category: Optional[str] = None, before: Optional[str] = 
         {"$lookup":{"from":"requests","localField":"request_id","foreignField":"id","as":"linked",
                     "pipeline":[{"$project":{"status":1,"expires_at":1,"check_in_at":1,"target_pro_id":1}}]}},
         {"$match":{"$or":[{"request_id":None},{"linked":{"$elemMatch":{"target_pro_id":None,"check_in_at":None,
-            "status":{"$in":["pendente","aceito"]},"$and":[vacancy_open_query()]}}}]}},
+            "status":"pendente","$and":[vacancy_open_query()]}}}]}},
         {"$unset":"linked"}]
     # Older publications may lack a map point. Only derive a region for posts
     # without an explicit destination, and never return the author's coordinates.
@@ -655,7 +658,7 @@ async def enrich_requests(items: list, lat=None, lng=None, viewer_id=None) -> li
         for application in applications:
             if application["status"] == "pending" and (r["status"] != "pendente" or r["is_expired"]):
                 application["status"] = "not_selected"
-            if application["status"] == "approved" and r.get("professional_id") != application["professional_id"]:
+            if application["status"] == "approved" and not r.get("staffing_version") and r.get("professional_id") != application["professional_id"]:
                 application["status"] = "withdrawn"
         r["my_application"] = next((a for a in applications if a["professional_id"] == viewer_id), None)
         if r["client_id"] == viewer_id:
@@ -684,6 +687,8 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     if body.category == "outros" and len(body.category_detail.strip()) < 2:
         raise HTTPException(400, "Descreva a categoria do serviço.")
     if body.target_pro_id:
+        if body.worker_count != 1:
+            raise HTTPException(422, "Um pedido direto é enviado para uma pessoa. Publique uma vaga para contratar várias.")
         if not body.service_date or not body.service_time or not body.address.strip():
             raise HTTPException(400, "Informe data, hora e endereço do serviço.")
         if not body.unit_cents or body.image:
@@ -705,6 +710,7 @@ async def create_request(body: RequestCreate, background_tasks: BackgroundTasks,
     doc["title"] = doc["title"].strip()
     doc["expires_at"] = expiration_iso(body.expires_at)
     if not body.target_pro_id:
+        doc.update(staffing_version=1, filled_slots=0)
         doc["alert_job"] = pending_job()
     await db.requests.insert_one(dict(doc))
     if body.target_pro_id:
@@ -846,7 +852,12 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
                        "applications": {"$elemMatch": {"professional_id": professional_id, "status": "pending"}}}
     if body.status == "approved" and current:
         selection_query["updated_at"] = current.get("updated_at")
-    if body.status == "approved" and current and current.get("wallet_reservation"):
+    if body.status == "approved" and current and current.get("staffing_version"):
+        if current.get("wallet_reservation"):
+            real_guard()
+        r = await approve_commitment(db, selection_query, changes, cents(changes["agreed_budget"] or 0),
+                                     changes.get("agreed_net_cents", 0), stamp)
+    elif body.status == "approved" and current and current.get("wallet_reservation"):
         real_guard()
         r = await reserve_service(db, selection_query, changes, cents(changes["agreed_budget"] or 0),
                                   changes.get("agreed_net_cents", 0), stamp)
@@ -864,6 +875,13 @@ async def decide_application(rid: str, professional_id: str, body: ApplicationDe
 @api.post("/requests/{rid}/status")
 async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded)):
     uid = me["user_id"]
+    if body.status in ("pendente", "cancelado"):
+        selected = await db.requests.find_one({"id":rid, "$or":[{"client_id":uid},{"professional_id":uid}]}, {"_id":0})
+        if selected and (selected.get("staffing_version") or selected.get("parent_request_id")):
+            if (body.status == "pendente") != (selected.get("professional_id") == uid):
+                raise HTTPException(403, "Ação não permitida para este participante.")
+            result = await cancel_commitment(db, rid, uid, body.reason, now_iso())
+            return (await enrich_requests([result], viewer_id=uid))[0]
     actor, allowed_from = TRANSITIONS[body.status]
     query = {"id": rid, "status": {"$in": allowed_from}}
     if actor == "pro":
@@ -875,7 +893,7 @@ async def change_status(rid: str, body: StatusIn, me: dict = Depends(onboarded))
     stamp = now_iso()
     update = {"status": body.status, "updated_at": stamp}
     before = await db.requests.find_one(query, {"_id": 0})
-    if before and before.get("attendance_policy_version") and before["status"] == "aceito" and before.get("attendance_due_at", "z") <= stamp:
+    if before and body.status not in ("pendente", "cancelado") and before.get("attendance_policy_version") and before["status"] == "aceito" and before.get("attendance_due_at", "z") <= stamp:
         await record_absence(db, rid)
         raise HTTPException(409, "O prazo de 1 hora sem check-in terminou. A falta foi registrada; atualize os pedidos.")
     if before and body.status in ("pendente", "cancelado"):
@@ -1296,6 +1314,7 @@ async def startup():
     await db.messages.create_index([("conversation_id", 1), ("sender_id", 1), ("client_id", 1)], unique=True,
                                    partialFilterExpression={"client_id": {"$type": "string"}})
     await db.requests.create_index("applications.professional_id")
+    await db.requests.create_index([("parent_request_id", 1), ("status", 1)])
     await db.requests.create_index([("professional_id", 1), ("status", 1), ("attendance_due_at", 1)])
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.push_subscriptions.create_index("endpoint", unique=True)

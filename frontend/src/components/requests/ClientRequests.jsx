@@ -29,8 +29,8 @@ export const ClientRequests = () => {
   const { items, setItems, error, reload, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
   const [open, setOpen] = useState(false);
   const [reviewReq, setReviewReq] = useState(null);
-  const mine = items?.filter((r) => r.client_id === me.user_id) ?? null;
-  const active = mine?.filter((r) => ["pendente", "aceito", "em_andamento"].includes(r.status)) ?? null;
+  const mine = items?.filter((r) => r.client_id === me.user_id && !r.parent_request_id) ?? null;
+  const active = mine?.filter((r) => ["pendente", "preenchido", "aceito", "em_andamento"].includes(r.status)) ?? null;
   const history = mine?.filter((r) => ["concluido", "cancelado"].includes(r.status)) ?? null;
   const newBtn = (
     <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-service-request-button">

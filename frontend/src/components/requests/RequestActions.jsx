@@ -65,13 +65,13 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
           <DialogHeader>
             <DialogTitle>{cancellation === "pendente" ? "Desistir do serviço?" : "Cancelar pedido?"}</DialogTitle>
             <DialogDescription>
-              {cancellation === "pendente" ? "Sua participação será encerrada. O contratante poderá escolher outro profissional." : "O pedido será encerrado e não receberá novas candidaturas."}
+              {cancellation === "pendente" ? "Sua participação será encerrada e a posição ficará disponível novamente, respeitando a validade da vaga." : r.staffing_version || r.parent_request_id ? "A vaga será excluída da divulgação. Todos os compromissos ainda não iniciados dessa vaga serão cancelados e as reservas serão devolvidas. Não é possível excluir enquanto houver um serviço em andamento." : "O pedido será encerrado e não receberá novas candidaturas."}
               {r.payment_status === "reserved" && !r.check_in_at ? " O saldo reservado será devolvido à carteira do contratante." : ""}
             </DialogDescription>
           </DialogHeader>
           <label htmlFor={`cancel-reason-${r.id}`} className="text-sm font-medium">Motivo</label>
           <Textarea id={`cancel-reason-${r.id}`} value={reason} onChange={e => setReason(e.target.value)} maxLength={500} disabled={!!busy} placeholder="Explique o motivo (mínimo de 5 caracteres)" />
-          <p className="text-xs text-muted-foreground">O motivo ficará registrado no pedido para as partes envolvidas.</p>
+          <p className="text-xs text-muted-foreground">O cancelamento justificado não registra falta nem gera bloqueio. O motivo ficará registrado para as partes envolvidas.</p>
           <Button variant="outline" disabled={!!busy} onClick={() => setCancellation(null)}>Manter serviço</Button>
           <Button disabled={!!busy || reason.trim().length < 5} onClick={() => run(cancellation, cancellation === "pendente" ? "Desistência registrada" : "Pedido cancelado")}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Confirmar {cancellation === "pendente" ? "desistência" : "cancelamento"}
@@ -80,7 +80,7 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       </Dialog>
       {r.last_cancellation && (isClient || isPro) && <p className="w-full text-sm text-muted-foreground">Último cancelamento ou desistência: {r.last_cancellation.reason}</p>}
       {(isClient || isPro) && ["aceito", "em_andamento", "concluido"].includes(r.status) && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto" data-testid="request-wallet-button"><Link to={r.payment_status ? "/carteira#extrato" : `/carteira?servico=${encodeURIComponent(r.id)}#reservar-pagamento`}>{!r.payment_status && isClient && r.status !== "concluido" ? "Adicionar saldo e reservar pagamento" : "Ver pagamento na carteira"}</Link></Button>}
-      {isClient && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
+      {isClient && !r.parent_request_id && <ApplicationsPanel request={r} onUpdated={onUpdated} />}
       {otherId && r.status !== "pendente" && (
         <Button disabled={!!busy} variant="outline" className="rounded-none" onClick={chat} data-testid="request-chat-button">
           <MessageCircle className="h-4 w-4" /> Chat
@@ -108,12 +108,12 @@ export const RequestActions = ({ request: r, onUpdated, onReview }) => {
       )}
       {isPro && r.status === "aceito" && (
         <Button disabled={!!busy} variant="ghost" className="rounded-none text-foreground" onClick={() => { setReason(""); setCancellation("pendente"); }} data-testid="release-service-button">
-          Desistir
+          Cancelar compromisso
         </Button>
       )}
-      {isClient && !(r.payment_status === "reserved" && r.check_in_at) && ["pendente", "aceito", "em_andamento"].includes(r.status) && (
+      {isClient && !(r.payment_status === "reserved" && r.check_in_at) && ["pendente", "preenchido", "aceito", "em_andamento"].includes(r.status) && (
         <Button disabled={!!busy} variant="ghost" className="rounded-none text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => { setReason(""); setCancellation("cancelado"); }} data-testid="cancel-service-button">
-          Cancelar
+          {r.staffing_version || r.parent_request_id ? "Excluir vaga" : "Cancelar"}
         </Button>
       )}
       {r.status === "concluido" && r.check_out_at && r.payment_status === "released" && (isClient || isPro) && <p className="text-sm">Pagamento liberado na carteira do profissional.</p>}

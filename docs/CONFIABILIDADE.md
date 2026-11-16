@@ -26,6 +26,18 @@
 ## Verificação
 Testes em banco MongoDB descartável verificam concorrência de avaliações, rollback, reserva, devolução e liberação idempotentes. Não movimentam dinheiro real. Build de produção do frontend obrigatório antes da publicação.
 
+## Compromissos e vagas com equipe — v0.2.0
+- Novas vagas públicas aceitam de 1 a 100 profissionais; o valor anunciado é por pessoa. Pedidos diretos continuam individuais.
+- A publicação guarda a capacidade (`worker_count`, `filled_slots`, `staffing_version`). Cada aceite cria um serviço independente com `parent_request_id`, reserva e acompanhamento próprios. Ao completar a capacidade, a publicação passa a `preenchido` e sai das listas públicas; compromissos continuam acessíveis às partes.
+- Aprovação, ocupação da posição e reserva são uma única transação. Saldo insuficiente não cria compromisso nem ocupa posição.
+- Em Pedidos, o botão Compromissos reúne contratações e trabalhos da mesma conta, incluindo o histórico. Pedidos antigos aceitos continuam disponíveis ali sem migração financeira.
+- Antes do check-in, o profissional pode cancelar com motivo obrigatório: devolve a reserva, mantém histórico e reabre uma posição, respeitando validade e horário originais. Cancelar não registra falta nem modifica bloqueios. Uma falta já processada não é desfeita retroativamente por esta operação.
+- O contratante pode excluir a vaga: retira a divulgação e cancela todos os compromissos ainda não iniciados, devolvendo suas reservas. Serviços concluídos e seus pagamentos permanecem no histórico. A exclusão é rejeitada enquanto qualquer serviço estiver em andamento, para não devolver pagamentos por trabalho já iniciado automaticamente.
+- Cancelamentos repetidos não repetem devoluções. O motivo do compromisso é visível apenas aos envolvidos; a outra pessoa recebe notificação interna.
+- Falta automática de uma pessoa libera apenas sua posição. Compromissos das demais pessoas não mudam.
+- Dashboard de empresas soma posições ainda abertas e os valores individuais contratados, sem duplicar o orçamento da publicação inteira.
+- Testes em `tests/test_commitments.py`: última posição concorrente, saldo insuficiente, cancelamento idempotente, exclusão da vaga, autorização, proteção de serviços iniciados, checkout individual, totais e visibilidade.
+
 ## Política de presença definida pelo responsável pelo app
 - Aviso 15 minutos antes do início; tolerância até 15 minutos depois; alerta após a tolerância.
 - Sem check-in após 1 hora: pedido cancelado automaticamente, falta registrada e reserva do serviço devolvida ao contratante.

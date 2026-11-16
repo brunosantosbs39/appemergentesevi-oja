@@ -26,7 +26,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
   const api = useApi();
   const { me } = useMe();
   const [f, setF] = useState({
-    billing_type: "fixed", quantity: "1",
+    billing_type: "fixed", quantity: "1", worker_count: "1",
     company_id: "", branch_id: "", service_date: "", daily_count: "1",
     category: targetPro?.categories?.[0] || "eletricista",
     title: "",
@@ -60,6 +60,7 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
     setBusy(true);
     try {
       const body = { ...f, address:savedAddress || f.address.trim(), service_time:f.service_time || null, service_utc_offset_minutes:f.service_date && f.service_time ? -new Date(`${f.service_date}T${f.service_time}:00`).getTimezoneOffset() : -180, category_detail:f.category==="outros" ? f.category_detail.trim() : "", company_id:f.company_id||null, branch_id:f.branch_id||null, service_date:f.service_date||null, daily_count:Number(f.daily_count), expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null, budget: null, unit_cents:f.budget===""?null:Math.round(Number(f.budget)*100), quantity:f.billing_type==="fixed"?1:Number(f.quantity), lat: pos.lat, lng: pos.lng, image, target_pro_id: targetPro?.user_id || null };
+      body.worker_count = targetPro ? 1 : Number(f.worker_count);
       const { data } = await api.post("/requests", body);
       toast.success(targetPro ? `Pedido enviado para ${targetPro.name}` : "Pedido publicado! Profissionais próximos já podem ver.");
       onCreated?.(data);
@@ -94,7 +95,11 @@ export const RequestForm = ({ targetPro, onCreated, onClose }) => {
         </Field>
       </div>
       {f.billing_type!=="fixed"&&<label className="block text-sm">{f.billing_type==="hourly"?"Quantidade de horas":"Quantidade de diárias"}<Input type="number" min={f.billing_type==="hourly"?"0.01":"1"} max="10000" step={f.billing_type==="hourly"?"0.01":"1"} value={f.quantity} onChange={set("quantity")} required/></label>}
-      {!targetPro && <p className="text-sm">Total previsto: {f.budget===""?"A combinar":(Number(f.budget)*(f.billing_type==="fixed"?1:Number(f.quantity))).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</p>}
+      {!targetPro && <>
+        <label className="block text-sm">Quantos profissionais você precisa?<Input type="number" min="1" max="100" step="1" required value={f.worker_count} onChange={set("worker_count")} data-testid="request-worker-count" /></label>
+        <p className="text-sm">Valor por profissional: {f.budget===""?"A combinar":(Number(f.budget)*(f.billing_type==="fixed"?1:Number(f.quantity))).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</p>
+        <p className="text-xs text-muted-foreground">A vaga permanece disponível até preencher todas as posições. Cada aceite reserva o pagamento daquela pessoa. Os serviços aceitos ficam em Pedidos → Compromissos.</p>
+      </>}
       {(!targetPro || !!companyList.data?.companies.length) && <fieldset className="space-y-3 border border-border p-3"><legend>Empresa / filial (opcional)</legend>
         <label className="block text-sm">Empresa<select className="mt-1 w-full border border-border bg-background p-2" value={f.company_id} onChange={e=>setF(s=>({...s,company_id:e.target.value,branch_id:""}))}><option value="">Pedido pessoal</option>{companyList.data?.companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         {companyList.error&&<p role="alert">Não foi possível carregar empresas. Reabra o formulário para tentar novamente.</p>}

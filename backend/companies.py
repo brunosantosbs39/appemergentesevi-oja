@@ -71,10 +71,11 @@ def totals(rows):
     return result
 
 def request_row(r):
+    slots = max(0, r.get("worker_count", 1) - r.get("filled_slots", 0)) if r.get("staffing_version") else 1
     status = "cancelled" if r["status"] == "cancelado" else "completed" if r["status"] == "concluido" else "planned"
     return {"id":r["id"], "source":"request", "settled":(r.get("service_fund") or {}).get("status") == "released", "branch_id":r.get("branch_id"), "worker":r.get("title", "Pedido"),
         "service_date":r.get("service_date") or r["created_at"][:10], "days":r.get("daily_count", 1),
-        "amount_cents":int((Decimal(str(r.get("agreed_budget", r.get("budget")) or 0))*100).quantize(Decimal("1"))),
+        "amount_cents":slots * int((Decimal(str(r.get("agreed_budget", r.get("budget")) or 0))*100).quantize(Decimal("1"))),
         "billing_type":r.get("billing_type","fixed"), "quantity":r.get("quantity",1), "unpriced":r.get("agreed_budget", r.get("budget")) is None, "status":status}
 
 def build_router(db, onboarded):

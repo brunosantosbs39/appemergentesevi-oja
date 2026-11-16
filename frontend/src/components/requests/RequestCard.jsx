@@ -37,7 +37,7 @@ export const RequestCard = ({ request: r, me, children }) => {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{r.category_detail || cat.label}</span>
-            <StatusBadge status={r.status} />
+            <StatusBadge status={r.deleted_at ? "excluido" : r.status} />
             {r.target_pro_id && r.status === "pendente" && (
               <span className="inline-flex items-center gap-1 rounded-none bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase text-black">
                 <Target className="h-3 w-3" /> {iAmClient ? `Direto: ${r.target_pro?.name || "profissional"}` : "Direto para você"}
@@ -45,6 +45,8 @@ export const RequestCard = ({ request: r, me, children }) => {
             )}
           </div>
           <h3 className="mt-1 font-heading text-lg font-bold leading-snug text-foreground" data-testid="service-request-title">{r.title}</h3>
+          {r.staffing_version && <p className="mt-2 text-sm">{r.filled_slots || 0} de {r.worker_count} posições preenchidas · valor por profissional</p>}
+          {r.parent_request_id && <p className="mt-2 text-xs text-muted-foreground">{iAmClient ? "Você contratou este serviço" : "Você trabalha neste serviço"}</p>}
           {r.description && <p className="mt-1 line-clamp-3 text-sm text-foreground">{r.description}</p>}
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-semibold text-foreground" data-testid="service-request-budget">

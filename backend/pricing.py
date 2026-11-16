@@ -13,7 +13,7 @@ def client_quote(net):
 
 def present_request(r, uid):
     cancellation = r.get("last_cancellation")
-    if cancellation and uid not in (r.get("client_id"), cancellation.get("by")):
+    if cancellation and uid not in (r.get("client_id"), cancellation.get("by")) and not (r.get("parent_request_id") and uid == r.get("professional_id")):
         r.pop("last_cancellation", None)
     priced = r.pop("pricing_version", None)
     worker = uid != r.get("client_id")

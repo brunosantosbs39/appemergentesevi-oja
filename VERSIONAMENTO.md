@@ -1,5 +1,13 @@
 # Versionamento do ServiçoJá
 
+## Versão 2.0.0
+
+Preparada na branch de trabalho `codex/v0.2.0` e publicada separadamente em `release/v2.0.0`, conforme solicitação de manter as versões no mesmo repositório. A branch `main` e a referência `release/v0.1.0-beta` são preservadas.
+
+Inclui vagas com quantidade de profissionais, compromissos individuais em Pedidos, cancelamento justificado antes do check-in, reabertura da posição quando o profissional cancela, exclusão da vaga pelo contratante e reservas financeiras separadas. Também inclui a edição de empresas e filiais em popup.
+
+O link de testes em `codex/wallet-setup` recebe esta versão somente após o build da prévia estar pronto. Os testes de reservas, devoluções e checkout usam MongoDB descartável, sem dinheiro real. Não duplicar o `CRON_SECRET` nas branches de referência.
+
 ## Versão de referência
 
 - Versão: v0.1.0-beta.
