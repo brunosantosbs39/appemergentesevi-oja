@@ -79,8 +79,8 @@ module.exports = {
           }
         },
         'fade-up': {
-          from: { opacity: '0', transform: 'translateY(14px)' },
-          to: { opacity: '1', transform: 'translateY(0)' }
+          from: { opacity: '0', transform: 'scale(.96)' },
+          to: { opacity: '1', transform: 'scale(1)' }
         },
         'like-burst': {
           '0%': { opacity: '0', transform: 'scale(0.4)' },
@@ -99,7 +99,7 @@ module.exports = {
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'fade-up': 'fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'fade-up': 'fade-up 300ms cubic-bezier(.23, 1, .32, 1) both',
         'like-burst': 'like-burst 0.7s ease-out forwards',
         marquee: 'marquee 40s linear infinite',
         float: 'float 4s ease-in-out infinite'

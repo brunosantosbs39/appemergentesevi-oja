@@ -73,7 +73,7 @@
   --sj-line: var(--color-border-default);
   --sj-radius-panel: var(--radius-2xl);
   --sj-radius-card: var(--radius-lg);
-  --sj-radius-control: var(--radius-pill);
+  --sj-radius-control: var(--radius-control);
   --sj-glass-blur: var(--glass-blur);
   --sj-glass-clear-fill: var(--glass-clear-fill);
   --sj-glass-tint-fill: var(--glass-tint-fill);
@@ -162,6 +162,12 @@ html, body, button, input, textarea, select {
 .access-page :focus-visible, .lux-landing :focus-visible {
   outline: 2px solid var(--sj-brand) !important;
   outline-offset: 3px;
+}
+.sj-app .transition-transform,
+.sj-app .transition-opacity,
+.sj-app .transition-colors {
+  transition-duration: var(--motion-duration-base) !important;
+  transition-timing-function: var(--motion-ease-out) !important;
 }
 .sj-app button.aspect-square, .sj-app button.aspect-video {
   border-radius: var(--sj-radius-card) !important;
@@ -420,10 +426,11 @@ html, body, button, input, textarea, select {
     transition-timing-function: var(--sj-ease-out);
   }
   .sj-app button:active:not(:disabled), .access-page button:active:not(:disabled) {
-    transform: scale(.97);
+    transform: scale(var(--motion-press-scale));
     transition-duration: var(--sj-motion-fast);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .sj-app button:active, .access-page button:active { transform: none !important; }
+  .sj-app .animate-fade-up { animation: none !important; }
 }
