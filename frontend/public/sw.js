@@ -5,7 +5,7 @@ self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data?.json() || {}; } catch {}
   const destination = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/feed";
-  event.waitUntil(self.registration.showNotification(data.title || "ServiçoJá", {
+  event.waitUntil(self.registration.showNotification(data.title || "Chama aê", {
     body: data.body || "Você tem uma nova atualização.", icon: "/icon-192.png", badge: "/icon-192.png",
     tag: data.id || "servicoja-update", data: { url: destination },
   }));

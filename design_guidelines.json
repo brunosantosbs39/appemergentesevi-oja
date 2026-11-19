@@ -1,14 +1,14 @@
 {
-  "project_name": "ServiçoJá - Plataforma de Mão de Obra Qualificada e Feed Social",
-  "archetype": "The Performance Pro & Tactical Craft Marketplace",
+  "project_name": "Chama aê — Marketplace de serviços e mão de obra local",
+  "archetype": "The Local Service Connector",
   "theme_strategy": {
     "default_mode": "light",
     "toggle_supported": true,
-    "vibe": "Energetic, trustworthy, modern, tactile Brazilian freelance marketplace with Instagram-style discovery and Uber-style instant dispatch"
+    "vibe": "Fast, reliable neighborhood services with warm yellow actions, clear black typography and helpful AI guidance."
   },
   "typography": {
     "font_imports": [
-      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
     ],
     "headings": {
       "family": "'Plus Jakarta Sans', sans-serif",
@@ -18,7 +18,7 @@
       "h4": "text-lg sm:text-xl font-semibold tracking-tight"
     },
     "body": {
-      "family": "'Inter', sans-serif",
+      "family": "'Plus Jakarta Sans', sans-serif",
       "size": "text-sm sm:text-base leading-relaxed"
     },
     "mono_labels": {
@@ -28,25 +28,25 @@
   },
   "color_palette": {
     "primary": {
-      "main": "#059669",
-      "foreground": "#FFFFFF",
-      "hover": "#047857",
-      "light": "#D1FAE5",
-      "dark": "#064E3B",
-      "label": "Emerald Work Green (Confiança, Aceito, Ação)"
+      "main": "#FFC400",
+      "foreground": "#111111",
+      "hover": "#EAB400",
+      "light": "#FFF3B8",
+      "dark": "#A77F00",
+      "label": "Amarelo Chama — ação principal e foco"
     },
     "secondary": {
-      "main": "#0F172A",
-      "foreground": "#F8FAFC",
-      "hover": "#1E293B",
-      "label": "Deep Slate Obsidian (Estrutura, Elegância)"
+      "main": "#FFF3B8",
+      "foreground": "#111111",
+      "hover": "#FFE477",
+      "label": "Amarelo Claro — superfícies de apoio e IA"
     },
     "accent": {
-      "main": "#F59E0B",
-      "foreground": "#000000",
-      "hover": "#D97706",
-      "light": "#FEF3C7",
-      "label": "Amber Gold (Avaliações, Alerta Uber, Destaque)"
+      "main": "#111111",
+      "foreground": "#FFFFFF",
+      "hover": "#2A2A2A",
+      "light": "#F5F5F5",
+      "label": "Preto Tinta — texto e contraste"
     },
     "status_colors": {
       "pendente": "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
@@ -56,12 +56,12 @@
       "cancelado": "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
     },
     "neutrals": {
-      "light_bg": "#F8FAFC",
+      "light_bg": "#FFFFFF",
       "light_card": "#FFFFFF",
-      "light_border": "#E2E8F0",
-      "dark_bg": "#0B0F17",
-      "dark_card": "#111827",
-      "dark_border": "#1F2937"
+      "light_border": "#E6E6E6",
+      "dark_bg": "#111111",
+      "dark_card": "#1A1A1A",
+      "dark_border": "#333333"
     }
   },
   "spacing_and_layout": {
@@ -71,13 +71,16 @@
     "container_padding": "p-4 sm:p-6 lg:p-8",
     "card_padding": "p-4 sm:p-5",
     "grid_gap": "gap-4 sm:gap-6",
-    "border_radius": "rounded-2xl"
+    "border_radius": "20px",
+    "control_border_radius": "999px"
   },
   "visual_enhancers": {
-    "glassmorphism": "backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60",
-    "card_hover": "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-emerald-500/40",
+    "glassmorphism": "backdrop-blur 20px; clear rgba(255,255,255,.72); yellow rgba(255,196,0,.82); dark rgba(17,17,17,.66); AI rgba(255,243,184,.74); thin white edge and soft shadow.",
+    "card_hover": "transition transform and opacity only; 200ms cubic-bezier(.23,1,.32,1); respect prefers-reduced-motion.",
     "map_container": "rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative h-[420px] sm:h-[520px] w-full",
-    "avatar_badge": "relative inline-block border-2 border-emerald-500 rounded-full"
+    "avatar_badge": "relative inline-block border-2 border-[#FFC400] rounded-full",
+    "control_height": "48px minimum",
+    "motion": "press scale .97 for 120ms; entrance from scale(.96) and opacity 0; animate transform and opacity only."
   },
   "image_urls": {
     "professionals": [
@@ -118,7 +121,10 @@
   "key_features_and_flows": {
     "auth_flow": {
       "type": "JWT com escolha de papel",
-      "roles": ["Profissional", "Contratante"],
+      "roles": [
+        "Profissional",
+        "Contratante"
+      ],
       "test_ids": {
         "email_input": "auth-email-input",
         "password_input": "auth-password-input",

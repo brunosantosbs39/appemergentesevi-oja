@@ -3,7 +3,9 @@ import { STATUS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export const Logo = ({ to = "/", dark = false }) => (
-  <Link to={to} className={cn("brand-wordmark", dark && "brand-on-photo")} data-testid="brand-logo">SERVIÇOJÁ</Link>
+  <Link to={to} className={cn("brand-wordmark", dark && "brand-on-photo")} data-testid="brand-logo" aria-label="Chama aê — início">
+    <span className="brand-mark" aria-hidden="true">aê</span><span>Chama aê</span>
+  </Link>
 );
 
 export const StatusBadge = ({ status, testid = "service-status-badge" }) => {

@@ -25,10 +25,10 @@ export const authLocalization = {
   badge__lastUsed: "Usado recentemente",
   backButton: "Voltar",
   signIn: {
-    start: { title: "Entre na sua conta", titleCombined: "Acesse o ServiçoJá",
+    start: { title: "Entre na sua conta", titleCombined: "Acesse o Chama aê",
       subtitle: "Use o método de acesso da sua conta.", subtitleCombined: "Entre ou crie sua conta para continuar.",
       actionText: "Ainda não tem conta?", actionLink: "Criar conta" },
-    password: { title: "Digite sua senha", subtitle: "Continue no ServiçoJá.", actionLink: "Usar outro método" },
+    password: { title: "Digite sua senha", subtitle: "Continue no Chama aê.", actionLink: "Usar outro método" },
     emailCode: { title: "Confira seu e-mail", subtitle: "Digite o código que enviamos para continuar.",
       formTitle: "Código de verificação", resendButton: "Reenviar código" },
     forgotPassword: { title: "Recuperar acesso", subtitle: "Confirme sua identidade para redefinir a senha.",

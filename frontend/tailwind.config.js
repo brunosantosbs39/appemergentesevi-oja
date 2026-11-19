@@ -10,7 +10,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Figtree', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
         heading: ['"Plus Jakarta Sans"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace']
       },

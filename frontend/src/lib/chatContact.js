@@ -1,5 +1,5 @@
 const phoneWords = /\b(?:zero|um|uma|dois|duas|tres|quatro|cinco|seis|meia|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa)\b/g;
-export const contactNotice = "Mantenha a conversa no ServiçoJá. Telefones e convites para WhatsApp são bloqueados.";
+export const contactNotice = "Mantenha a conversa no Chama aê. Telefones e convites para WhatsApp são bloqueados.";
 export function hasContact(value) {
   const plain = String(value || "").normalize("NFKD").replace(/[\u0300-\u036f\u200b-\u200d]/g, "").toLowerCase();
   const compact = plain.replace(/[^a-z0-9@./]/g, "");

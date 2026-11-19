@@ -16,6 +16,7 @@ import Requests from "@/pages/Requests";
 import Chat from "@/pages/Chat";
 import Profile from "@/pages/Profile";
 import "@/design-polish.css";
+import "@/brand-identity.css";
 
 const Home = () => (
   <>

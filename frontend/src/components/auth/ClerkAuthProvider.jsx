@@ -99,7 +99,7 @@ export default function ClerkAuthProvider({ children }) {
     {unavailable ? <><h1>Vamos tentar novamente?</h1>
       <p role="alert">Não foi possível carregar o acesso. Confira sua conexão e tente de novo.</p>
       <button type="button" onClick={() => setRetry(value => value + 1)}>Tentar novamente</button>
-    </> : <p role="status" aria-live="polite">Preparando seu acesso ao ServiçoJá…</p>}
+    </> : <p role="status" aria-live="polite">Preparando seu acesso ao Chama aê…</p>}
   </div>;
   return (
     <ClerkProvider
