@@ -1,28 +1,104 @@
 /* Chama aê brand identity: tokens and component finish from Brand Book v1.0. */
 :root {
-  --sj-brand: #ffc400;
-  --sj-brand-soft: #fff3b8;
-  --sj-ink: #111111;
-  --sj-copy-muted: #5f5f5f;
-  --sj-line: #e6e6e6;
-  --sj-radius-panel: 20px;
-  --sj-radius-card: 14px;
-  --sj-radius-control: 999px;
-  --sj-glass-blur: 20px;
-  --sj-glass-clear-fill: rgba(255, 255, 255, .72);
-  --sj-glass-tint-fill: rgba(255, 196, 0, .82);
-  --sj-glass-dark-fill: rgba(17, 17, 17, .66);
-  --sj-glass-ai-fill: rgba(255, 243, 184, .74);
-  --sj-motion-fast: 120ms;
-  --sj-motion-base: 200ms;
-  --sj-motion-slow: 300ms;
-  --sj-ease-out: cubic-bezier(.23, 1, .32, 1);
+  /* Primitive tokens from the Chama aê Design Tokens artboard (v1.0). */
+  --yellow-500: #ffc400;
+  --yellow-100: #fff3b8;
+  --ink-900: #111111;
+  --white: #ffffff;
+  --gray-600: #5f5f5f;
+  --gray-400: #8a8a8a;
+  --gray-200: #e6e6e6;
+  --gray-150: #eeeeee;
+  --gray-100: #f0f0f0;
+  --feedback-danger: #d92d20;
+
+  /* Semantic color tokens. Components should consume these, not raw colors. */
+  --color-brand-primary: var(--yellow-500);
+  --color-surface-default: var(--white);
+  --color-surface-ai: var(--yellow-100);
+  --color-surface-muted: var(--gray-100);
+  --color-surface-inverse: var(--ink-900);
+  --color-text-primary: var(--ink-900);
+  --color-text-secondary: var(--gray-600);
+  --color-border-default: var(--gray-200);
+  --color-border-strong: var(--ink-900);
+  --color-border-pending: var(--gray-400);
+  --color-feedback-danger: var(--feedback-danger);
+
+  /* Typography scale · Plus Jakarta Sans. */
+  --type-display-size: 26px; --type-display-line: 1.15; --type-display-weight: 800;
+  --type-title-size: 22px; --type-title-line: 1.2; --type-title-weight: 800;
+  --type-heading-size: 16px; --type-heading-line: 1.3; --type-heading-weight: 800;
+  --type-subtitle-size: 15px; --type-subtitle-line: 1.3; --type-subtitle-weight: 700;
+  --type-body-size: 14px; --type-body-line: 1.4; --type-body-weight: 500;
+  --type-body-sm-size: 13px; --type-body-sm-line: 1.4; --type-body-sm-weight: 500;
+  --type-caption-size: 12px; --type-caption-line: 1.4; --type-caption-weight: 500;
+  --type-micro-size: 11px; --type-micro-line: 1.3; --type-micro-weight: 700;
+
+  /* Spacing, radius, control, and border tokens. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 14px;
+  --radius-xl: 16px; --radius-2xl: 20px; --radius-pill: 999px;
+  --radius-control: 999px;
+  --size-touch-min: 44px; --size-control: 48px;
+  --size-header: 68px; --size-nav: 76px;
+  --border-thin: 1px; --border-strong: 2px;
+
+  /* Liquid Glass and motion tokens. */
+  --glass-blur: 20px;
+  --glass-saturate: 180%;
+  --glass-clear-fill: rgba(255,255,255,.72);
+  --glass-tint-fill: rgba(255,196,0,.82);
+  --glass-dark-fill: rgba(17,17,17,.66);
+  --glass-ai-fill: rgba(255,243,184,.74);
+  --glass-sheen: linear-gradient(180deg, rgba(255,255,255,.5), transparent 50%);
+  --glass-edge: inset 0 1px 0 rgba(255,255,255,.95);
+  --glass-ring: inset 0 0 0 1px rgba(255,255,255,.45);
+  --glass-shadow: 0 8px 24px rgba(17,17,17,.16);
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 300ms;
+  --motion-ease-out: cubic-bezier(.23,1,.32,1);
+  --motion-ease-in-out: cubic-bezier(.77,0,.175,1);
+  --motion-press-scale: .97;
+  --motion-enter-from: scale(.96);
+  --motion-indicator: 260ms;
+
+  /* Existing app aliases retained while the component styles migrate to semantic names. */
+  --sj-brand: var(--color-brand-primary);
+  --sj-brand-soft: var(--color-surface-ai);
+  --sj-ink: var(--color-text-primary);
+  --sj-copy-muted: var(--color-text-secondary);
+  --sj-line: var(--color-border-default);
+  --sj-radius-panel: var(--radius-2xl);
+  --sj-radius-card: var(--radius-lg);
+  --sj-radius-control: var(--radius-pill);
+  --sj-glass-blur: var(--glass-blur);
+  --sj-glass-clear-fill: var(--glass-clear-fill);
+  --sj-glass-tint-fill: var(--glass-tint-fill);
+  --sj-glass-dark-fill: var(--glass-dark-fill);
+  --sj-glass-ai-fill: var(--glass-ai-fill);
+  --sj-motion-fast: var(--motion-duration-fast);
+  --sj-motion-base: var(--motion-duration-base);
+  --sj-motion-slow: var(--motion-duration-slow);
+  --sj-ease-out: var(--motion-ease-out);
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 html, body, button, input, textarea, select {
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
+
+.sj-app {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--type-body-weight);
+}
+.sj-app h1 { font-size: var(--type-display-size); line-height: var(--type-display-line); font-weight: var(--type-display-weight); }
+.sj-app h2 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+.sj-app h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line); font-weight: var(--type-heading-weight); }
+.sj-app h4 { font-size: var(--type-subtitle-size); line-height: var(--type-subtitle-line); font-weight: var(--type-subtitle-weight); }
 
 ::selection { background: var(--sj-brand); color: var(--sj-ink); }
 
@@ -100,9 +176,9 @@ html, body, button, input, textarea, select {
   border-radius: var(--sj-radius-control) !important;
   border-color: rgba(230, 230, 230, .76);
   background: var(--sj-glass-clear-fill);
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  box-shadow: 0 8px 24px rgba(17, 17, 17, .16);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring), var(--glass-shadow);
 }
 .dark .sj-app nav[aria-label='Navegação principal no celular'] {
   border-color: rgba(255, 255, 255, .12);
@@ -118,34 +194,45 @@ html, body, button, input, textarea, select {
   border-radius: var(--sj-radius-control) !important;
   background: var(--sj-glass-tint-fill) !important;
   color: var(--sj-ink) !important;
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
 }
 .sj-app button.bg-primary, .access-primary {
   background: var(--sj-glass-tint-fill) !important;
   color: var(--sj-ink) !important;
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
 }
 .sj-app button.bg-secondary { background-color: var(--sj-glass-clear-fill); }
 .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .sj-app select, .sj-app textarea {
   background-color: var(--sj-glass-clear-fill);
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
 }
+.sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-app select { min-height: var(--size-control); }
+.sj-app input:focus-visible, .sj-app select:focus-visible, .sj-app textarea:focus-visible {
+  border-width: var(--border-strong);
+  border-color: var(--color-border-strong);
+}
+.sj-app .border-dashed { border-color: var(--color-border-pending); }
 .dark .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .dark .sj-app select, .dark .sj-app textarea { background-color: rgba(17,17,17,.72); }
 .sj-app article.rounded-none, .sj-app .sj-empty-state {
   background-color: var(--sj-glass-clear-fill);
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
 }
 .dark .sj-app article.rounded-none, .dark .sj-app .sj-empty-state { background-color: rgba(17,17,17,.72); }
 .sj-chat .sj-inbox-header, .sj-chat .sj-thread-header, .sj-chat .sj-composer {
   background: var(--sj-glass-clear-fill);
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
 }
 .dark .sj-chat .sj-inbox-header, .dark .sj-chat .sj-thread-header, .dark .sj-chat .sj-composer {
   background: var(--sj-glass-dark-fill);
@@ -157,6 +244,8 @@ html, body, button, input, textarea, select {
 .sj-chat .sj-message-row.mine .sj-bubble {
   background: var(--sj-glass-tint-fill);
   color: var(--sj-ink);
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
 }
 .dark .sj-chat .sj-message-row:not(.mine) .sj-bubble { background: rgba(255,255,255,.14); color: #fff; }
 .sj-chat .sj-bubble { border-radius: 20px !important; }
@@ -172,8 +261,9 @@ html, body, button, input, textarea, select {
 }
 .sj-app header.sticky {
   background: var(--sj-glass-clear-fill);
-  backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(160%);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge);
 }
 .dark .sj-app header.sticky { background: var(--sj-glass-dark-fill); }
 
@@ -190,6 +280,7 @@ html, body, button, input, textarea, select {
 
 .access-page { background: hsl(var(--background)); }
 .access-card { border-color: var(--sj-line); background: hsl(var(--card)); }
+.access-card h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: -.035em; }
 .access-primary, .access-google { min-height: 48px; }
 .access-primary { background: var(--sj-brand); border-color: var(--sj-brand); color: var(--sj-ink); }
 .access-primary:hover:not(:disabled) { background: #eab400; }
@@ -217,6 +308,12 @@ html, body, button, input, textarea, select {
   }
   .dark .sj-app nav[aria-label='Navegação principal no celular'],
   .dark .sj-app header.sticky { background: #171717; }
+  .sj-app button.bg-primary, .sj-app a.bg-primary { background-image: none; box-shadow: none; }
+  .sj-chat .sj-message-row.mine .sj-bubble { background: var(--sj-brand); background-image: none; box-shadow: none; }
+  .sj-chat .sj-message-row:not(.mine) .sj-bubble,
+  .sj-chat .sj-inbox-header, .sj-chat .sj-thread-header, .sj-chat .sj-composer { background: #fff; }
+  .dark .sj-chat .sj-message-row:not(.mine) .sj-bubble,
+  .dark .sj-chat .sj-inbox-header, .dark .sj-chat .sj-thread-header, .dark .sj-chat .sj-composer { background: #171717; }
   .sj-app button.bg-primary, .sj-app a.bg-primary, .access-primary { background: var(--sj-brand) !important; }
   .sj-app article.rounded-none, .sj-app .sj-empty-state,
   .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),

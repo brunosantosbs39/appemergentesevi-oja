@@ -15,11 +15,11 @@
         --primary-foreground: 0 0% 7%;
         --secondary: 48 100% 86%;
         --secondary-foreground: 0 0% 7%;
-        --muted: 0 0% 96%;
+        --muted: 0 0% 94%;
         --muted-foreground: 0 0% 37%;
         --accent: 48 100% 86%;
         --accent-foreground: 0 0% 7%;
-        --destructive: 0 72% 45%;
+        --destructive: 5 75% 49%;
         --destructive-foreground: 0 0% 100%;
         --border: 0 0% 90%;
         --input: 0 0% 90%;
@@ -28,7 +28,7 @@
         --chart-2: 0 0% 7%;
         --chart-3: 0 0% 37%;
         --chart-4: 48 100% 86%;
-        --chart-5: 0 72% 45%;
+        --chart-5: 5 75% 49%;
         --radius: 14px;
     }
     :root.dark {
