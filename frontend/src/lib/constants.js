@@ -48,11 +48,11 @@ export const catOf = (slug) => CATEGORIES.find((c) => c.slug === slug) || CATEGO
 export const STATUS = {
   excluido: { label: "Excluída", cls: "bg-muted text-foreground border-border" },
   preenchido: { label: "Preenchida", cls: "bg-muted text-foreground border-border" },
-  pendente: { label: "Pendente", cls: "bg-amber-100 text-amber-800 border-amber-300" },
-  aceito: { label: "Aceito", cls: "bg-blue-100 text-blue-800 border-blue-300" },
-  em_andamento: { label: "Em andamento", cls: "bg-muted text-foreground border-foreground" },
-  concluido: { label: "Concluído", cls: "bg-teal-100 text-teal-800 border-teal-300" },
-  cancelado: { label: "Cancelado", cls: "bg-rose-100 text-rose-800 border-rose-300" },
+  pendente: { label: "Pendente", cls: "bg-muted text-muted-foreground border-border" },
+  aceito: { label: "Aceito", cls: "bg-secondary text-secondary-foreground border-primary" },
+  em_andamento: { label: "Em andamento", cls: "bg-primary text-primary-foreground border-primary" },
+  concluido: { label: "Concluído", cls: "bg-muted text-foreground border-border" },
+  cancelado: { label: "Cancelado", cls: "bg-destructive/10 text-destructive border-destructive/30" },
 };
 
 export const RADIUS_OPTIONS = [
