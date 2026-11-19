@@ -173,14 +173,25 @@ html, body, button, input, textarea, select {
   border-radius: var(--sj-radius-card) !important;
 }
 
+.sj-app .sj-sidebar-nav a {
+  border-radius: var(--radius-control) !important;
+}
+.sj-app .sj-sidebar-nav a:hover:not([aria-current='page']) {
+  background: var(--yellow-500) !important;
+  color: var(--ink-900) !important;
+}
 .sj-app .sj-sidebar-nav a[aria-current='page'] {
   background: var(--sj-brand-soft);
   color: var(--sj-ink);
-  box-shadow: inset 0 -2px var(--sj-brand) !important;
+  box-shadow: inset 3px 0 var(--yellow-500) !important;
 }
 .dark .sj-app .sj-sidebar-nav a[aria-current='page'] {
   background: rgba(255, 196, 0, .16);
   color: #fff;
+}
+.dark .sj-app .sj-sidebar-nav a:hover:not([aria-current='page']) {
+  background: var(--yellow-500) !important;
+  color: var(--ink-900) !important;
 }
 .sj-app nav[aria-label='Navegação principal no celular'] {
   border-radius: var(--sj-radius-control) !important;
@@ -259,7 +270,22 @@ html, body, button, input, textarea, select {
   background-image: var(--glass-sheen);
 }
 .dark .sj-chat .sj-message-row:not(.mine) .sj-bubble { background: rgba(255,255,255,.14); color: #fff; }
-.sj-chat .sj-bubble { border-radius: 20px !important; }
+.sj-chat :is(.sj-search, .sj-inbox-filters button, .sj-conversation-note,
+  .sj-date-divider, .sj-system, .sj-typing-bubble, .sj-jump,
+  .sj-audio-controls button:not(.sj-mic)) {
+  border-radius: var(--radius-control) !important;
+}
+.sj-chat :is(.sj-conversation, .sj-job, .sj-actions, .sj-proposal) {
+  border-radius: var(--radius-lg) !important;
+}
+.sj-chat .sj-bubble { border-radius: var(--radius-2xl) !important; }
+.sj-chat .sj-icon-button, .sj-chat .sj-send,
+.sj-chat .sj-audio-controls button.sj-mic { border-radius: 50% !important; }
+.sj-chat .sj-list-avatar > span:last-child:not(:first-child),
+.sj-chat .sj-job-dot, .sj-chat .sj-typing-bubble i { border-radius: 50% !important; }
+.sj-chat .sj-unread { border-radius: var(--radius-control) !important; }
+.sj-chat .sj-actions a, .sj-chat .sj-actions button,
+.sj-chat .sj-proposal-actions button { border-radius: var(--radius-control) !important; }
 .sj-chat .sj-composer textarea { background: var(--sj-glass-ai-fill); }
 .dark .sj-chat .sj-composer textarea { background: rgba(255,243,184,.16); }
 .sj-app .sj-category-options button[aria-pressed='true'] {
