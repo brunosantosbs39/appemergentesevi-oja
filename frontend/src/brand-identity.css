@@ -143,13 +143,17 @@ html, body, button, input, textarea, select {
 .lux-landing .lux-button {
   border-radius: var(--sj-radius-control) !important;
 }
+.sj-app button, .access-page button { min-height: var(--size-touch-min); }
 .sj-app textarea,
 .access-page textarea { border-radius: var(--sj-radius-card) !important; }
 .sj-app [role='dialog'], .sj-app [role='alertdialog'], .sj-dialog,
 .access-card, .registration-region {
   border-radius: var(--sj-radius-panel) !important;
 }
-.sj-app article.rounded-none, .sj-app section.rounded-none,
+.sj-app article.rounded-none:not(button):not(input):not(textarea):not(select):not(span):not([role='dialog']):not([role='alertdialog']) {
+  border-radius: var(--sj-radius-card) !important;
+}
+.sj-app section.rounded-none,
 .sj-app .sj-empty-state, .sj-app .sj-page-header + section,
 .sj-app [data-testid='create-post-dialog'], .sj-app [data-testid='create-request-dialog'] {
   border-radius: var(--sj-radius-panel) !important;
@@ -200,6 +204,7 @@ html, body, button, input, textarea, select {
   background-image: var(--glass-sheen);
 }
 .sj-app button.bg-primary, .access-primary {
+  min-height: var(--size-control);
   background: var(--sj-glass-tint-fill) !important;
   color: var(--sj-ink) !important;
   backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
@@ -271,6 +276,9 @@ html, body, button, input, textarea, select {
 .sj-app [role='dialog'], .sj-app [role='alertdialog'],
 .access-card, .registration-region {
   box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.sj-app article.rounded-none, .sj-app .sj-empty-state {
+  box-shadow: var(--glass-edge), var(--glass-ring), var(--glass-shadow);
 }
 .dark .sj-app article.rounded-none, .dark .sj-app .sj-empty-state,
 .dark .sj-app [role='dialog'], .dark .sj-app [role='alertdialog'],
