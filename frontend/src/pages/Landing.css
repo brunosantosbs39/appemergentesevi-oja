@@ -53,7 +53,7 @@
 @media(max-width:700px){
 .lux-header{height:88px;padding:0 6%}.lux-logo{font-size:18px}.lux-logo span{font-size:6px;letter-spacing:.12em}
 .lux-header nav{gap:16px;font-size:8px;letter-spacing:.08em}.lux-nav-cta svg{display:none}
-.lux-hero{min-height:610px;height:calc(100svh - 128px)}.lux-hero-copy{padding:18px 6% 52px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
+.lux-hero{min-height:610px;height:calc(100svh - 128px)}.lux-hero-copy{padding:9px 6% 52px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
 .lux-hero-photo{object-position:62% center}.lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.82),rgba(0,0,0,.4)),linear-gradient(0deg,#000,transparent 65%)}
 .lux-intro{font-size:17px;max-width:330px}.lux-desktop-break{display:none}.lux-eyebrow{font-size:8px}.lux-actions{gap:12px}
 .lux-button{font-size:9px;gap:20px;padding:16px 18px;min-height:54px}
