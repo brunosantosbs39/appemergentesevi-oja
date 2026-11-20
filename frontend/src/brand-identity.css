@@ -383,9 +383,10 @@ html, body, button, input, textarea, select {
   align-items: center;
   gap: 10px;
   color: var(--sj-ink);
-  font-size: 22px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 26px;
   font-weight: 800;
-  letter-spacing: -.045em;
+  letter-spacing: -.035em;
   text-transform: none;
 }
 .lux-logo-text { display: block; }
@@ -530,12 +531,12 @@ html, body, button, input, textarea, select {
 /* Keep the yellow aê badge before the Chama wordmark on every surface. */
 .lux-logo .brand-mark {
   display: inline-grid;
-  min-width: 34px;
-  height: 32px;
+  min-width: 38px;
+  height: 36px;
   margin: 0;
-  padding: 0 7px;
-  font-size: 17px;
-  letter-spacing: -.07em;
+  padding: 0 8px;
+  font-size: 21px;
+  letter-spacing: -.06em;
 }
 .lux-logo .lux-logo-text {
   margin-top: 0;
