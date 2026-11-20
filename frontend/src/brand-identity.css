@@ -399,6 +399,7 @@ html, body, button, input, textarea, select {
 }
 .lux-nav-cta {
   min-height: 44px !important;
+  border-radius: 999px !important;
   padding: 0 18px;
   border: 1px solid var(--sj-brand) !important;
   background: var(--sj-brand);
