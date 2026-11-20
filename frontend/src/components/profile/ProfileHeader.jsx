@@ -5,7 +5,7 @@ import { imgUrl } from "@/lib/api";
 import { brl, catOf, km } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/common/UserAvatar";
-import { RatingBadge, Stars } from "@/components/common/StarRating";
+import { Stars } from "@/components/common/StarRating";
 
 const Stat = ({ icon: Icon, value, label, testid }) => (
   <div className="rounded-2xl border border-border bg-card px-4 py-3" data-testid={testid}>
@@ -42,7 +42,15 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
             {user.name || "Sem nome"} {isPro && <BadgeCheck className="h-6 w-6 text-foreground" />}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="profile-role-badge">Conta única</span>
+            <span
+              className="inline-flex items-center"
+              data-testid="profile-rating-stars"
+              role="img"
+              aria-label={user.rating_count ? `Avaliação média ${Number(user.rating_avg || 0).toFixed(1).replace(".", ",")} de 5` : "Sem avaliações"}
+              title={user.rating_count ? "Média das avaliações recentes" : "Sem avaliações"}
+            >
+              <Stars value={user.rating_avg || 0} size={18} />
+            </span>
             {user.headline && <span className="font-medium text-foreground">{user.headline}</span>}
             <PresenceBadge user={user} />
             {user.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{user.city}</span>}
@@ -60,21 +68,6 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
         </div>
         {!isMe && <div className="mt-4"><ContactButton userId={user.user_id} label="Conversar com este usuário" className="w-full sm:w-auto" testid="profile-action-chat-button" /></div>}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="relative overflow-hidden rounded-2xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-card to-card px-4 py-3 shadow-sm dark:border-amber-400/20 dark:from-amber-400/10">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Avaliação</p>
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/20 text-foreground">
-                <Briefcase className="h-4 w-4" aria-hidden="true" />
-              </span>
-            </div>
-            <div className="mt-2 flex items-end gap-2">
-              <RatingBadge avg={user.rating_avg} count={user.rating_count} testid="user-profile-rating-badge" />
-              <span className="pb-0.5 text-xs text-muted-foreground">
-                {user.rating_count ? (user.rating_count === 1 ? "1 avaliação" : `${user.rating_count} avaliações`) : "Aguardando a primeira"}
-              </span>
-            </div>
-            <div className="mt-2"><Stars value={user.rating_avg || 0} size={13} /></div>
-          </div>
           <Stat icon={Briefcase} value={user.jobs_done || 0} label="Serviços feitos" testid="profile-stat-jobs" />
           <Stat icon={ClipboardList} value={user.requests_count || 0} label="Pedidos" testid="profile-stat-requests" />
           
