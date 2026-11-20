@@ -3,6 +3,8 @@ are set: /api/clerk/config for the frontend, the /api/__clerk production relay
 (zero DNS per app), and the require_user dependency for protected routes."""
 
 import os
+import base64
+from urllib.parse import urlsplit
 from functools import lru_cache
 
 import jwt
@@ -109,23 +111,57 @@ def _jwks_client(secret_key: str) -> jwt.PyJWKClient:
     )
 
 
+def trusted_origins() -> set:
+    origins = {v.strip().rstrip("/") for name in ("CLERK_AUTHORIZED_PARTIES", "CORS_ORIGINS")
+               for v in os.environ.get(name, "").split(",") if v.strip()}
+    for name in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+        host = os.environ.get(name, "").strip()
+        if host:
+            origins.add("https://" + host)
+    if not os.environ.get("VERCEL"):
+        origins.update({"http://localhost:3000", "http://127.0.0.1:3000"})
+    return origins
+
+
+def expected_issuer() -> str:
+    try:
+        encoded = _publishable_key().split("_", 2)[2]
+        host = base64.b64decode(encoded + "=" * (-len(encoded) % 4), validate=True).decode().rstrip("$")
+        parsed = urlsplit("https://" + host)
+        if not host or parsed.netloc != host or parsed.path or parsed.username:
+            raise ValueError()
+        return "https://" + host
+    except (ValueError, IndexError, UnicodeError):
+        raise HTTPException(503, "Clerk configuration is invalid")
+
+
 def verify_session_token(token: str) -> dict:
-    """Return the verified claims of a Clerk session token, or raise 401."""
+    """Accept only expiring user sessions issued by this Clerk instance."""
+    issuer = expected_issuer()
     try:
         key = _jwks_client(_secret_key()).get_signing_key_from_jwt(token).key
-        return jwt.decode(token, key=key, algorithms=["RS256"], leeway=5)
+        claims = jwt.decode(token, key=key, algorithms=["RS256"], leeway=5,
+                            issuer=issuer, options={"require": ["exp", "iat", "nbf", "iss", "sub", "sid"]})
+        if not all(isinstance(claims[k], str) and claims[k] for k in ("sub", "sid")):
+            raise jwt.InvalidTokenError()
+        if claims.get("azp") is not None and (not isinstance(claims["azp"], str) or claims["azp"] not in trusted_origins()):
+            raise jwt.InvalidTokenError()
+        return claims
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
 
 def require_user(request: Request) -> dict:
-    """FastAPI dependency: the signed-in user from `Authorization: Bearer`
-    (frontend getToken()) or Clerk's `__session` cookie; user["user_id"] is stable."""
+    """Verify the session; cookie-authenticated writes also require a trusted Origin."""
     if not _secret_key():
         raise HTTPException(status_code=503, detail="Clerk is not configured")
     auth = request.headers.get("authorization", "")
-    token = auth[7:] if auth.lower().startswith("bearer ") else request.cookies.get("__session", "")
+    bearer = auth.lower().startswith("bearer ")
+    token = auth[7:] if bearer else request.cookies.get("__session", "")
     if not token:
         raise HTTPException(status_code=401, detail="Not signed in")
+    if not bearer and request.method not in {"GET", "HEAD", "OPTIONS"}:
+        if request.headers.get("origin", "") not in trusted_origins():
+            raise HTTPException(403, "Invalid request origin")
     claims = verify_session_token(token)
-    return {"user_id": claims["sub"], "session_id": claims.get("sid"), "claims": claims}
+    return {"user_id": claims["sub"], "session_id": claims["sid"], "claims": claims}

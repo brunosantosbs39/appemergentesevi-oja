@@ -22,13 +22,14 @@ export const LocationPicker = ({ value, onChange, testid = "location-picker" }) 
     navigator.geolocation.getCurrentPosition(
       (p) => {
         onChange({ lat: p.coords.latitude, lng: p.coords.longitude });
+        toast.info(`Precisão informada pelo aparelho: ${Math.round(p.coords.accuracy)} m. Ajuste o ponto no mapa se necessário.`);
         setLocating(false);
       },
       () => {
         toast.error("Não foi possível obter sua localização");
         setLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 8000 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   };
   return (

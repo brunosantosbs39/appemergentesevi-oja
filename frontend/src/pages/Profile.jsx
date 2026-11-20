@@ -23,9 +23,9 @@ const PostsGrid = ({ posts, onOpen }) =>
   ) : (
     <div className="grid grid-cols-3 gap-1.5 sm:gap-3" data-testid="profile-posts-grid">
       {posts.map((p) => (
-        <button key={p.id} onClick={() => onOpen(p)} className="group relative aspect-square overflow-hidden rounded-none bg-card sm:rounded-none" data-testid={`profile-post-thumb-${p.id}`}>
-          <img src={imgUrl(p.image)} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 text-sm font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
+        <button key={p.id} onClick={() => onOpen(p)} aria-label="Abrir publicação do portfólio" className="sj-portfolio-item group relative aspect-square overflow-hidden rounded-none bg-card sm:rounded-none" data-testid={`profile-post-thumb-${p.id}`}>
+          <img src={imgUrl(p.image)} alt="" className="h-full w-full object-cover sj-portfolio-image" loading="lazy" />
+          <span className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 text-sm font-bold text-white sj-portfolio-overlay">
             <Heart className="h-4 w-4 fill-white" /> {p.likes_count}
           </span>
         </button>
@@ -39,16 +39,16 @@ const ReviewsList = ({ reviews }) =>
   ) : (
     <div className="space-y-3" data-testid="profile-reviews-list">
       {reviews.map((r) => (
-        <div key={r.id} className="rounded-none border border-border bg-card p-5" data-testid="profile-review-item">
+        <div key={r.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="profile-review-item">
           <div className="flex items-center gap-3">
             <UserAvatar user={r.author} className="h-9 w-9" />
             <div className="min-w-0 flex-1">
               <Link to={`/perfil/${r.from_id}`} className="text-sm font-bold text-foreground hover:text-foreground">{r.author?.name || "Usuário"}</Link>
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{catOf(r.category).label} • {ago(r.created_at)}</p>
             </div>
-            <Stars value={r.rating} />
+            <span role="img" aria-label={`Nota: ${r.rating} de 5`} className="rounded-full bg-amber-50 px-2.5 py-1 dark:bg-amber-400/10"><Stars value={r.rating} /></span>
           </div>
-          {r.comment && <p className="mt-3 text-sm leading-relaxed text-foreground">{r.comment}</p>}
+          {r.comment && <p className="mt-4 border-l-2 border-primary pl-4 text-sm leading-relaxed text-foreground">{r.comment}</p>}
         </div>
       ))}
     </div>
@@ -103,8 +103,8 @@ export default function Profile() {
   }, [api, uid]);
 
   if (user === false) return <EmptyState icon={UserX} title="Perfil não encontrado" testid="profile-not-found" />;
-  if (!user) return <Loader2 className="mx-auto mt-16 h-6 w-6 animate-spin text-foreground" />;
-  const isPro = user.role === "profissional";
+  if (!user) return <div role="status" className="sj-loading"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /><span>Carregando perfil…</span></div>;
+  const isPro = !!user.role;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="profile-page">

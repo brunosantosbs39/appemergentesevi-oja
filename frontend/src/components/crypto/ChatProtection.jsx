@@ -1,3 +1,4 @@
+import { hasContact, contactNotice } from "@/lib/chatContact";
 import { useEffect, useState } from "react";
 import { useCrypto } from "@/context/CryptoContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -10,7 +11,7 @@ export function EncryptedText({ message }) {
   useEffect(() => {
     let active = true;
     setValue(null); setError("");
-    if (ready) decryptMessage(message).then((data) => { if (active) setValue(data.text); }).catch((e) => { if (active) setError(e.message); });
+    if (ready) decryptMessage(message).then((data) => { if (active) setValue(hasContact(data.text) ? contactNotice : data.text); }).catch((e) => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [message, ready, decryptMessage]);
   if (!ready) return <button type="button" onClick={protection.showSetup}>🔒 Recuperar chaves para ler</button>;

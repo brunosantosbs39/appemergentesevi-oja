@@ -64,19 +64,11 @@ def test_encrypted_chat_and_identity_privacy_with_real_database(monkeypatch, wir
             put = Mock(return_value={"path": "private/cipher.encrypted"})
             monkeypatch.setattr(server, "put_object", put)
             binary = decode(wire["file"])
-            audio = await server.send_encrypted_audio("chat", json.dumps(wire["audio"]), UploadFile(file=io.BytesIO(binary), filename="audio.encrypted"), {"user_id": "alice"})
-            assert put.call_args.args[1] == binary
-            assert put.call_args.args[2] == "application/octet-stream"
-            assert b"AUDIO_SENTINEL" not in binary
-            assert audio["kind"] == "encrypted_audio"
-            stored_file = await db.files.find_one({"storage_path": "private/cipher.encrypted"})
-            assert stored_file["e2ee"] is True and stored_file["conversation_id"] == "chat"
-            assert await db.messages.count_documents({"client_id": wire["audio"]["header"]["client_id"]}) == 1
-            await server.send_encrypted_audio("chat", json.dumps(wire["audio"]), UploadFile(file=io.BytesIO(binary)), {"user_id": "alice"})
-            assert put.call_count == 1
-            await db.messages.delete_one({"id": audio["id"]})
-            with pytest.raises(HTTPException): await server.send_encrypted_audio("chat", json.dumps(wire["audio"]), UploadFile(file=io.BytesIO(b"altered")), {"user_id": "alice"})
-            assert put.call_count == 1
+            with pytest.raises(HTTPException) as blocked:
+                await server.send_encrypted_audio("chat", json.dumps(wire["audio"]), UploadFile(file=io.BytesIO(binary)), {"user_id": "alice"})
+            assert blocked.value.status_code == 403
+            put.assert_not_called()
+            assert await db.messages.count_documents({"kind": "encrypted_audio"}) == 0
             await db.e2ee_identities.delete_one({"user_id": "bob"})
             with pytest.raises(HTTPException) as error: await validate_envelope(db, conv, "alice", packet, "text")
             assert error.value.status_code == 409

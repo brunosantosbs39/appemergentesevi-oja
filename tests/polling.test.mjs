@@ -1,0 +1,23 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { startPolling } from "../frontend/src/lib/polling.mjs";
+test("no overlap, pause hidden/offline, cleanup prevents refresh", async () => {
+ const doc=new EventTarget(), win=new EventTarget();
+ doc.visibilityState="visible"; win.navigator={onLine:true};
+ let resolve, count=0;
+ const task=()=>{count++; return new Promise(done=>{resolve=done})};
+ const stop=startPolling(task,{doc,win,interval:1000});
+ assert.equal(count,1);
+ doc.dispatchEvent(new Event("visibilitychange")); win.dispatchEvent(new Event("online"));
+ assert.equal(count,1);
+ resolve(); await Promise.resolve(); await Promise.resolve();
+ doc.visibilityState="hidden"; doc.dispatchEvent(new Event("visibilitychange"));
+ assert.equal(count,1);
+ doc.visibilityState="visible"; win.navigator.onLine=false; win.dispatchEvent(new Event("online"));
+ assert.equal(count,1);
+ win.navigator.onLine=true; win.dispatchEvent(new Event("online"));
+ assert.equal(count,2);
+ stop(); resolve(); await Promise.resolve(); await Promise.resolve();
+ doc.dispatchEvent(new Event("visibilitychange"));
+ assert.equal(count,2);
+});

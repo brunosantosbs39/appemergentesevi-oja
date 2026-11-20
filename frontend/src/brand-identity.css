@@ -1,0 +1,720 @@
+/* Chama aê brand identity: tokens and component finish from Brand Book v1.0. */
+:root {
+  /* Primitive tokens from the Chama aê Design Tokens artboard (v1.0). */
+  --yellow-500: #ffc400;
+  --yellow-100: #fff3b8;
+  --ink-900: #111111;
+  --white: #ffffff;
+  --gray-600: #5f5f5f;
+  --gray-400: #8a8a8a;
+  --gray-200: #e6e6e6;
+  --gray-150: #eeeeee;
+  --gray-100: #f0f0f0;
+  --feedback-danger: #d92d20;
+
+  /* Semantic color tokens. Components should consume these, not raw colors. */
+  --color-brand-primary: var(--yellow-500);
+  --color-surface-default: var(--white);
+  --color-surface-ai: var(--yellow-100);
+  --color-surface-muted: var(--gray-100);
+  --color-surface-inverse: var(--ink-900);
+  --color-text-primary: var(--ink-900);
+  --color-text-secondary: var(--gray-600);
+  --color-border-default: var(--gray-200);
+  --color-border-strong: var(--ink-900);
+  --color-border-pending: var(--gray-400);
+  --color-feedback-danger: var(--feedback-danger);
+
+  /* Typography scale · Plus Jakarta Sans. */
+  --type-display-size: 26px; --type-display-line: 1.15; --type-display-weight: 800;
+  --type-title-size: 22px; --type-title-line: 1.2; --type-title-weight: 800;
+  --type-heading-size: 16px; --type-heading-line: 1.3; --type-heading-weight: 800;
+  --type-subtitle-size: 15px; --type-subtitle-line: 1.3; --type-subtitle-weight: 700;
+  --type-body-size: 14px; --type-body-line: 1.4; --type-body-weight: 500;
+  --type-body-sm-size: 13px; --type-body-sm-line: 1.4; --type-body-sm-weight: 500;
+  --type-caption-size: 12px; --type-caption-line: 1.4; --type-caption-weight: 500;
+  --type-micro-size: 11px; --type-micro-line: 1.3; --type-micro-weight: 700;
+
+  /* Spacing, radius, control, and border tokens. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 14px;
+  --radius-xl: 16px; --radius-2xl: 20px; --radius-pill: 999px;
+  --radius-control: 999px;
+  --size-touch-min: 44px; --size-control: 48px;
+  --size-header: 68px; --size-nav: 76px;
+  --border-thin: 1px; --border-strong: 2px;
+
+  /* Liquid Glass and motion tokens. */
+  --glass-blur: 20px;
+  --glass-saturate: 180%;
+  --glass-clear-fill: rgba(255,255,255,.72);
+  --glass-tint-fill: rgba(255,196,0,.82);
+  --glass-dark-fill: rgba(17,17,17,.66);
+  --glass-ai-fill: rgba(255,243,184,.74);
+  --glass-sheen: linear-gradient(180deg, rgba(255,255,255,.5), transparent 50%);
+  --glass-edge: inset 0 1px 0 rgba(255,255,255,.95);
+  --glass-ring: inset 0 0 0 1px rgba(255,255,255,.45);
+  --glass-shadow: 0 8px 24px rgba(17,17,17,.16);
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 300ms;
+  --motion-ease-out: cubic-bezier(.23,1,.32,1);
+  --motion-ease-in-out: cubic-bezier(.77,0,.175,1);
+  --motion-press-scale: .97;
+  --motion-enter-from: scale(.96);
+  --motion-indicator: 260ms;
+
+  /* Existing app aliases retained while the component styles migrate to semantic names. */
+  --sj-brand: var(--color-brand-primary);
+  --sj-brand-soft: var(--color-surface-ai);
+  --sj-ink: var(--color-text-primary);
+  --sj-copy-muted: var(--color-text-secondary);
+  --sj-line: var(--color-border-default);
+  --sj-radius-panel: var(--radius-2xl);
+  --sj-radius-card: var(--radius-lg);
+  --sj-radius-control: var(--radius-control);
+  --sj-glass-blur: var(--glass-blur);
+  --sj-glass-clear-fill: var(--glass-clear-fill);
+  --sj-glass-tint-fill: var(--glass-tint-fill);
+  --sj-glass-dark-fill: var(--glass-dark-fill);
+  --sj-glass-ai-fill: var(--glass-ai-fill);
+  --sj-motion-fast: var(--motion-duration-fast);
+  --sj-motion-base: var(--motion-duration-base);
+  --sj-motion-slow: var(--motion-duration-slow);
+  --sj-ease-out: var(--motion-ease-out);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+html, body, button, input, textarea, select {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.sj-app {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--type-body-weight);
+}
+.sj-app h1 { font-size: var(--type-display-size); line-height: var(--type-display-line); font-weight: var(--type-display-weight); }
+.sj-app h2 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); }
+.sj-app h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line); font-weight: var(--type-heading-weight); }
+.sj-app h4 { font-size: var(--type-subtitle-size); line-height: var(--type-subtitle-line); font-weight: var(--type-subtitle-weight); }
+
+::selection { background: var(--sj-brand); color: var(--sj-ink); }
+
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--sj-ink) !important;
+  font: 800 18px/1 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -.045em;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.dark .brand-wordmark { color: #fff !important; }
+.brand-wordmark.brand-on-photo { color: #fff !important; }
+.brand-mark {
+  display: inline-grid;
+  min-width: 34px;
+  height: 32px;
+  place-items: center;
+  padding: 0 7px;
+  border-radius: 11px;
+  background: var(--sj-brand);
+  color: var(--sj-ink);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.07em;
+}
+
+.sj-app .rounded-none:not(button):not(input):not(textarea):not(select):not(span):not([role='dialog']):not([role='alertdialog']) {
+  border-radius: var(--sj-radius-panel) !important;
+}
+.sj-app button,
+.sj-app button.rounded-none,
+.sj-app span.rounded-none,
+.sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-app select,
+.access-page button,
+.access-page input:not([type='checkbox']):not([type='radio']),
+.access-page select,
+.lux-landing button,
+.lux-landing .lux-button {
+  border-radius: var(--sj-radius-control) !important;
+}
+.sj-app button, .access-page button { min-height: var(--size-touch-min); }
+.sj-app textarea,
+.access-page textarea { border-radius: var(--sj-radius-card) !important; }
+.sj-app [role='dialog'], .sj-app [role='alertdialog'], .sj-dialog,
+.access-card, .registration-region {
+  border-radius: var(--sj-radius-panel) !important;
+}
+.sj-app article.rounded-none:not(button):not(input):not(textarea):not(select):not(span):not([role='dialog']):not([role='alertdialog']) {
+  border-radius: var(--sj-radius-card) !important;
+}
+.sj-app section.rounded-none,
+.sj-app .sj-empty-state, .sj-app .sj-page-header + section,
+.sj-app [data-testid='create-post-dialog'], .sj-app [data-testid='create-request-dialog'] {
+  border-radius: var(--sj-radius-panel) !important;
+}
+.sj-app button:focus-visible, .sj-app a:focus-visible,
+.access-page :focus-visible, .lux-landing :focus-visible {
+  outline: 2px solid var(--sj-brand) !important;
+  outline-offset: 3px;
+}
+.sj-app .transition-transform,
+.sj-app .transition-opacity,
+.sj-app .transition-colors {
+  transition-duration: var(--motion-duration-base) !important;
+  transition-timing-function: var(--motion-ease-out) !important;
+}
+.sj-app button.aspect-square, .sj-app button.aspect-video {
+  border-radius: var(--sj-radius-card) !important;
+}
+
+.sj-app .sj-sidebar-nav a {
+  border-radius: var(--radius-control) !important;
+}
+.sj-app .sj-sidebar-nav a:hover:not([aria-current='page']) {
+  background: var(--yellow-500) !important;
+  color: var(--ink-900) !important;
+}
+.sj-app .sj-sidebar-nav a[aria-current='page'] {
+  background: var(--sj-brand-soft);
+  color: var(--sj-ink);
+  box-shadow: inset 3px 0 var(--yellow-500) !important;
+}
+.dark .sj-app .sj-sidebar-nav a[aria-current='page'] {
+  background: rgba(255, 196, 0, .16);
+  color: #fff;
+}
+.dark .sj-app .sj-sidebar-nav a:hover:not([aria-current='page']) {
+  background: var(--yellow-500) !important;
+  color: var(--ink-900) !important;
+}
+.sj-app nav[aria-label='Navegação principal no celular'] {
+  border-radius: var(--sj-radius-control) !important;
+  border-color: rgba(230, 230, 230, .76);
+  background: var(--sj-glass-clear-fill);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring), var(--glass-shadow);
+}
+.dark .sj-app nav[aria-label='Navegação principal no celular'] {
+  border-color: rgba(255, 255, 255, .12);
+  background: var(--sj-glass-dark-fill);
+}
+.sj-app nav[aria-label='Navegação principal no celular'] a[aria-current='page'] {
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-tint-fill);
+  color: var(--sj-ink);
+}
+.sj-app span.rounded-none { border-radius: var(--sj-radius-control) !important; }
+.sj-app a.bg-primary, .sj-app a.rounded-none.bg-primary {
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-tint-fill) !important;
+  color: var(--sj-ink) !important;
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
+}
+.sj-app button.bg-primary, .access-primary {
+  min-height: var(--size-control);
+  background: var(--sj-glass-tint-fill) !important;
+  color: var(--sj-ink) !important;
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
+}
+.sj-app button.bg-secondary { background-color: var(--sj-glass-clear-fill); }
+.sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-app select, .sj-app textarea {
+  background-color: var(--sj-glass-clear-fill);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+}
+.sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-app select { min-height: var(--size-control); }
+.sj-app input:focus-visible, .sj-app select:focus-visible, .sj-app textarea:focus-visible {
+  border-width: var(--border-strong);
+  border-color: var(--color-border-strong);
+}
+.sj-app .border-dashed { border-color: var(--color-border-pending); }
+.dark .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.dark .sj-app select, .dark .sj-app textarea { background-color: rgba(17,17,17,.72); }
+.sj-app article.rounded-none, .sj-app .sj-empty-state {
+  background-color: var(--sj-glass-clear-fill);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+}
+.dark .sj-app article.rounded-none, .dark .sj-app .sj-empty-state { background-color: rgba(17,17,17,.72); }
+.sj-chat .sj-inbox-header, .sj-chat .sj-thread-header, .sj-chat .sj-composer {
+  background: var(--sj-glass-clear-fill);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+}
+.dark .sj-chat .sj-inbox-header, .dark .sj-chat .sj-thread-header, .dark .sj-chat .sj-composer {
+  background: var(--sj-glass-dark-fill);
+}
+.sj-chat .sj-message-row:not(.mine) .sj-bubble {
+  background: var(--sj-glass-clear-fill);
+  color: var(--sj-ink);
+}
+.sj-chat .sj-message-row.mine .sj-bubble {
+  background: var(--sj-glass-tint-fill);
+  color: var(--sj-ink);
+  box-shadow: var(--glass-edge), var(--glass-ring);
+  background-image: var(--glass-sheen);
+}
+.dark .sj-chat .sj-message-row:not(.mine) .sj-bubble { background: rgba(255,255,255,.14); color: #fff; }
+.sj-chat :is(.sj-search, .sj-inbox-filters button, .sj-conversation-note,
+  .sj-date-divider, .sj-system, .sj-typing-bubble, .sj-jump,
+  .sj-audio-controls button:not(.sj-mic)) {
+  border-radius: var(--radius-control) !important;
+}
+.sj-chat :is(.sj-conversation, .sj-job, .sj-actions, .sj-proposal) {
+  border-radius: var(--radius-lg) !important;
+}
+.sj-chat .sj-bubble { border-radius: var(--radius-2xl) !important; }
+.sj-chat .sj-icon-button, .sj-chat .sj-send,
+.sj-chat .sj-audio-controls button.sj-mic { border-radius: 50% !important; }
+.sj-chat .sj-list-avatar > span:last-child:not(:first-child),
+.sj-chat .sj-job-dot, .sj-chat .sj-typing-bubble i { border-radius: 50% !important; }
+.sj-chat .sj-unread { border-radius: var(--radius-control) !important; }
+.sj-chat .sj-actions a, .sj-chat .sj-actions button,
+.sj-chat .sj-proposal-actions button { border-radius: var(--radius-control) !important; }
+.sj-chat .sj-composer textarea { background: var(--sj-glass-ai-fill); }
+.dark .sj-chat .sj-composer textarea { background: rgba(255,243,184,.16); }
+.sj-app .sj-category-options button[aria-pressed='true'] {
+  background: var(--sj-glass-tint-fill);
+  color: var(--sj-ink);
+  border-color: var(--sj-brand);
+}
+.dark .sj-app nav[aria-label='Navegação principal no celular'] a[aria-current='page'] {
+  color: var(--sj-ink);
+}
+.sj-app header.sticky {
+  background: var(--sj-glass-clear-fill);
+  backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--sj-glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-edge);
+}
+.dark .sj-app header.sticky { background: var(--sj-glass-dark-fill); }
+
+.sj-app article.rounded-none, .sj-app .sj-empty-state,
+.sj-app [role='dialog'], .sj-app [role='alertdialog'],
+.access-card, .registration-region {
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.sj-app article.rounded-none, .sj-app .sj-empty-state {
+  box-shadow: var(--glass-edge), var(--glass-ring), var(--glass-shadow);
+}
+.dark .sj-app article.rounded-none, .dark .sj-app .sj-empty-state,
+.dark .sj-app [role='dialog'], .dark .sj-app [role='alertdialog'],
+.dark .access-card, .dark .registration-region {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+
+.access-page { background: hsl(var(--background)); }
+.access-card { border-color: var(--sj-line); background: hsl(var(--card)); }
+.access-card h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); letter-spacing: -.035em; }
+.access-primary, .access-google { min-height: 48px; }
+.access-primary { background: var(--sj-brand); border-color: var(--sj-brand); color: var(--sj-ink); }
+.access-primary:hover:not(:disabled) { background: #eab400; }
+.access-google { border-color: var(--sj-line); }
+
+.leaflet-container { font-family: 'Plus Jakarta Sans', sans-serif; }
+.pin-pro { border-color: var(--sj-brand); background: var(--sj-ink); color: var(--sj-brand); }
+.pin-req { border-radius: 12px; background: var(--sj-brand); color: var(--sj-ink); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: var(--sj-radius-card); }
+.leaflet-bar a { border-radius: 8px !important; }
+.dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip, .dark .leaflet-bar a {
+  background: #171717;
+  color: #fff;
+}
+.sj-app [data-testid='map-locate-me-button'],
+.sj-app [data-testid='create-post-trigger-button'],
+.sj-app [data-testid='create-service-request-button'] { font-weight: 700; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .sj-app nav[aria-label='Navegação principal no celular'],
+  .sj-app header.sticky {
+    background: #fff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .dark .sj-app nav[aria-label='Navegação principal no celular'],
+  .dark .sj-app header.sticky { background: #171717; }
+  .sj-app button.bg-primary, .sj-app a.bg-primary { background-image: none; box-shadow: none; }
+  .sj-chat .sj-message-row.mine .sj-bubble { background: var(--sj-brand); background-image: none; box-shadow: none; }
+  .sj-chat .sj-message-row:not(.mine) .sj-bubble,
+  .sj-chat .sj-inbox-header, .sj-chat .sj-thread-header, .sj-chat .sj-composer { background: #fff; }
+  .dark .sj-chat .sj-message-row:not(.mine) .sj-bubble,
+  .dark .sj-chat .sj-inbox-header, .dark .sj-chat .sj-thread-header, .dark .sj-chat .sj-composer { background: #171717; }
+  .sj-app button.bg-primary, .sj-app a.bg-primary, .access-primary { background: var(--sj-brand) !important; }
+  .sj-app article.rounded-none, .sj-app .sj-empty-state,
+  .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .sj-app select, .sj-app textarea { background: #fff; }
+  .dark .sj-app article.rounded-none, .dark .sj-app .sj-empty-state,
+  .dark .sj-app input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .dark .sj-app select, .dark .sj-app textarea { background: #171717; }
+}
+
+/* The public landing page keeps its photography and layout while adopting the brand palette. */
+.lux-landing {
+  --lux-line: var(--sj-line);
+  background: #fff;
+  color: var(--sj-ink);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.lux-landing h1, .lux-landing h2, .lux-landing h3 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: -.045em;
+}
+.lux-landing a:focus-visible { outline-color: var(--sj-brand); }
+.lux-header { border-color: var(--sj-line); }
+.lux-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sj-ink);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.045em;
+  text-transform: none;
+}
+.lux-logo-text { display: block; }
+.lux-logo-text > span {
+  display: block;
+  color: var(--sj-copy-muted);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+.lux-nav-cta {
+  min-height: 44px !important;
+  padding: 0 18px;
+  border: 1px solid var(--sj-brand) !important;
+  background: var(--sj-brand);
+  color: var(--sj-ink);
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.lux-nav-cta:hover { background: #eab400; }
+.lux-hero-shade {
+  background: linear-gradient(90deg, rgba(0,0,0,.78), rgba(0,0,0,.38) 52%, rgba(0,0,0,.06)), linear-gradient(0deg, rgba(0,0,0,.62), transparent 45%);
+}
+.lux-eyebrow { color: var(--sj-copy-muted); font-weight: 700; }
+.lux-hero .lux-eyebrow, .lux-hero-bottom { color: #fff; }
+.lux-hero h1 { color: #fff; }
+.lux-intro { color: rgba(255,255,255,.88); }
+.lux-button { min-height: 54px; font-size: 12px; font-weight: 700; letter-spacing: .025em; text-transform: none; }
+.lux-button-white { border-color: var(--sj-brand); background: var(--sj-brand); color: var(--sj-ink); }
+.lux-button-white:hover { border-color: #eab400; background: #eab400; }
+.lux-button-outline { border-color: rgba(255,255,255,.82); background: rgba(17,17,17,.48); color: #fff; }
+.lux-button-outline:hover { border-color: var(--sj-brand); background: var(--sj-brand); color: var(--sj-ink); }
+.lux-categories { background: #fff; color: var(--sj-ink); font-weight: 700; }
+.lux-section { background: #fff; }
+.lux-section-heading h2, .lux-craft-copy h2, .lux-final h2 { color: var(--sj-ink); }
+.lux-steps article, .lux-resources article { border-color: var(--sj-brand); }
+.lux-step-number { color: var(--sj-copy-muted); font-weight: 700; }
+.lux-steps h3, .lux-resources h3 { color: var(--sj-ink); font-weight: 700; }
+.lux-steps p, .lux-craft-copy>p:not(.lux-eyebrow),
+.lux-resources article>p:last-child, .lux-questions p { color: var(--sj-copy-muted); }
+.lux-craft { background: var(--sj-brand-soft); }
+.lux-text-link { border-color: var(--sj-line); color: var(--sj-ink); font-weight: 700; }
+.lux-text-link:hover { border-color: var(--sj-brand); }
+.lux-faq { background: #fafafa; border-color: var(--sj-line); }
+.lux-questions details { border-color: var(--sj-line); }
+.lux-questions summary { color: var(--sj-ink); font-weight: 700; }
+.lux-questions summary:focus-visible { outline-color: var(--sj-brand); }
+.lux-questions details[open] summary { color: var(--sj-ink); }
+.lux-footer { border-color: var(--sj-line); }
+.lux-footer p, .lux-footer>span { color: var(--sj-copy-muted); }
+.lux-footer nav a { color: var(--sj-ink); }
+.lux-footer nav a:hover { color: #8a6a00; }
+.lux-skip { border-radius: var(--sj-radius-control); background: var(--sj-brand); color: var(--sj-ink); }
+
+@media (max-width: 700px) {
+  .lux-nav-cta { padding-inline: 14px; }
+  .lux-hero-shade { background: linear-gradient(90deg, rgba(0,0,0,.76), rgba(0,0,0,.34)), linear-gradient(0deg, #000, transparent 65%); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sj-app button, .sj-app a, .access-page button, .lux-landing .lux-button {
+    transition-duration: var(--sj-motion-base);
+    transition-timing-function: var(--sj-ease-out);
+  }
+  .sj-app button:active:not(:disabled), .access-page button:active:not(:disabled) {
+    transform: scale(var(--motion-press-scale));
+    transition-duration: var(--sj-motion-fast);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-app button:active, .access-page button:active { transform: none !important; }
+  .sj-app .animate-fade-up { animation: none !important; }
+}
+
+/* Wallet surfaces use the same rounded geometry as the rest of the Chama aê app. */
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > section,
+  [data-testid='wallet-production'] > form,
+  [data-testid='wallet-page'] > [role='status'],
+  [data-testid='wallet-page'] > section,
+  [data-testid='wallet-page'] > form
+) {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a,
+  [data-testid='wallet-page'] > nav a
+) {
+  border-radius: var(--sj-radius-control);
+  transition: background-color var(--motion-duration-base) var(--motion-ease-out),
+              border-color var(--motion-duration-base) var(--motion-ease-out),
+              color var(--motion-duration-base) var(--motion-ease-out),
+              box-shadow var(--motion-duration-base) var(--motion-ease-out);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a[aria-current='page'],
+  [data-testid='wallet-page'] > nav a[aria-current='page']
+) {
+  background: var(--sj-glass-tint-fill);
+  border-color: var(--sj-brand);
+  color: var(--sj-ink);
+  box-shadow: var(--glass-edge), var(--glass-ring);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a:not([aria-current='page']),
+  [data-testid='wallet-page'] > nav a:not([aria-current='page'])
+) {
+  background: var(--sj-glass-clear-fill);
+}
+
+.sj-app[data-page='carteira'] [data-testid='wallet-production'] article {
+  border-radius: var(--sj-radius-card);
+}
+.dark .sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > section,
+  [data-testid='wallet-production'] > form,
+  [data-testid='wallet-page'] > [role='status'],
+  [data-testid='wallet-page'] > section,
+  [data-testid='wallet-page'] > form
+) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+.dark .sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a:not([aria-current='page']),
+  [data-testid='wallet-page'] > nav a:not([aria-current='page'])
+) {
+  background: var(--sj-glass-dark-fill);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-app[data-page='carteira'] :is(
+    [data-testid='wallet-production'] > nav a,
+    [data-testid='wallet-page'] > nav a
+  ) { transition: none; }
+}
+
+
+/* Keep the yellow aê badge before the Chama wordmark on every surface. */
+.lux-logo .brand-mark {
+  display: inline-grid;
+  min-width: 34px;
+  height: 32px;
+  margin: 0;
+  padding: 0 7px;
+  font-size: 17px;
+  letter-spacing: -.07em;
+}
+.lux-logo .lux-logo-text {
+  margin-top: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: 1;
+}
+.lux-logo .lux-logo-text > span {
+  display: block;
+  margin-top: 7px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  line-height: 1.2;
+}
+.lux-logo .brand-word-name {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+/* Round the remaining company dashboard surfaces to match the app tokens. */
+.sj-app[data-page='empresas'] section:has(> h3) {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.sj-app[data-page='empresas'] section > div.border.border-border,
+.sj-app[data-page='empresas'] article {
+  border-radius: var(--sj-radius-card);
+}
+.sj-app[data-page='empresas'] progress {
+  appearance: none;
+  border: 0;
+  border-radius: var(--sj-radius-control);
+  overflow: hidden;
+}
+.sj-app[data-page='empresas'] progress::-webkit-progress-bar,
+.sj-app[data-page='empresas'] progress::-webkit-progress-value,
+.sj-app[data-page='empresas'] progress::-moz-progress-bar {
+  border-radius: var(--sj-radius-control);
+}
+.sj-app[data-page='empresas'] section > label {
+  padding-bottom: 8px;
+}
+.sj-app[data-page='empresas'] [data-testid='mobile-wallet-button'] {
+  border-radius: var(--sj-radius-control) !important;
+}
+.dark .sj-app[data-page='empresas'] section:has(> h3) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+
+
+/* Chat search is a single glass control; keep the input transparent inside it. */
+.sj-chat .sj-inbox-tools { display: grid; gap: 12px; }
+.sj-chat .sj-search {
+  height: auto;
+  min-height: 48px;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--sj-line);
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  box-shadow: var(--glass-edge);
+  transition: border-color var(--motion-duration-base) var(--motion-ease-out),
+              box-shadow var(--motion-duration-base) var(--motion-ease-out);
+}
+.sj-chat .sj-search:focus-within {
+  border-color: var(--sj-brand);
+  box-shadow: 0 0 0 3px rgba(255, 196, 0, .18);
+}
+.sj-chat .sj-search > svg { flex: 0 0 auto; }
+.sj-app .sj-chat .sj-search input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+  min-height: 0 !important;
+  height: auto;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  outline: 0 !important;
+}
+.sj-chat .sj-search button {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sj-brand);
+  color: var(--sj-ink);
+}
+.dark .sj-chat .sj-search { background: var(--sj-glass-dark-fill); }
+.dark .sj-chat .sj-search button { background: rgba(255, 196, 0, .9); }
+
+/* Round the app's balance shortcut wherever it appears. */
+.sj-app [data-testid='mobile-wallet-button'] {
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  box-shadow: var(--glass-edge);
+}
+.dark .sj-app [data-testid='mobile-wallet-button'] {
+  background: var(--sj-glass-dark-fill);
+}
+
+/* Match the company cost dialog controls to the branded app fields. */
+.sj-dialog[data-testid='company-cost-dialog'] {
+  border-radius: var(--sj-radius-panel) !important;
+  padding: clamp(20px, 3vw, 28px);
+  box-shadow: 0 20px 56px rgba(17, 17, 17, .18);
+}
+.sj-dialog[data-testid='company-cost-dialog'] form > div.grid > label {
+  display: block;
+  min-width: 0;
+}
+.sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-dialog[data-testid='company-cost-dialog'] form select {
+  width: 100%;
+  min-height: var(--size-control);
+  padding: 0 16px;
+  border: 1px solid var(--sj-line);
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  color: var(--sj-ink);
+  box-shadow: none;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+.sj-dialog[data-testid='company-cost-dialog'] form input:focus-visible,
+.sj-dialog[data-testid='company-cost-dialog'] form select:focus-visible {
+  border-color: var(--sj-brand);
+  outline: 2px solid rgba(255, 196, 0, .55);
+  outline-offset: 2px;
+}
+.sj-dialog[data-testid='company-cost-dialog'] form > button {
+  min-height: var(--size-control);
+  padding-inline: 20px;
+  border-radius: var(--sj-radius-control) !important;
+}
+.sj-dialog[data-testid='company-cost-dialog'] > button[aria-label='Fechar'] {
+  border-radius: 50% !important;
+}
+.dark .sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.dark .sj-dialog[data-testid='company-cost-dialog'] form select {
+  background: var(--sj-glass-dark-fill);
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-chat .sj-search { transition: none; }
+}
+
+
+/* Feed cards and notices follow the same rounded panel shape. */
+.sj-app[data-page='feed'] [data-testid='version-notice'],
+.sj-app[data-page='feed'] section[aria-label='Usuários online'] {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.dark .sj-app[data-page='feed'] [data-testid='version-notice'],
+.dark .sj-app[data-page='feed'] section[aria-label='Usuários online'] {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+
+/* Wordmark order: Chama first, with aê kept inside the yellow badge. */
+.brand-wordmark .brand-word-name {
+  order: 1;
+}
+.brand-wordmark .brand-mark {
+  order: 2;
+}
+.lux-logo .lux-logo-text {
+  order: 1;
+}
+.lux-logo .brand-mark {
+  order: 2;
+}

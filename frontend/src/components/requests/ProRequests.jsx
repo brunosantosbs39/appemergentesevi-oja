@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { mergeItems } from "@/lib/pagination";
 import { Button } from "@/components/ui/button";
 import { applicationLabel } from "@/components/requests/ApplicationsPanel";
@@ -32,6 +33,9 @@ export const ProRequests = () => {
   const { me } = useMe();
   const { pos, locate } = useGeo(me.lat != null ? { lat: me.lat, lng: me.lng } : DEFAULT_POS);
   const [radius, setRadius] = useState(25);
+  const filterKey = JSON.stringify([pos.lat, pos.lng, radius, me.categories]);
+  const filterRef = useRef(filterKey);
+  filterRef.current = filterKey;
   const [tab, setTab] = useState("disponiveis");
   const [available, setAvailable] = useState(null);
   const availableOffset = useRef(0);
@@ -41,22 +45,24 @@ export const ProRequests = () => {
     if (loadingAvailable) return;
     setLoadingAvailable(true);
     try {
-      const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius, limit: 50, offset: availableOffset.current } });
-      setAvailable((previous) => mergeItems(previous, data)); availableOffset.current += data.length; setMoreAvailable(data.length === 50);
+      const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, my_categories: true, radius_km: radius, limit: 50, offset: availableOffset.current } });
+      if(filterRef.current !== filterKey)return;
+    setAvailable((previous) => mergeItems(previous, data)); availableOffset.current += data.length; setMoreAvailable(data.length === 50);
     } finally { setLoadingAvailable(false); }
   };
   const [reviewReq, setReviewReq] = useState(null);
-  const { items, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
+  const { items, error, reload, update, markReviewed, hasMore, loadMore, loadingMore } = useMyRequests();
 
   useEffect(() => {
     locate();
   }, [locate]);
 
   const loadAvailable = useCallback(async () => {
-    const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, radius_km: radius } });
+    const { data } = await api.get("/requests/available", { params: { lat: pos.lat, lng: pos.lng, my_categories: true, radius_km: radius } });
+    if(filterRef.current !== filterKey)return;
     setAvailable((previous) => availableOffset.current > 50 ? mergeItems(previous, data).filter((r) => !r.expires_at || new Date(r.expires_at) > new Date()) : data);
     if (!availableOffset.current) { availableOffset.current = data.length; setMoreAvailable(data.length === 50); }
-  }, [api, pos.lat, pos.lng, radius]);
+  }, [api, pos.lat, pos.lng, radius, filterKey]);
 
   useEffect(() => {
     availableOffset.current = 0; setAvailable(null); setMoreAvailable(false);
@@ -69,11 +75,25 @@ export const ProRequests = () => {
   const mine = items?.filter((r) => r.professional_id === me.user_id) ?? null;
   const active = mine?.filter((r) => ["aceito", "em_andamento"].includes(r.status)) ?? null;
   const history = mine?.filter((r) => ["concluido", "cancelado"].includes(r.status)) ?? null;
-  const props = { me, onUpdated: update, onReview: setReviewReq };
+  const onUpdated = (request) => {
+    update(request);
+    if (request.status === "concluido") setTab("historico");
+  };
+  useEffect(() => {
+    if (reviewReq) return;
+    const pending = items?.find(r => r.status === "concluido" && r.check_out_at &&
+      (r.client_id === me.user_id ? !r.client_reviewed : r.professional_id === me.user_id && !r.pro_reviewed) &&
+      !sessionStorage.getItem("review-prompt:" + me.user_id + ":" + r.id));
+    if (pending) {
+      sessionStorage.setItem("review-prompt:" + me.user_id + ":" + pending.id, "1");
+      setReviewReq(pending);
+    }
+  }, [items, me.user_id, reviewReq]);
+  const props = { me, onUpdated, onReview: setReviewReq };
 
   return (
     <div>
-      <PageHeader eyebrow="Profissional" title="Pedidos" subtitle="Candidate-se às vagas, aguarde aprovação e registre sua chegada e saída.">
+      <PageHeader eyebrow="Profissional" title="Pedidos das suas categorias" subtitle="Oportunidades filtradas pelas categorias do seu perfil. Suas candidaturas e serviços continuam nas outras abas.">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -81,6 +101,10 @@ export const ProRequests = () => {
           </SelectContent>
         </Select>
       </PageHeader>
+      {error && <div role="alert" className="mb-4 border border-border bg-card p-4 text-sm">
+        <p>Não foi possível atualizar seus pedidos. Os dados já carregados foram mantidos.</p>
+        <Button type="button" variant="outline" className="mt-2" onClick={reload}>Tentar novamente</Button>
+      </div>}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap justify-start rounded-none bg-muted/70 p-1">
           <TabsTrigger value="disponiveis" className="rounded-none px-4" data-testid="pro-tab-available">Disponíveis</TabsTrigger>
@@ -89,11 +113,15 @@ export const ProRequests = () => {
           <TabsTrigger value="historico" className="rounded-none px-4" data-testid="pro-tab-history">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="disponiveis" className="mt-6">
+          {items?.some(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente") && <section className="mb-5 space-y-3"><h2 className="font-heading text-xl">Pedidos diretos para você</h2>
+            {items.filter(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente").map(r=><RequestCard key={r.id} request={r} me={me} />)}
+          </section>}
           <RadarBanner count={available?.length ?? null} />
+          {!me.categories?.length && <p className="mb-4">Selecione suas categorias no <Link to="/perfil/me" className="underline">perfil</Link> para receber oportunidades aqui. No feed você pode ver todas as categorias.</p>}
           {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
           <div className="grid gap-4 lg:grid-cols-2">
-            {available?.map((r) => (
+            {available?.filter(r=>!r.direct_invitation).map((r) => (
               <RequestCard key={r.id} request={r} me={me} />
             ))}
           </div>
@@ -110,7 +138,7 @@ export const ProRequests = () => {
         </TabsContent>
       </Tabs>
       {hasMore && <Button type="button" variant="outline" disabled={loadingMore} className="mt-5" onClick={() => loadMore().catch(() => {})}>{loadingMore ? "Carregando..." : "Carregar mais pedidos e histórico"}</Button>}
-      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, "pro_reviewed")} />
+      <ReviewDialog key={reviewReq?.id} request={reviewReq} onClose={() => setReviewReq(null)} onDone={(id) => markReviewed(id, reviewReq.client_id === me.user_id ? "client_reviewed" : "pro_reviewed")} />
     </div>
   );
 };
