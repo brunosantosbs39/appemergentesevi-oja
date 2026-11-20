@@ -527,18 +527,15 @@ html, body, button, input, textarea, select {
 }
 
 
-/* The wordmark is split across the yellow mark and its trailing text. */
-.brand-mark-word {
-  min-width: 64px;
-  padding-inline: 10px;
-  font-size: 12px;
-  letter-spacing: -.02em;
-}
-.lux-logo .brand-mark-word {
+/* Keep the yellow aê badge before the Chama wordmark on every surface. */
+.lux-logo .brand-mark {
   display: inline-grid;
+  min-width: 34px;
   height: 32px;
-  margin-top: 0;
-  line-height: 1;
+  margin: 0;
+  padding: 0 7px;
+  font-size: 17px;
+  letter-spacing: -.07em;
 }
 .lux-logo .lux-logo-text {
   margin-top: 0;
@@ -561,4 +558,34 @@ html, body, button, input, textarea, select {
   font-size: inherit;
   font-weight: inherit;
   letter-spacing: inherit;
+}
+
+/* Round the remaining company dashboard surfaces to match the app tokens. */
+.sj-app[data-page='empresas'] section:has(> h3) {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.sj-app[data-page='empresas'] section > div.border.border-border,
+.sj-app[data-page='empresas'] article {
+  border-radius: var(--sj-radius-card);
+}
+.sj-app[data-page='empresas'] progress {
+  appearance: none;
+  border: 0;
+  border-radius: var(--sj-radius-control);
+  overflow: hidden;
+}
+.sj-app[data-page='empresas'] progress::-webkit-progress-bar,
+.sj-app[data-page='empresas'] progress::-webkit-progress-value,
+.sj-app[data-page='empresas'] progress::-moz-progress-bar {
+  border-radius: var(--sj-radius-control);
+}
+.sj-app[data-page='empresas'] section > label {
+  padding-bottom: 8px;
+}
+.sj-app[data-page='empresas'] [data-testid='mobile-wallet-button'] {
+  border-radius: var(--sj-radius-control) !important;
+}
+.dark .sj-app[data-page='empresas'] section:has(> h3) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
 }
