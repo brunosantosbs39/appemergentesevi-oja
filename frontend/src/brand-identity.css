@@ -525,3 +525,40 @@ html, body, button, input, textarea, select {
     [data-testid='wallet-page'] > nav a
   ) { transition: none; }
 }
+
+
+/* The wordmark is split across the yellow mark and its trailing text. */
+.brand-mark-word {
+  min-width: 64px;
+  padding-inline: 10px;
+  font-size: 12px;
+  letter-spacing: -.02em;
+}
+.lux-logo .brand-mark-word {
+  display: inline-grid;
+  height: 32px;
+  margin-top: 0;
+  line-height: 1;
+}
+.lux-logo .lux-logo-text {
+  margin-top: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: 1;
+}
+.lux-logo .lux-logo-text > span {
+  display: block;
+  margin-top: 7px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  line-height: 1.2;
+}
+.lux-logo .brand-word-name {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
