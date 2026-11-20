@@ -111,7 +111,7 @@ function VersionNotice() {
     check();
     return ()=>{active=false;clearInterval(timer);document.removeEventListener("visibilitychange",check);};
   },[]);
-  return updated ? <div role="status" className="flex items-center justify-between border bg-card p-3">Nova versão disponível.<button className="underline" onClick={()=>window.location.reload()}>Atualizar agora</button></div> : null;
+  return updated ? <div role="status" data-testid="version-notice" className="flex items-center justify-between border bg-card p-3">Nova versão disponível.<button className="underline" onClick={()=>window.location.reload()}>Atualizar agora</button></div> : null;
 }
 
 const MobileTop = () => (
