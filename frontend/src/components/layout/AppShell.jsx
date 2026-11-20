@@ -7,7 +7,7 @@ import { NotificationCenter } from "@/components/notifications/NotificationCente
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useClerk } from "@clerk/react";
-import { ClipboardList, Home, Map, MessageCircle, User, Wallet, Building2 } from "lucide-react";
+import { ClipboardList, Home, Map, MessageCircle, User, Wallet, Building2, RefreshCw } from "lucide-react";
 import { useMe } from "@/context/MeContext";
 import { useUnread } from "@/hooks/useUnread";
 import { Logo } from "@/components/common/Misc";
@@ -111,7 +111,31 @@ function VersionNotice() {
     check();
     return ()=>{active=false;clearInterval(timer);document.removeEventListener("visibilitychange",check);};
   },[]);
-  return updated ? <div role="status" data-testid="version-notice" className="flex items-center justify-between border bg-card p-3">Nova versão disponível.<button className="underline" onClick={()=>window.location.reload()}>Atualizar agora</button></div> : null;
+  return updated ? (
+    <div
+      role="status"
+      data-testid="version-notice"
+      className="mb-5 flex flex-col gap-3 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/15 via-card to-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm">
+          <RefreshCw aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-semibold leading-tight">Nova versão disponível</p>
+          <p className="mt-1 text-sm text-muted-foreground">Atualize para ver as melhorias mais recentes.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        onClick={() => window.location.reload()}
+      >
+        <RefreshCw aria-hidden="true" className="h-4 w-4" />
+        Atualizar agora
+      </button>
+    </div>
+  ) : null;
 }
 
 const MobileTop = () => (
