@@ -460,3 +460,68 @@ html, body, button, input, textarea, select {
   .sj-app button:active, .access-page button:active { transform: none !important; }
   .sj-app .animate-fade-up { animation: none !important; }
 }
+
+/* Wallet surfaces use the same rounded geometry as the rest of the Chama aê app. */
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > section,
+  [data-testid='wallet-production'] > form,
+  [data-testid='wallet-page'] > [role='status'],
+  [data-testid='wallet-page'] > section,
+  [data-testid='wallet-page'] > form
+) {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a,
+  [data-testid='wallet-page'] > nav a
+) {
+  border-radius: var(--sj-radius-control);
+  transition: background-color var(--motion-duration-base) var(--motion-ease-out),
+              border-color var(--motion-duration-base) var(--motion-ease-out),
+              color var(--motion-duration-base) var(--motion-ease-out),
+              box-shadow var(--motion-duration-base) var(--motion-ease-out);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a[aria-current='page'],
+  [data-testid='wallet-page'] > nav a[aria-current='page']
+) {
+  background: var(--sj-glass-tint-fill);
+  border-color: var(--sj-brand);
+  color: var(--sj-ink);
+  box-shadow: var(--glass-edge), var(--glass-ring);
+}
+
+.sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a:not([aria-current='page']),
+  [data-testid='wallet-page'] > nav a:not([aria-current='page'])
+) {
+  background: var(--sj-glass-clear-fill);
+}
+
+.sj-app[data-page='carteira'] [data-testid='wallet-production'] article {
+  border-radius: var(--sj-radius-card);
+}
+.dark .sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > section,
+  [data-testid='wallet-production'] > form,
+  [data-testid='wallet-page'] > [role='status'],
+  [data-testid='wallet-page'] > section,
+  [data-testid='wallet-page'] > form
+) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+.dark .sj-app[data-page='carteira'] :is(
+  [data-testid='wallet-production'] > nav a:not([aria-current='page']),
+  [data-testid='wallet-page'] > nav a:not([aria-current='page'])
+) {
+  background: var(--sj-glass-dark-fill);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-app[data-page='carteira'] :is(
+    [data-testid='wallet-production'] > nav a,
+    [data-testid='wallet-page'] > nav a
+  ) { transition: none; }
+}
