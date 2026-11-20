@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export const Logo = ({ to = "/", dark = false }) => (
   <Link to={to} className={cn("brand-wordmark", dark && "brand-on-photo")} data-testid="brand-logo" aria-label="Chama aê — início">
-    <span className="brand-mark" aria-hidden="true">aê</span><span className="brand-word-name">Chama</span>
+    <span className="brand-word-name">Chama</span><span className="brand-mark" aria-hidden="true">aê</span>
   </Link>
 );
 
