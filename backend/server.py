@@ -70,7 +70,7 @@ client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=10000,
     maxIdleTimeMS=60000, waitQueueTimeoutMS=5000, connectTimeoutMS=10000)
 db = client[os.environ.get("DB_NAME", "servicoja")]
 
-app = FastAPI(title="ServiçoJá API")
+app = FastAPI(title="Chama aê API")
 read_guard = ReadBurstGuard()
 
 @app.exception_handler(PyMongoError)
@@ -148,6 +148,17 @@ async def onboarded(me: dict = Depends(current_member)) -> dict:
     if not registration_complete(me):
         raise HTTPException(403, "Complete seu cadastro primeiro")
     return me
+
+
+async def average_recent_rating(uid: str, session=None) -> float:
+    ratings = await db.reviews.find(
+        {"to_id": uid},
+        {"_id": 0, "rating": 1},
+        session=session,
+    ).sort("created_at", -1).limit(100).to_list(100)
+    if not ratings:
+        return 0.0
+    return round(sum(float(item.get("rating") or 0) for item in ratings) / len(ratings), 2)
 
 
 async def users_map(ids) -> dict:
@@ -437,6 +448,7 @@ async def get_user(uid: str, me: dict = Depends(onboarded)):
     doc = await db.users.find_one({"user_id": uid}, {**PUBLIC, "lat": 1, "lng": 1})
     if not doc:
         raise HTTPException(404, "Usuário não encontrado")
+    doc["rating_avg"] = await average_recent_rating(uid)
     lat, lng = approximate_coordinate(doc.pop("lat", None)), approximate_coordinate(doc.pop("lng", None))
     if doc.get("role"):
         doc["distance_km"] = distance_km(me.get("lat"), me.get("lng"), lat, lng)
@@ -621,7 +633,7 @@ async def add_message(conv: dict, sender_id: Optional[str], text: str, system: b
                                                            "$inc": inc})
     for participant in conv["participants"]:
         if participant != sender_id:
-            title = "Atualização do serviço" if system else "Nova mensagem no ServiçoJá"
+            title = "Atualização do serviço" if system else "Nova mensagem no Chama aê"
             body = text if system else "Você recebeu uma contraproposta." if extra.get("kind") == "proposal" else "Você recebeu uma mensagem de áudio." if extra.get("kind") == "audio" else "Você recebeu uma nova mensagem."
             await send_notice(db, participant, title, body, f"/chat/{conv['id']}")
     return msg
@@ -966,11 +978,12 @@ async def review_request(rid: str, body: ReviewIn, me: dict = Depends(onboarded)
         if res.modified_count == 0:
             raise HTTPException(409, "Você já avaliou este serviço")
         await db.reviews.insert_one(dict(review), session=session)
-        agg = await db.reviews.aggregate([{"$match": {"to_id": target}},
-            {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}}], session=session).to_list(1)
-        if agg:
-            await db.users.update_one({"user_id": target}, {"$set": {"rating_avg": round(agg[0]["avg"], 2),
-                "rating_count": agg[0]["n"]}}, session=session)
+        avg = await average_recent_rating(target, session=session)
+        await db.users.update_one(
+            {"user_id": target},
+            {"$set": {"rating_avg": avg}, "$inc": {"rating_count": 1}},
+            session=session,
+        )
     async with await db.client.start_session() as session:
         await session.with_transaction(save_review)
     return review
@@ -1166,7 +1179,7 @@ async def send_encrypted_message(cid: str, body: Envelope, me: dict = Depends(on
 @api.post("/conversations/{cid}/encrypted-audio")
 async def send_encrypted_audio(cid: str, envelope: str = Form(..., max_length=20000), file: UploadFile = File(...), me: dict = Depends(onboarded)):
     await my_conversation(cid, me["user_id"])
-    raise HTTPException(403, "Use mensagens de texto para manter os contatos dentro do ServiçoJá.")
+    raise HTTPException(403, "Use mensagens de texto para manter os contatos dentro do Chama aê.")
 
 
 class TypingIn(BaseModel):
