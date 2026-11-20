@@ -692,3 +692,29 @@ html, body, button, input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .sj-chat .sj-search { transition: none; }
 }
+
+
+/* Feed cards and notices follow the same rounded panel shape. */
+.sj-app[data-page='feed'] [data-testid='version-notice'],
+.sj-app[data-page='feed'] section[aria-label='Usuários online'] {
+  border-radius: var(--sj-radius-panel);
+  box-shadow: 0 8px 24px rgba(17, 17, 17, .06);
+}
+.dark .sj-app[data-page='feed'] [data-testid='version-notice'],
+.dark .sj-app[data-page='feed'] section[aria-label='Usuários online'] {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
+}
+
+/* Wordmark order: Chama first, with aê kept inside the yellow badge. */
+.brand-wordmark .brand-word-name {
+  order: 1;
+}
+.brand-wordmark .brand-mark {
+  order: 2;
+}
+.lux-logo .lux-logo-text {
+  order: 1;
+}
+.lux-logo .brand-mark {
+  order: 2;
+}
