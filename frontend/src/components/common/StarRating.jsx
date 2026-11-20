@@ -18,3 +18,14 @@ export const Stars = ({ value = 0, size = 14 }) => {
     </span>
   );
 };
+
+export const RatingBadge = ({ avg, count, testid }) => (
+  <span
+    data-testid={testid}
+    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-300/70 bg-amber-100 px-3 py-1 text-sm font-bold text-amber-950 shadow-sm dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
+  >
+    <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+    {count ? Number(avg).toFixed(1).replace(".", ",") : "Novo"}
+    {count ? <span className="text-xs font-semibold text-amber-800/80 dark:text-amber-200/80">({count})</span> : null}
+  </span>
+);
