@@ -7,7 +7,7 @@
 .sj-button,.access-primary,.access-google,.lux-button{touch-action:manipulation;transition:background-color var(--sj-motion-fast) ease,color var(--sj-motion-fast) ease,border-color var(--sj-motion-fast) ease,transform var(--sj-motion-fast) var(--sj-ease-out)}
 .sj-button:active:not(:disabled):not(:focus-visible),.access-primary:active:not(:disabled):not(:focus-visible),.access-google:active:not(:disabled):not(:focus-visible),.lux-button:active:not(:focus-visible){transform:scale(.98)}
 .sj-button:focus-visible,.access-card :focus-visible,.lux-landing :focus-visible{transition:none}
-.sj-sidebar-nav a[aria-current=page]{box-shadow:inset 2px 0 hsl(var(--foreground))}
+.sj-sidebar-nav a[aria-current=page]{box-shadow:none}
 .sj-category-options{scroll-padding-inline:4px;scrollbar-width:thin;scrollbar-color:hsl(var(--border)) transparent}
 .sj-category-options button[aria-pressed=true]{border-color:hsl(var(--foreground));box-shadow:inset 0 -2px hsl(var(--foreground))}
 .sj-app input:not([type=checkbox]):not([type=radio]):not([type=file]),.sj-app select{min-height:44px}
