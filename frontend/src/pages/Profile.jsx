@@ -33,22 +33,52 @@ const PostsGrid = ({ posts, onOpen }) =>
     </div>
   );
 
+const ReviewsSummary = ({ user, count }) => (
+  <section
+    className="mb-4 flex flex-col gap-4 rounded-2xl border border-amber-300/60 bg-gradient-to-br from-amber-50 via-card to-card p-5 shadow-sm dark:border-amber-400/20 dark:from-amber-400/10 sm:flex-row sm:items-center sm:justify-between"
+    data-testid="profile-reviews-summary"
+  >
+    <div className="flex items-center gap-3">
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/25 text-foreground">
+        <Star className="h-6 w-6 fill-amber-400 text-amber-500" aria-hidden="true" />
+      </span>
+      <div>
+        <p className="font-semibold text-foreground">Confiança construída serviço a serviço</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {count ? "Veja o que clientes dizem sobre este profissional." : "As avaliações aparecem aqui depois de cada serviço concluído."}
+        </p>
+      </div>
+    </div>
+    <div className="flex items-center gap-3 rounded-xl border border-amber-200/80 bg-card/80 px-4 py-3 dark:border-amber-400/20">
+      <span className="text-3xl font-extrabold tracking-tight text-foreground">
+        {count ? Number(user.rating_avg || 0).toFixed(1).replace(".", ",") : "—"}
+      </span>
+      <div>
+        <Stars value={user.rating_avg || 0} size={14} />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {count ? (count === 1 ? "1 avaliação" : `${count} avaliações`) : "Nenhuma avaliação ainda"}
+        </p>
+      </div>
+    </div>
+  </section>
+);
+
 const ReviewsList = ({ reviews }) =>
   reviews.length === 0 ? (
     <EmptyState icon={Star} title="Sem avaliações ainda" testid="profile-reviews-empty" />
   ) : (
     <div className="space-y-3" data-testid="profile-reviews-list">
       {reviews.map((r) => (
-        <div key={r.id} className="rounded-none border border-border bg-card p-5" data-testid="profile-review-item">
+        <div key={r.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-testid="profile-review-item">
           <div className="flex items-center gap-3">
             <UserAvatar user={r.author} className="h-9 w-9" />
             <div className="min-w-0 flex-1">
               <Link to={`/perfil/${r.from_id}`} className="text-sm font-bold text-foreground hover:text-foreground">{r.author?.name || "Usuário"}</Link>
               <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{catOf(r.category).label} • {ago(r.created_at)}</p>
             </div>
-            <Stars value={r.rating} />
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 dark:bg-amber-400/10"><Stars value={r.rating} /></span>
           </div>
-          {r.comment && <p className="mt-3 text-sm leading-relaxed text-foreground">{r.comment}</p>}
+          {r.comment && <p className="mt-4 border-l-2 border-primary pl-4 text-sm leading-relaxed text-foreground">{r.comment}</p>}
         </div>
       ))}
     </div>
@@ -128,7 +158,7 @@ export default function Profile() {
           {postCursors.portfolio && <Button variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("portfolio").catch(() => {})}>Carregar mais trabalhos</Button>}
         </TabsContent>}
         <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} />{postCursors.publication && <Button className="mt-4" variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("publication").catch(() => {})}>Carregar mais publicações</Button>}</TabsContent>
-        <TabsContent value="reviews" className="mt-5"><ReviewsList reviews={reviews} /></TabsContent>
+        <TabsContent value="reviews" className="mt-5"><ReviewsSummary user={user} count={reviews.length} /><ReviewsList reviews={reviews} /></TabsContent>
       </Tabs>
       <Dialog open={!!viewPost} onOpenChange={(o) => !o && setViewPost(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto border-0 bg-transparent p-0 shadow-none sm:max-w-lg" data-testid="profile-post-dialog">
