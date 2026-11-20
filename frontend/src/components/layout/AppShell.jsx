@@ -54,7 +54,7 @@ const Sidebar = ({ me, unread }) => (
           className={({ isActive }) =>
             cn(
               "group flex items-center gap-3 rounded-none px-4 py-3 text-[15px] font-semibold transition-colors duration-200",
-              isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )
           }
         >
@@ -131,7 +131,7 @@ const BottomNav = ({ unread }) => (
         className={({ isActive }) =>
           cn(
             "relative flex min-h-12 min-w-0 flex-col items-center gap-0.5 rounded-none py-2 text-[10px] font-semibold transition-colors duration-200",
-            isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground",
+            isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground",
           )
         }
       >
