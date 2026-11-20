@@ -589,3 +589,106 @@ html, body, button, input, textarea, select {
 .dark .sj-app[data-page='empresas'] section:has(> h3) {
   box-shadow: 0 8px 24px rgba(0, 0, 0, .24);
 }
+
+
+/* Chat search is a single glass control; keep the input transparent inside it. */
+.sj-chat .sj-inbox-tools { display: grid; gap: 12px; }
+.sj-chat .sj-search {
+  height: auto;
+  min-height: 48px;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid var(--sj-line);
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  box-shadow: var(--glass-edge);
+  transition: border-color var(--motion-duration-base) var(--motion-ease-out),
+              box-shadow var(--motion-duration-base) var(--motion-ease-out);
+}
+.sj-chat .sj-search:focus-within {
+  border-color: var(--sj-brand);
+  box-shadow: 0 0 0 3px rgba(255, 196, 0, .18);
+}
+.sj-chat .sj-search > svg { flex: 0 0 auto; }
+.sj-app .sj-chat .sj-search input:not([type='checkbox']):not([type='radio']):not([type='file']) {
+  min-height: 0 !important;
+  height: auto;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  outline: 0 !important;
+}
+.sj-chat .sj-search button {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sj-brand);
+  color: var(--sj-ink);
+}
+.dark .sj-chat .sj-search { background: var(--sj-glass-dark-fill); }
+.dark .sj-chat .sj-search button { background: rgba(255, 196, 0, .9); }
+
+/* Round the app's balance shortcut wherever it appears. */
+.sj-app [data-testid='mobile-wallet-button'] {
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  box-shadow: var(--glass-edge);
+}
+.dark .sj-app [data-testid='mobile-wallet-button'] {
+  background: var(--sj-glass-dark-fill);
+}
+
+/* Match the company cost dialog controls to the branded app fields. */
+.sj-dialog[data-testid='company-cost-dialog'] {
+  border-radius: var(--sj-radius-panel) !important;
+  padding: clamp(20px, 3vw, 28px);
+  box-shadow: 0 20px 56px rgba(17, 17, 17, .18);
+}
+.sj-dialog[data-testid='company-cost-dialog'] form > div.grid > label {
+  display: block;
+  min-width: 0;
+}
+.sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-dialog[data-testid='company-cost-dialog'] form select {
+  width: 100%;
+  min-height: var(--size-control);
+  padding: 0 16px;
+  border: 1px solid var(--sj-line);
+  border-radius: var(--sj-radius-control) !important;
+  background: var(--sj-glass-clear-fill);
+  color: var(--sj-ink);
+  box-shadow: none;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+.sj-dialog[data-testid='company-cost-dialog'] form input:focus-visible,
+.sj-dialog[data-testid='company-cost-dialog'] form select:focus-visible {
+  border-color: var(--sj-brand);
+  outline: 2px solid rgba(255, 196, 0, .55);
+  outline-offset: 2px;
+}
+.sj-dialog[data-testid='company-cost-dialog'] form > button {
+  min-height: var(--size-control);
+  padding-inline: 20px;
+  border-radius: var(--sj-radius-control) !important;
+}
+.sj-dialog[data-testid='company-cost-dialog'] > button[aria-label='Fechar'] {
+  border-radius: 50% !important;
+}
+.dark .sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.dark .sj-dialog[data-testid='company-cost-dialog'] form select {
+  background: var(--sj-glass-dark-fill);
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-chat .sj-search { transition: none; }
+}
