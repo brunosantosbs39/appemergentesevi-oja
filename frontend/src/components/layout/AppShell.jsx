@@ -68,9 +68,6 @@ const Sidebar = ({ me, unread }) => (
       <UserAvatar user={me} ring={false} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-foreground" data-testid="sidebar-user-name">{me.name}</p>
-        <p className="font-mono text-[10px] uppercase tracking-widest text-foreground" data-testid="sidebar-user-role">
-          Conta única
-        </p>
       </div>
       <AccountMenu />
     </div>
