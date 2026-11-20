@@ -12,11 +12,11 @@
 .lux-header nav{display:flex;align-items:center;gap:36px;font-size:10px;letter-spacing:.15em;text-transform:uppercase}
 .lux-header nav a{min-height:44px;display:flex;align-items:center;gap:18px}
 .lux-nav-cta{border-bottom:1px solid #fff}
-.lux-hero{min-height:740px;height:calc(100svh - 104px);max-height:1100px;position:relative;display:flex;align-items:center;overflow:hidden}
+.lux-hero{min-height:660px;height:calc(100svh - 164px);max-height:1100px;position:relative;display:flex;align-items:center;overflow:hidden}
 .lux-hero-photo,.lux-hero-shade{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .lux-hero-photo{object-position:center 45%}
 .lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.5) 52%,rgba(0,0,0,.12)),linear-gradient(0deg,rgba(0,0,0,.8),transparent 45%)}
-.lux-hero-copy{position:relative;padding:48px 5% 82px;width:100%}
+.lux-hero-copy{position:relative;padding:48px 5% 52px;width:100%}
 .lux-eyebrow{font-size:10px;letter-spacing:.22em;line-height:1.8;margin:0 0 28px;color:#ccc}
 .lux-hero h1{font-size:clamp(44px,5.8vw,92px);line-height:1.12;letter-spacing:.015em;margin:0;max-width:1000px}
 .lux-intro{font-size:19px;line-height:1.7;color:#ddd;margin:28px 0 38px}
@@ -53,7 +53,7 @@
 @media(max-width:700px){
 .lux-header{height:88px;padding:0 6%}.lux-logo{font-size:18px}.lux-logo span{font-size:6px;letter-spacing:.12em}
 .lux-header nav{gap:16px;font-size:8px;letter-spacing:.08em}.lux-nav-cta svg{display:none}
-.lux-hero{min-height:650px;height:calc(100svh - 88px)}.lux-hero-copy{padding:36px 6% 72px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
+.lux-hero{min-height:610px;height:calc(100svh - 128px)}.lux-hero-copy{padding:36px 6% 52px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
 .lux-hero-photo{object-position:62% center}.lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.82),rgba(0,0,0,.4)),linear-gradient(0deg,#000,transparent 65%)}
 .lux-intro{font-size:17px;max-width:330px}.lux-desktop-break{display:none}.lux-eyebrow{font-size:8px}.lux-actions{gap:12px}
 .lux-button{font-size:9px;gap:20px;padding:16px 18px;min-height:54px}
