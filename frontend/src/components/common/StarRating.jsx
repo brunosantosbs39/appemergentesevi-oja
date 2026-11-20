@@ -1,3 +1,22 @@
+import { Star } from "lucide-react";
+
+export const StarInput = ({ value, onChange, size = 32, testid = "star-rating-input" }) => (
+  <div className="flex items-center gap-1.5" data-testid={testid}>
+    {[1, 2, 3, 4, 5].map((n) => (
+      <button
+        key={n}
+        type="button"
+        onClick={() => onChange(n)}
+        data-testid={`${testid}-${n}`}
+        aria-label={`${n} estrelas`}
+        className="transition-transform duration-150 hover:scale-110 active:scale-95"
+      >
+        <Star style={{ width: size, height: size }} className={n <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground"} />
+      </button>
+    ))}
+  </div>
+);
+
 export const Stars = ({ value = 0, size = 14 }) => {
   const rating = Math.min(5, Math.max(0, Number(value) || 0));
   return (
