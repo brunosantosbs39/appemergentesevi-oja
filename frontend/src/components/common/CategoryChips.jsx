@@ -39,7 +39,7 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
           </button>
         ))}
       </div>}
-      {query && !searchOnly && <p role="status" className="text-xs text-muted-foreground">{matches.length ? matches.length + " áreas encontradas. Selecione uma para aplicar." : "Nenhuma área encontrada. Tente outro termo ou limpe a pesquisa."}</p>}
+      {query && <p role="status" className="text-xs text-muted-foreground">{searchOnly && selected[0]?.label === query ? "Filtro aplicado: " + query : matches.length ? matches.length + " áreas encontradas. Selecione uma para aplicar." : "Nenhuma área encontrada. Tente outro termo ou limpe a pesquisa."}</p>}
     </div>
   );
 };

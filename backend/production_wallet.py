@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets
+import logging
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Literal
@@ -81,6 +82,8 @@ def provider(method, path, body=None, params=None):
             headers={"access_token": os.environ["ASAAS_API_KEY"], "User-Agent": "ServicoJa-Pix/1.0"},
             timeout=(3, 10), allow_redirects=False)
         if not 200 <= response.status_code < 300:
+            # Never log provider bodies, credentials, documents or payment identifiers.
+            logging.getLogger(__name__).warning("Asaas request rejected: method=%s status=%s", method, response.status_code)
             raise ProviderError(response.status_code in (400, 401, 403, 404, 422))
         result = response.json()
         if not isinstance(result, dict):
@@ -175,13 +178,14 @@ async def collect_timed(db, op, pid):
 
 
 async def timed_receipts(db, op):
+    received = False
     for qr_id in op.get("qr_ids", []):
-        rows = await call("GET", "/payments", params={"pixQrCodeId":qr_id, "limit":10})
+        rows = await call("GET", "/payments", params={"pixQrCodeId":qr_id, "limit":100})
         for row in rows.get("data", []):
             if row.get("pixQrCodeId") == qr_id and re.fullmatch(r"pay_[A-Za-z0-9_-]+", row.get("id", "")):
-                if await collect_timed(db, op, row["id"]):
-                    return True
-    return False
+                # A previously credited receipt must not hide a second genuine receipt.
+                received = await collect_timed(db, op, row["id"]) or received
+    return received
 
 
 async def timed_code(db, op):
@@ -193,21 +197,32 @@ async def timed_code(db, op):
         return public(op)
     if slot >= 3:
         await expire_timed(db, op)
-    elif slot > op.get("slot", -1):
+    elif slot > op.get("slot", -1) or op.get("qr_retry"):
         if op.get("qr_ids") and await timed_receipts(db, op):
             return public(await db.pix_deposits.find_one({"_id":op["id"]}))
         end = start + timedelta(seconds=59 * (slot + 1))
-        claim = await db.pix_deposits.update_one({"_id":op["id"], "status":"pending", "slot":{"$lt":slot}},
-            {"$set":{"slot":slot, "expires_at":end.isoformat()}, "$unset":{"pix_copy_paste":"","qr_image":""}})
+        claim = await db.pix_deposits.update_one({"_id":op["id"], "status":"pending", "$or":[
+            {"slot":{"$lt":slot}}, {"slot":slot,"qr_retry":True}]},
+            {"$set":{"slot":slot, "expires_at":end.isoformat(), "qr_retry":False}, "$unset":{"pix_copy_paste":"","qr_image":""}})
         if claim.modified_count:
-            keys = await call("GET", "/pix/addressKeys", params={"limit":100})
+            try:
+                keys = await call("GET", "/pix/addressKeys", params={"limit":100})
+            except ProviderError:
+                await db.pix_deposits.update_one({"_id":op["id"],"slot":slot,"status":"pending"}, {"$set":{"qr_retry":True}})
+                raise
             key = next((k["key"] for k in keys.get("data",[]) if k.get("key") and k.get("status")=="ACTIVE"), None)
             if not key:
                 await expire_timed(db, op)
                 raise HTTPException(503, "A conta recebedora precisa de uma chave Pix ativa para gerar este código.")
-            qr = await call("POST", "/pix/qrCodes/static", {"addressKey":key,"value":op["amount_cents"]/100,
-                "format":"ALL","allowsMultiplePayments":False,"externalReference":op["id"],
-                "expirationDate":end.astimezone(timezone(timedelta(hours=-3))).strftime("%Y-%m-%d %H:%M:%S")})
+            try:
+                qr = await call("POST", "/pix/qrCodes/static", {"addressKey":key,"value":op["amount_cents"]/100,
+                    "format":"ALL","allowsMultiplePayments":False,"externalReference":op["id"],
+                    "expirationDate":end.astimezone(timezone(timedelta(hours=-3))).strftime("%Y-%m-%d %H:%M:%S")})
+            except ProviderError as error:
+                # Retry only a definite rejection. A timeout may have created a code.
+                if error.definitive:
+                    await db.pix_deposits.update_one({"_id":op["id"],"slot":slot,"status":"pending"}, {"$set":{"qr_retry":True}})
+                raise
             if not all(isinstance(qr.get(k),str) and qr[k] for k in ("id","encodedImage","payload")):
                 raise ProviderError()
             await db.pix_deposits.update_one({"_id":op["id"]},{"$addToSet":{"qr_ids":qr["id"]}})
@@ -648,7 +663,10 @@ def build_router(db, onboarded):
         op = await db.pix_deposits.find_one({"_id":oid,"user_id":me["user_id"],"timed":True})
         if not op:
             raise HTTPException(404,"Depósito não encontrado")
-        return await timed_code(db,op)
+        try:
+            return await timed_code(db,op)
+        except ProviderError:
+            raise HTTPException(502, "Não foi possível atualizar o Pix agora. Aguarde a nova tentativa automática.")
 
     @router.post("/sync")
     async def sync(background_tasks: BackgroundTasks, me=Depends(onboarded)):

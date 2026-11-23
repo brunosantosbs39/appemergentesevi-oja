@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PixWithdrawal, { withdrawalLabels } from "./PixWithdrawal";
 import { Copy, Loader2, QrCode } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +19,8 @@ export default function ProductionWallet({ wallet, userId }) {
   const [amount, setAmount] = useState("25,00");
   const [document, setDocument] = useState("");
   const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [codeError, setCodeError] = useState(false);
   const lock = useRef(false);
   const storageKey = "pix-intent:" + userId;
   const [clock, setClock] = useState(Date.now);
@@ -40,24 +42,27 @@ export default function ProductionWallet({ wallet, userId }) {
   const slotEnd = timed ? Date.parse(timed.expires_at || timed.created_at) : Infinity;
   const remaining = Math.max(0, Math.ceil((slotEnd - clock) / 1000));
   const sessionEnd = timed ? Date.parse(timed.created_at) + 180000 : Infinity;
+  const needsCode = Boolean(timedId && (remaining === 0 || !timed?.pix_copy_paste));
   useEffect(() => {
-    if (!timedId || remaining > 0 || refreshing.current) return;
+    if (!needsCode) return;
     let cancelled = false;
     const refresh = async () => {
       if (refreshing.current || cancelled) return;
       refreshing.current = true;
       try {
         const {data} = await api.post("/wallet/deposits/" + timedId + "/code");
+        if (cancelled) return;
+        setCodeError(false);
         cache.setQueryData(["wallet",userId], old=>old && ({...old,operations:old.operations.map(op=>
           op.id===data.id && op.status==="pending" ? data : op)}));
         if(data.status==="paid") await cache.invalidateQueries({queryKey:["wallet",userId]});
-      } catch { /* Retry the same server slot after connectivity returns. */ }
+      } catch { if (!cancelled) setCodeError(true); }
       finally { refreshing.current = false; }
     };
     refresh();
     const retry = setInterval(refresh, 3000);
     return () => { cancelled = true; clearInterval(retry); };
-  }, [api, cache, userId, timedId, remaining]);
+  }, [api, cache, userId, timedId, needsCode]);
   const validAmount = /^\d{1,3}([.,]\d{1,2})?$/.test(amount);
   const depositCents = validAmount ? Math.round(Number(amount.replace(",", ".")) * 100) : 0;
   const lastFee = wallet.deposit_fee_estimate_cents;
@@ -67,7 +72,7 @@ export default function ProductionWallet({ wallet, userId }) {
   async function deposit(event) {
     event.preventDefault();
     if (lock.current) return;
-    lock.current = true; setBusy(true);
+    lock.current = true; setBusy(true); setErrorMessage("");
     try {
       if (!/^\d{1,3}([.,]\d{1,2})?$/.test(amount)) throw new Error("Informe um valor entre R$ 5 e R$ 100.");
       const [whole, fraction = ""] = amount.replace(",", ".").split(".");
@@ -89,7 +94,10 @@ export default function ProductionWallet({ wallet, userId }) {
       else toast.info(labels[data.status] || "Atualizando pagamento");
     } catch (error) {
       if (error.response?.status === 503 || error.response?.status === 409) sessionStorage.removeItem(storageKey);
-      toast.error(error.response ? errMsg(error) : error.message);
+      const message = error.response ? errMsg(error) : error.message;
+      setErrorMessage(message);
+      toast.error(message);
+      cache.invalidateQueries({queryKey:["wallet",userId]});
     } finally {
       setBusy(false); lock.current = false;
     }
@@ -110,7 +118,7 @@ export default function ProductionWallet({ wallet, userId }) {
           className={"flex min-h-12 items-center justify-center border p-2 font-semibold " + (area === to ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card")}>{name}</Link>)}
     </nav>
     {area === "#adicionar-saldo" && <>
-    {!wallet.enabled ? <p role="status">Depósitos Pix temporariamente indisponíveis.</p> : <form onSubmit={deposit} id="adicionar-saldo" className="space-y-4 border border-border bg-card p-5">
+    {!wallet.enabled ? <p role="status">Depósitos Pix temporariamente indisponíveis.</p> : <form onSubmit={deposit} aria-busy={busy} id="adicionar-saldo" className="space-y-4 border border-border bg-card p-5">
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
       <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
       <label className="block">Seu CPF ou CNPJ<input aria-label="CPF ou CNPJ" autoComplete="off" inputMode="numeric" maxLength={20} className={input} value={document} onChange={e => setDocument(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
@@ -121,13 +129,15 @@ export default function ProductionWallet({ wallet, userId }) {
         <strong>Saldo estimado a receber: {money(Math.max(0, depositCents - estimatedFee))}</strong>
         <p className="text-sm text-muted-foreground">{hasFeeHistory ? "Estimativa baseada na última cobrança paga." : "Estimativa pela tarifa padrão do Asaas."} O extrato mostrará a tarifa efetiva após a confirmação.</p>
       </div>}
-      <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || (!!active && clock < sessionEnd)}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}Adicionar saldo</Button>
+      {errorMessage && <p role="alert" className="text-sm text-destructive">{errorMessage}</p>}
+      <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || (!!active && clock < sessionEnd)}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}{busy ? "Gerando Pix…" : "Adicionar saldo"}</Button>
       {active?.status==="pending" && <Button type="button" variant="outline" onClick={()=>setDialogId(active.id)}>Ver Pix</Button>}
-      {active?.status==="review" && <p role="status">Depósito em análise.</p>}
+      {active?.status==="review" && <p role="status">Estamos conferindo o depósito. Não pague novamente; acompanhe a confirmação no extrato.</p>}
     </form>}
     <Dialog open={Boolean(shown)} onOpenChange={open=>{if(!open)setDialogId(null);}}>
       <DialogContent className="max-h-[90dvh] overflow-auto sm:max-w-sm">
         <DialogTitle>Pix de {money(shown?.amount_cents)}</DialogTitle>
+        <DialogDescription>O saldo é atualizado após a confirmação do pagamento. Fechar esta janela não cancela o Pix.</DialogDescription>
         {shown?.status==="pending" ? <>
           <div role="timer" aria-label="Tempo restante" className="text-center font-mono text-2xl tabular-nums">
             {(() => {
@@ -139,8 +149,8 @@ export default function ProductionWallet({ wallet, userId }) {
             <img className="mx-auto h-56 w-56 bg-white p-2" src={"data:image/png;base64,"+shown.qr_image} alt="QR Code Pix" />
             <textarea aria-label="Pix Copia e Cola" readOnly rows={2} className={input} value={shown.pix_copy_paste} onFocus={e=>e.target.select()} />
             <Button onClick={()=>copy(shown.pix_copy_paste)}><Copy className="h-4 w-4" />Copiar Pix</Button>
-          </> : <div className="mx-auto grid h-56 place-items-center"><Loader2 aria-label="Atualizando QR Code" className="animate-spin" /></div>}
-        </> : <p role="status">{labels[shown?.status]}</p>}
+          </> : <div className="mx-auto grid h-56 place-items-center" role="status"><Loader2 aria-hidden="true" className="animate-spin" /><p className="text-center text-sm">{codeError ? "Conexão indisponível. Tentando recuperar o Pix…" : "Preparando o QR Code…"}</p></div>}
+        </> : <div role="status" className="space-y-3"><p>{labels[shown?.status]}</p>{shown?.status==="expired" && <p>O tempo para pagar terminou. Se ainda não pagou, feche esta janela e solicite um novo Pix.</p>}{shown?.status==="paid" && <p>O valor confirmado já foi adicionado ao seu saldo.</p>}<Button variant="outline" onClick={()=>setDialogId(null)}>Voltar à carteira</Button></div>}
       </DialogContent>
     </Dialog>
     </>}

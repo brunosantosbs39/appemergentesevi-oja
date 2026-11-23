@@ -57,6 +57,18 @@ Os testes em memória simulam transações e falhas. Não substituem teste conco
 - [QR Code](https://docs.asaas.com/reference/obter-qr-code-para-pagamentos-via-pix)
 - [Webhooks](https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook)
 
+## Revisão de produção — 23/11/2026
+
+O domínio chamaae.online utiliza a branch codex/wallet-setup, com as variáveis de produção restritas a essa branch. A prévia codex/v0.2.0 não deve receber as credenciais reais nem duplicar o processamento agendado. O Sandbox continua separado.
+
+O endpoint de depósito atual usa QR Pix estático com prazo curto, três intervalos de 59 segundos e encerramento da sessão em três minutos. Diferentemente da cobrança dinâmica legada, o Asaas cria o pagamento quando recebe o Pix. A API valida o CPF/CNPJ enviado, mas não o guarda no extrato. Os dados do pagador no fluxo estático são definidos pelo próprio recebimento no Asaas: https://docs.asaas.com/docs/creating-a-static-qr-code .
+
+Falha na consulta da chave Pix e rejeição definitiva na criação permitem recuperação no mesmo intervalo, com atualização condicional para evitar solicitações concorrentes. Resposta ambígua no POST nunca é repetida no mesmo intervalo. A renovação retorna erro compreensível, sem dados do provedor. Logs registram apenas método e status HTTP, sem documentos, chaves, corpos de resposta ou identificadores financeiros.
+
+A reconciliação verifica todos os códigos conhecidos da sessão, mesmo quando um recebimento anterior já foi creditado. Cada pagamento distinto é creditado uma única vez pelo identificador do provedor, após nova consulta autenticada com estado RECEIVED, valor e código correspondentes. CONFIRMED permanece sem crédito até a liberação efetiva. Webhooks de saque também consultam o provedor antes de concluir ou devolver valores.
+
+Os testes usam respostas simuladas do Asaas e banco local descartável. Eles não comprovam aprovação cadastral, limites operacionais ou autorização automática de transferências na conta real; essa confirmação exige inspeção operacional do Asaas. Nenhuma transferência real é necessária para executar a suíte.
+
 
 ## Recuperação de interrupções (novembro de 2026)
 

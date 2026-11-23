@@ -1,11 +1,18 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ClientRequests } from "@/components/requests/ClientRequests";
 import { ProRequests } from "@/components/requests/ProRequests";
 import { Commitments } from "@/components/requests/Commitments";
 import { Button } from "@/components/ui/button";
 
 export default function Requests() {
-  const [mode, setMode] = useState("opportunity");
+  const [params, setParams] = useSearchParams();
+  const selected = params.get("view");
+  const mode = ["hire", "commitments"].includes(selected) ? selected : "opportunity";
+  const setMode = value => setParams(previous => {
+    const next = new URLSearchParams(previous);
+    next.set("view", value);
+    return next;
+  });
   return <div>
     <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Como você quer usar os pedidos?">
       <Button variant={mode === "hire" ? "default" : "outline"} aria-pressed={mode === "hire"} className="h-auto min-h-12 whitespace-normal" onClick={() => setMode("hire")}>Quero contratar</Button>

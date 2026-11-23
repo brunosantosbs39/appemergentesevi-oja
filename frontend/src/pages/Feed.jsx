@@ -2,6 +2,7 @@ import { FeaturedPros } from "@/components/feed/FeaturedPros";
 import { RequestCard } from "@/components/requests/RequestCard";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ImagePlus, Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
@@ -39,12 +40,12 @@ export default function Feed() {
         <CategoryChips searchOnly value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 space-y-6">
           {timeline.isLoading && <Loader2 aria-label="Carregando feed" className="animate-spin" />}
-          {timeline.isError && <Button variant="outline" onClick={() => timeline.refetch()}>Falha ao carregar. Tentar novamente</Button>}
-          {timeline.isSuccess && !items.length && <EmptyState icon={ImagePlus} title="Nenhuma publicação ou vaga por aqui" text={timeline.data.pages[0].needs_location ? "Atualize sua localização no perfil." : "Tente outra categoria ou volte mais tarde."} />}
+          {timeline.isError && <div role="alert" className="space-y-3 border border-border p-4"><p>Não foi possível atualizar o feed.{items.length > 0 && " As publicações anteriores continuam visíveis."}</p><Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.refetch()}>{timeline.isFetching ? "Tentando novamente…" : "Tentar novamente"}</Button></div>}
+          {timeline.isSuccess && !items.length && <EmptyState icon={ImagePlus} title="Nenhuma publicação ou vaga por aqui" text={timeline.data.pages[0].needs_location ? "Informe sua localização para encontrar oportunidades próximas." : "Tente outra categoria ou volte mais tarde."} action={timeline.data.pages[0].needs_location ? <Button asChild variant="outline"><Link to="/perfil/me">Atualizar localização</Link></Button> : cat !== "todos" ? <Button variant="outline" onClick={()=>setCat("todos")}>Limpar filtro</Button> : <Button variant="outline" onClick={()=>setOpen(true)}>Criar publicação</Button>} />}
           {items.map(({type,item}) => type === "request"
             ? <RequestCard key={"vaga-"+item.id} request={item} me={me} />
             : <PostCard key={"post-"+item.id} post={item} onHire={setHire} onDeleted={() => timeline.refetch()} />)}
-          {timeline.hasNextPage && <Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.fetchNextPage()}>Carregar anteriores</Button>}
+          {timeline.hasNextPage && <Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.fetchNextPage()}>{timeline.isFetchingNextPage ? "Carregando…" : "Carregar anteriores"}</Button>}
         </div>
       </section>
       <aside className="order-first lg:order-none"><FeaturedPros /></aside>

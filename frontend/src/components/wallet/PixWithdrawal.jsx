@@ -72,7 +72,7 @@ export default function PixWithdrawal({ wallet, userId }) {
           <input className="block w-full border bg-background p-3" required readOnly={confirmation} type={keyType === "EMAIL" ? "email" : "text"} inputMode={({CPF:"numeric", CNPJ:"numeric", PHONE:"tel", EMAIL:"email"})[keyType] || "text"} autoComplete="off" maxLength={254} value={destination} onChange={e => setDestination(e.target.value)} />
         </label>
         {confirmation && <p>Confirme o envio de {format(cents)} para a chave acima.</p>}
-        <Button disabled={busy || wallet.available_cents <= 0} type="submit">{confirmation ? "Confirmar saque" : "Revisar saque"}</Button>
+        <Button disabled={busy || wallet.available_cents <= 0} type="submit">{busy ? "Enviando solicitação…" : confirmation ? "Confirmar saque" : "Revisar saque"}</Button>
         {confirmation && <Button variant="outline" type="button" disabled={busy} onClick={() => setConfirmation(false)}>Editar</Button>}
       </form> : <p>{pending ? "Acompanhe seu saque em andamento no extrato." : "Saque temporariamente indisponível."}</p>}
     <p role="status">{message}</p>

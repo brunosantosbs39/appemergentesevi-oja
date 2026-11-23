@@ -23,7 +23,7 @@ const mocks = {
   "@tanstack/react-query": { useQueryClient: () => ({}) },
   "@/lib/api": { useApi: () => ({}), errMsg: () => "Error" },
   "@/components/ui/button": { Button: props => React.createElement("button", props) },
-  "@/components/ui/dialog": {Dialog:({open,children})=>open?children:null, DialogContent:({children})=>children,DialogTitle:({children})=>children},
+  "@/components/ui/dialog": {Dialog:({open,children})=>open?children:null, DialogContent:({children})=>children,DialogTitle:({children})=>children,DialogDescription:({children})=>children},
   "sonner": { toast: {} },
   "lucide-react": Object.fromEntries(["Copy", "Loader2", "QrCode"].map(k => [k, () => null]))
 };

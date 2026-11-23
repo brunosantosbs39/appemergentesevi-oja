@@ -13,6 +13,7 @@ import { useUnread } from "@/hooks/useUnread";
 import { Logo } from "@/components/common/Misc";
 import { UserAvatar } from "@/components/common/UserAvatar";
 import { cn } from "@/lib/utils";
+import { AppGuidance, ConnectionNotice } from "@/components/common/AppGuidance";
 
 const NAV = [
   { to: "/feed", label: "Feed", icon: Home, id: "feed" },
@@ -185,14 +186,17 @@ export default function AppShell() {
   if (!me.registration_complete) return <Navigate to="/onboarding" replace />;
   return (
     <div className="sj-app min-h-screen bg-background" data-page={pathname.split("/")[1]}>
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:bg-card focus:p-4 focus:text-foreground">Pular para o conteúdo</a>
       <Sidebar me={me} unread={unread} />
       {!isChat && <MobileTop />}
-      <main className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
+      <main id="main-content" tabIndex={-1} className={isChat ? "fixed inset-0 lg:left-72" : "pb-28 lg:pb-10 lg:pl-72"}>
         <div className={isChat ? "h-full" : "mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-10 lg:pt-10"}>
           {["/feed", "/carteira"].includes(pathname) && <div className="mb-4 flex items-center justify-end gap-3"><WalletShortcut userId={me.user_id} />{pathname === "/feed" && <NotificationCenter />}</div>}
           <VersionNotice />
+          <ConnectionNotice />
           {!isChat && <AttendanceNotice />}
           <Outlet />
+          {!isChat && <AppGuidance page={pathname.split("/")[1]} />}
         </div>
       </main>
       {!isChat && <BottomNav unread={unread} />}
