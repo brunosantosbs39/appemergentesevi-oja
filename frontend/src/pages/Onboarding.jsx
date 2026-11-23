@@ -54,7 +54,7 @@ export default function Onboarding() {
     if(postalDigits.length===8 && !me.registration_complete) lookupTimer.current=setTimeout(lookup,350);
     return () => {clearTimeout(lookupTimer.current);invalidateLookup();};
   }, [postalDigits, lookup, me.registration_complete, invalidateLookup]);
-  if(me.registration_complete) return <Navigate to="/mapa" replace />;
+  if(me.registration_complete) return <Navigate to="/feed" replace />;
   const save = async e => {
     e.preventDefault();
     if(!region || region.postal_code!==address.postal_code.replace(/\D/g,"")){setError("Consulte seu CEP antes de concluir.");return;}
@@ -63,7 +63,7 @@ export default function Onboarding() {
     setBusy(true);setError("");
     try{
       const {data}=await api.put("/me/registration",{name:name.trim(),address,location:point,categories:roles,custom_roles:custom.split(",").map(x=>x.trim()).filter(Boolean)});
-      setMe(data);navigate("/mapa",{replace:true});
+      setMe(data);navigate("/feed",{replace:true});
     }catch(e){setError(errMsg(e));}finally{setBusy(false);}
   };
   const field = (key,label,autocomplete,options={}) => <label className="access-field" htmlFor={"registration-"+key}>{label}<input id={"registration-"+key} value={address[key]} onChange={e=>change(key,e.target.value)} autoComplete={autocomplete} required={key!=="complement"} maxLength={key==="number"?20:key==="complement"?100:150} {...options}/></label>;
