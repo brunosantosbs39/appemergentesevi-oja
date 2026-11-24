@@ -16,18 +16,6 @@ import { ReviewDialog } from "@/components/requests/ReviewDialog";
 import { useMyRequests } from "@/components/requests/useMyRequests";
 import { RequestList } from "@/components/requests/ClientRequests";
 
-const RadarBanner = ({ count }) => (
-  <div className="legacy-radar-banner relative mb-5 flex items-center gap-4 overflow-hidden rounded-3xl bg-slate-950 p-5 text-white">
-    <div className="radar-sweep relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-emerald-500/40">
-      <Radar className="h-6 w-6 text-emerald-400" />
-    </div>
-    <div>
-      <p className="font-heading text-lg font-bold">Procurando pedidos perto de você</p>
-      <p className="text-sm text-slate-300" data-testid="pro-available-count">{count === null ? "Buscando..." : `${count} pedido${count === 1 ? "" : "s"} disponíve${count === 1 ? "l" : "is"}`}</p>
-    </div>
-  </div>
-);
-
 export const ProRequests = () => {
   const api = useApi();
   const { me } = useMe();
@@ -116,7 +104,6 @@ export const ProRequests = () => {
           {items?.some(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente") && <section className="mb-5 space-y-3"><h2 className="font-heading text-xl">Pedidos diretos para você</h2>
             {items.filter(r=>r.direct_invitation && r.target_pro_id===me.user_id && r.status==="pendente").map(r=><RequestCard key={r.id} request={r} me={me} />)}
           </section>}
-          <RadarBanner count={available?.length ?? null} />
           {!me.categories?.length && <p className="mb-4">Selecione suas categorias no <Link to="/perfil/me" className="underline">perfil</Link> para receber oportunidades aqui. No feed você pode ver todas as categorias.</p>}
           {available === null && <Loader2 className="mx-auto h-6 w-6 animate-spin text-foreground" />}
           {available?.length === 0 && <EmptyState icon={Radar} title="Nenhum pedido neste raio" text="Aumente o raio de busca ou volte daqui a pouco." testid="pro-available-empty" />}
