@@ -649,18 +649,20 @@ html, body, button, input, textarea, select {
   background: var(--sj-glass-dark-fill);
 }
 
-/* Match the company cost dialog controls to the branded app fields. */
-.sj-dialog[data-testid='company-cost-dialog'] {
+/* Dialog portals sit outside .sj-app: share branded controls across company forms. */
+.sj-dialog.sj-company-dialog {
   border-radius: var(--sj-radius-panel) !important;
   padding: clamp(20px, 3vw, 28px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--sj-line) transparent;
   box-shadow: 0 20px 56px rgba(17, 17, 17, .18);
 }
-.sj-dialog[data-testid='company-cost-dialog'] form > div.grid > label {
+.sj-dialog.sj-company-dialog form > div.grid > label {
   display: block;
   min-width: 0;
 }
-.sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
-.sj-dialog[data-testid='company-cost-dialog'] form select {
+.sj-dialog.sj-company-dialog input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.sj-dialog.sj-company-dialog select {
   width: 100%;
   min-height: var(--size-control);
   padding: 0 16px;
@@ -672,22 +674,22 @@ html, body, button, input, textarea, select {
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
-.sj-dialog[data-testid='company-cost-dialog'] form input:focus-visible,
-.sj-dialog[data-testid='company-cost-dialog'] form select:focus-visible {
+.sj-dialog.sj-company-dialog input:focus-visible,
+.sj-dialog.sj-company-dialog select:focus-visible {
   border-color: var(--sj-brand);
   outline: 2px solid rgba(255, 196, 0, .55);
   outline-offset: 2px;
 }
-.sj-dialog[data-testid='company-cost-dialog'] form > button {
+.sj-dialog.sj-company-dialog form > button {
   min-height: var(--size-control);
   padding-inline: 20px;
   border-radius: var(--sj-radius-control) !important;
 }
-.sj-dialog[data-testid='company-cost-dialog'] > button[aria-label='Fechar'] {
+.sj-dialog.sj-company-dialog > button[aria-label='Fechar'] {
   border-radius: 50% !important;
 }
-.dark .sj-dialog[data-testid='company-cost-dialog'] form input:not([type='checkbox']):not([type='radio']):not([type='file']),
-.dark .sj-dialog[data-testid='company-cost-dialog'] form select {
+.dark .sj-dialog.sj-company-dialog input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.dark .sj-dialog.sj-company-dialog select {
   background: var(--sj-glass-dark-fill);
   color: #fff;
 }

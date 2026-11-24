@@ -54,7 +54,7 @@ export default function Companies() {
       {company && <Button variant="outline" onClick={()=>setModal("cost")}>Lançar custo</Button>}
     </div>
     <Dialog open={modal==="unit"} onOpenChange={open=>{if(!open && !busy)setModal(null);}}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto"><DialogTitle>Criar empresa ou filial</DialogTitle>
+      <DialogContent className="sj-company-dialog max-h-[90dvh] overflow-y-auto"><DialogTitle>Criar empresa ou filial</DialogTitle>
         <label>Tipo de unidade<select className={input} value={kind} onChange={e=>setKind(e.target.value)}>
           <option value="company">Empresa (matriz)</option><option value="branch" disabled={!companies.length}>Filial</option>
         </select></label>
@@ -79,7 +79,7 @@ export default function Companies() {
         setModal("edit");
       }}>{branch && branch!=="matrix" ? "Editar filial" : "Editar empresa"}</Button></div>
       <Dialog open={modal==="edit"} onOpenChange={open=>{if(!open && !busy){setModal(null);setEditing(null);}}}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="sj-company-dialog max-h-[90dvh] overflow-y-auto">
           <DialogTitle>{editing?.branchId ? "Editar filial" : "Editar empresa"}</DialogTitle>
           <DialogDescription>Atualize os dados de {editing?.unit?.name}. O endereço salvo estará disponível ao selecionar esta unidade em novos pedidos.</DialogDescription>
           {editing && <UnitForm key={editing.unit.id} title="Salvar alterações" initial={editing.unit} busy={busy} edit onSave={body=>run(async()=>{
@@ -97,7 +97,7 @@ export default function Companies() {
         {data.unpriced_count>0&&<p role="status">{data.unpriced_count} pedido(s) sem valor combinado, fora dos totais monetários.</p>}
         <section className="space-y-3"><h2 className="font-heading text-xl">Comparativo por unidade</h2>{data.by_branch.length===0?<p>Nenhum lançamento no período.</p>:[...data.by_branch].sort((a,b)=>total(b)-total(a)).map(b=><div key={b.branch_id||"main"} className="border border-border p-4"><div className="flex justify-between"><button type="button" className="font-semibold underline" aria-label={"Filtrar movimentações de "+unit(b.branch_id)} onClick={()=>setBranch(b.branch_id || "matrix")}>{unit(b.branch_id)}</button><span>{money(total(b))} · {total(data.totals) ? Math.round(100*total(b)/total(data.totals)) : 0}%</span></div><progress aria-label={"Participação de "+unit(b.branch_id)} className="my-2 h-2 w-full" max={total(data.totals)||1} value={total(b)}/><p className="text-sm">Previsto: {money(b.planned_cents)} · Concluído: {money(b.completed_cents)} · Pago: {money((b.paid_app_cents||0)+b.paid_manual_cents)}</p></div>)}</section>
       </>}
-      <Dialog open={modal==="cost"} onOpenChange={open=>{if(!open && !busy)setModal(null);}}><DialogContent data-testid="company-cost-dialog" className="max-h-[90dvh] overflow-y-auto"><DialogTitle>Lançar custo</DialogTitle>
+      <Dialog open={modal==="cost"} onOpenChange={open=>{if(!open && !busy)setModal(null);}}><DialogContent data-testid="company-cost-dialog" className="sj-company-dialog max-h-[90dvh] overflow-y-auto"><DialogTitle>Lançar custo</DialogTitle>
       <form className="space-y-3" onSubmit={e=>{e.preventDefault();run(addDaily);}}>
         <p className="text-sm">Unidade: {branch?unit(branch):"Matriz"}. Use para serviços fora dos pedidos do app.</p>
         <div className="grid gap-3 sm:grid-cols-2">
