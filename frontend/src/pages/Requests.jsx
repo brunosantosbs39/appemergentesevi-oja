@@ -19,7 +19,6 @@ export default function Requests() {
       <Button variant={mode === "opportunity" ? "default" : "outline"} aria-pressed={mode === "opportunity"} className="h-auto min-h-12 whitespace-normal" onClick={() => setMode("opportunity")}>Busco uma oportunidade</Button>
       <Button variant={mode === "commitments" ? "default" : "outline"} aria-pressed={mode === "commitments"} className="col-span-2 h-auto min-h-12 whitespace-normal sm:col-span-1" onClick={() => setMode("commitments")} data-testid="commitments-button">Compromissos</Button>
     </div>
-    <p className="mb-6 text-sm text-muted-foreground">Uma conta para os dois: contrate para sua casa ou empresa e encontre serviços para trabalhar.</p>
     {mode === "commitments" ? <Commitments /> : mode === "hire" ? <ClientRequests /> : <ProRequests />}
   </div>;
 }

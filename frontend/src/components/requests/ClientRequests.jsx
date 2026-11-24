@@ -51,7 +51,7 @@ export const ClientRequests = () => {
 
   return (
     <div>
-      <PageHeader eyebrow="Quero contratar" title="Meus pedidos" subtitle="Publique uma vaga, analise as candidaturas e aprove o profissional que irá atender.">{newBtn}</PageHeader>
+      <PageHeader eyebrow="Quero contratar" title="Meus pedidos">{newBtn}</PageHeader>
       {error && <div role="alert" className="mb-4 border border-border bg-card p-4 text-sm">
         <p>Não foi possível atualizar seus pedidos. Os dados já carregados foram mantidos.</p>
         <Button type="button" variant="outline" className="mt-2" onClick={reload}>Tentar novamente</Button>

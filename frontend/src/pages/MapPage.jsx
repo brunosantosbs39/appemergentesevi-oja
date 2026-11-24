@@ -110,7 +110,7 @@ export default function MapPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Radar" title="Oportunidades no mapa" subtitle="Pontos pulsantes mostram vagas abertas. Toque no valor para ver os detalhes e se candidatar.">
+      <PageHeader eyebrow="Radar" title="Oportunidades no mapa">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="map-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>

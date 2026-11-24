@@ -32,7 +32,7 @@ export default function Feed() {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(190px,28%)]">
       <section className="min-w-0">
-        <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Publicações e vagas em um raio de 25 km da sua localização cadastrada.">
+        <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Vagas e publicações a até 25 km.">
           <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
             <ImagePlus className="h-4 w-4" /> Nova postagem
           </Button>

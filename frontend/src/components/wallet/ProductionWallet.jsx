@@ -122,12 +122,12 @@ export default function ProductionWallet({ wallet, userId }) {
       <h2 className="text-xl">Adicionar saldo via Pix</h2>
       <label className="block">Valor em reais<input aria-label="Valor do depósito" inputMode="decimal" className={input} value={amount} onChange={e => setAmount(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
       <label className="block">Seu CPF ou CNPJ<input aria-label="CPF ou CNPJ" autoComplete="off" inputMode="numeric" maxLength={20} className={input} value={document} onChange={e => setDocument(e.target.value)} disabled={busy || (!!active && clock < sessionEnd)} required /></label>
-      <p className="text-sm text-muted-foreground">Deposite entre R$ 5 e R$ 100. A tarifa de recebimento do Asaas é descontada quando o Pix é pago, mesmo se você sacar o saldo sem contratar um serviço.</p>
+      <p className="text-sm text-muted-foreground">De R$ 5 a R$ 100. A tarifa é descontada do depósito.</p>
       {depositCents >= 500 && depositCents <= 10000 && <div className="space-y-1 border-l-2 border-primary pl-3" role="status">
         <p>Valor do Pix: {money(depositCents)}</p>
         <p>Tarifa estimada de recebimento: {money(Math.min(depositCents, estimatedFee))}</p>
         <strong>Saldo estimado a receber: {money(Math.max(0, depositCents - estimatedFee))}</strong>
-        <p className="text-sm text-muted-foreground">{hasFeeHistory ? "Estimativa baseada na última cobrança paga." : "Estimativa pela tarifa padrão do Asaas."} O extrato mostrará a tarifa efetiva após a confirmação.</p>
+        <p className="text-sm text-muted-foreground">Tarifa estimada. Confira o valor final no extrato.</p>
       </div>}
       {errorMessage && <p role="alert" className="text-sm text-destructive">{errorMessage}</p>}
       <Button type="submit" className="min-h-12 w-full sm:w-auto" disabled={busy || (!!active && clock < sessionEnd)}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}{busy ? "Gerando Pix…" : "Adicionar saldo"}</Button>
@@ -137,7 +137,7 @@ export default function ProductionWallet({ wallet, userId }) {
     <Dialog open={Boolean(shown)} onOpenChange={open=>{if(!open)setDialogId(null);}}>
       <DialogContent className="max-h-[90dvh] overflow-auto sm:max-w-sm">
         <DialogTitle>Pix de {money(shown?.amount_cents)}</DialogTitle>
-        <DialogDescription>O saldo é atualizado após a confirmação do pagamento. Fechar esta janela não cancela o Pix.</DialogDescription>
+        <DialogDescription>Saldo liberado após a confirmação. Fechar não cancela o Pix.</DialogDescription>
         {shown?.status==="pending" ? <>
           <div role="timer" aria-label="Tempo restante" className="text-center font-mono text-2xl tabular-nums">
             {(() => {

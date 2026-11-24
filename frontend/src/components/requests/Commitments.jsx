@@ -26,7 +26,7 @@ export const Commitments = () => {
     }
   }, [items, me.user_id, review]);
   return <section>
-    <PageHeader eyebrow="Meus pedidos" title="Compromissos" subtitle="Serviços que você contratou ou aceitou. Acompanhe cada pessoa, faça check-in e finalize com check-out." />
+    <PageHeader eyebrow="Meus pedidos" title="Compromissos" />
     <div className="mb-5 flex flex-wrap gap-2">
       <Button variant={history ? "outline" : "default"} aria-pressed={!history} onClick={() => setHistory(false)}>Próximos e em andamento</Button>
       <Button variant={history ? "default" : "outline"} aria-pressed={history} onClick={() => setHistory(true)}>Finalizados e cancelados</Button>

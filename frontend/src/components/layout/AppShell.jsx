@@ -13,7 +13,7 @@ import { useUnread } from "@/hooks/useUnread";
 import { Logo } from "@/components/common/Misc";
 import { UserAvatar } from "@/components/common/UserAvatar";
 import { cn } from "@/lib/utils";
-import { AppGuidance, ConnectionNotice } from "@/components/common/AppGuidance";
+import { ConnectionNotice } from "@/components/common/AppGuidance";
 
 const NAV = [
   { to: "/feed", label: "Feed", icon: Home, id: "feed" },
@@ -196,7 +196,6 @@ export default function AppShell() {
           <ConnectionNotice />
           {!isChat && <AttendanceNotice />}
           <Outlet />
-          {!isChat && <AppGuidance page={pathname.split("/")[1]} />}
         </div>
       </main>
       {!isChat && <BottomNav unread={unread} />}

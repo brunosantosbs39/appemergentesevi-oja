@@ -93,7 +93,7 @@ export const ProRequests = () => {
 
   return (
     <div>
-      <PageHeader eyebrow="Profissional" title="Pedidos das suas categorias" subtitle="Oportunidades filtradas pelas categorias do seu perfil. Suas candidaturas e serviços continuam nas outras abas.">
+      <PageHeader eyebrow="Profissional" title="Pedidos das suas categorias">
         <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
           <SelectTrigger className="w-44 rounded-none bg-card" data-testid="pro-radius-select"><SelectValue /></SelectTrigger>
           <SelectContent>

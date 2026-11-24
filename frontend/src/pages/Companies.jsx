@@ -48,7 +48,7 @@ export default function Companies() {
   const data=dashboard.data;
   const total=b=>b.planned_cents+b.completed_cents+b.paid_manual_cents+(b.paid_app_cents||0);
   return <div className="space-y-6">
-    <PageHeader eyebrow="Gestão de custos" title="Empresas e filiais" subtitle="Controle os custos de cada unidade. Estes registros não movimentam dinheiro." />
+    <PageHeader eyebrow="Gestão de custos" title="Empresas e filiais" subtitle="Controle de custos, sem movimentação de saldo." />
     <div className="flex flex-wrap gap-2">
       <Button onClick={()=>{setKind("company");setParent(company || companies[0]?.id || "");setModal("unit");}}>Criar empresa ou filial</Button>
       {company && <Button variant="outline" onClick={()=>setModal("cost")}>Lançar custo</Button>}
