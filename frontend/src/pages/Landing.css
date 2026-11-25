@@ -12,11 +12,11 @@
 .lux-header nav{display:flex;align-items:center;gap:36px;font-size:10px;letter-spacing:.15em;text-transform:uppercase}
 .lux-header nav a{min-height:44px;display:flex;align-items:center;gap:18px}
 .lux-nav-cta{border-bottom:1px solid #fff}
-.lux-hero{min-height:740px;height:calc(100svh - 104px);max-height:1100px;position:relative;display:flex;align-items:center;overflow:hidden}
+.lux-hero{min-height:660px;height:calc(100svh - 164px);max-height:1100px;position:relative;display:flex;align-items:center;overflow:hidden}
 .lux-hero-photo,.lux-hero-shade{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .lux-hero-photo{object-position:center 45%}
 .lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.5) 52%,rgba(0,0,0,.12)),linear-gradient(0deg,rgba(0,0,0,.8),transparent 45%)}
-.lux-hero-copy{position:relative;padding:70px 5% 120px;width:100%}
+.lux-hero-copy{position:relative;padding:24px 5% 52px;width:100%}
 .lux-eyebrow{font-size:10px;letter-spacing:.22em;line-height:1.8;margin:0 0 28px;color:#ccc}
 .lux-hero h1{font-size:clamp(44px,5.8vw,92px);line-height:1.12;letter-spacing:.015em;margin:0;max-width:1000px}
 .lux-intro{font-size:19px;line-height:1.7;color:#ddd;margin:28px 0 38px}
@@ -28,11 +28,11 @@
 .lux-button-outline:hover{background:#fff;color:#000}
 .lux-hero-bottom{position:absolute;bottom:32px;left:5%;right:5%;display:flex;justify-content:space-between;gap:20px;font-size:9px;letter-spacing:.18em;color:#ccc}
 .lux-hero-bottom a{display:flex;align-items:center;gap:20px;min-height:44px}
-.lux-categories{display:flex;justify-content:space-between;gap:25px;flex-wrap:wrap;padding:30px 5%;border-bottom:1px solid var(--lux-line);font-size:9px;letter-spacing:.18em;color:#bbb}
-.lux-section{padding:110px 5%}
+.lux-categories{display:block;overflow:hidden;padding:18px 5%;border-bottom:1px solid var(--lux-line);font-size:9px;letter-spacing:.18em;color:#bbb}.lux-category-track{display:flex;width:max-content;animation:lux-category-marquee 38s linear infinite;will-change:transform}.lux-category-group{display:flex;flex:none;align-items:center;gap:clamp(40px,6vw,90px);padding-right:clamp(40px,6vw,90px)}.lux-category-group span{white-space:nowrap}.lux-categories:hover .lux-category-track{animation-play-state:paused}@keyframes lux-category-marquee{to{transform:translateX(-50%)}}
+.lux-section{padding:76px 5%}
 .lux-section-heading{display:grid;grid-template-columns:1fr 2fr;gap:35px}
 .lux-landing h2{font-size:clamp(32px,4vw,62px);line-height:1.2;letter-spacing:.025em;margin:0}
-.lux-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:80px}
+.lux-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:52px}
 .lux-steps article{border-top:1px solid #555;padding-top:25px}
 .lux-step-number{color:#999;font-size:12px;letter-spacing:.12em}
 .lux-steps h3{font-size:15px;letter-spacing:.06em;margin:32px 0 16px}
@@ -53,14 +53,52 @@
 @media(max-width:700px){
 .lux-header{height:88px;padding:0 6%}.lux-logo{font-size:18px}.lux-logo span{font-size:6px;letter-spacing:.12em}
 .lux-header nav{gap:16px;font-size:8px;letter-spacing:.08em}.lux-nav-cta svg{display:none}
-.lux-hero{min-height:650px;height:calc(100svh - 88px)}.lux-hero-copy{padding:60px 6% 110px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
+.lux-hero{min-height:610px;height:calc(100svh - 128px)}.lux-hero-copy{padding:9px 6% 52px}.lux-hero h1{font-size:clamp(35px,8vw,52px)}
 .lux-hero-photo{object-position:62% center}.lux-hero-shade{background:linear-gradient(90deg,rgba(0,0,0,.82),rgba(0,0,0,.4)),linear-gradient(0deg,#000,transparent 65%)}
 .lux-intro{font-size:17px;max-width:330px}.lux-desktop-break{display:none}.lux-eyebrow{font-size:8px}.lux-actions{gap:12px}
 .lux-button{font-size:9px;gap:20px;padding:16px 18px;min-height:54px}
 .lux-hero-bottom{left:6%;right:6%;font-size:7px;align-items:center}.lux-hero-bottom>span{max-width:160px;line-height:1.8}
-.lux-categories{padding:24px 6%;justify-content:flex-start;gap:20px;font-size:8px}
-.lux-section{padding:70px 6%}.lux-section-heading{grid-template-columns:1fr;gap:0}.lux-steps{grid-template-columns:1fr;margin-top:45px;gap:35px}.lux-steps h3{margin-top:18px}
+.lux-categories{padding:15px 6%;font-size:8px}
+.lux-section{padding:48px 6%}.lux-section-heading{grid-template-columns:1fr;gap:0}.lux-steps{grid-template-columns:1fr;margin-top:32px;gap:35px}.lux-steps h3{margin-top:18px}
 .lux-craft{grid-template-columns:1fr}.lux-craft-image{min-height:0;height:380px}.lux-craft-copy{padding:55px 6%}
 .lux-final .lux-actions{flex-direction:column}.lux-footer{padding:32px 6%;align-items:flex-start}.lux-footer>span{width:100%}
 }
-@media(prefers-reduced-motion:reduce){.lux-landing *{transition:none!important;scroll-behavior:auto!important}}
+@media(prefers-reduced-motion:reduce){.lux-landing *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+.lux-resources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:48px 40px;margin-top:65px}
+.lux-resources article{border-top:1px solid var(--lux-line);padding-top:28px}
+.lux-resources .lux-eyebrow{font-size:9px;margin-bottom:18px}
+.lux-resources h3{font-size:19px;line-height:1.5;letter-spacing:.04em;margin:0 0 18px}
+.lux-resources article>p:last-child,.lux-questions p{font-size:17px;line-height:1.8;color:#bbb}
+.lux-faq{background:#141414;border-block:1px solid var(--lux-line)}
+.lux-questions{max-width:900px;margin:55px auto 0}
+.lux-questions details{border-bottom:1px solid #363636;padding:22px 0}
+.lux-questions summary{cursor:pointer;font-family:'Plus Jakarta Sans',Arial,sans-serif;font-size:16px;line-height:1.6;padding:8px 28px 8px 0}
+.lux-questions summary:focus-visible{outline:2px solid #fff;outline-offset:5px}
+.lux-questions details[open] summary{margin-bottom:14px}
+.lux-questions p{max-width:760px;margin:0 0 10px}
+.lux-footer nav{display:flex;gap:22px;flex-wrap:wrap;font-size:10px;letter-spacing:.08em}
+.lux-footer nav a{display:inline-flex;align-items:center;min-height:44px}
+@media(max-width:1000px){.lux-resources{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.lux-resources{grid-template-columns:1fr;gap:32px;margin-top:38px}.lux-questions{margin-top:30px}.lux-footer nav{width:100%}}
+
+/* One shared content edge across desktop sections; photos remain full bleed. */
+@media(min-width:701px){
+.lux-landing{--lux-gutter:max(40px,calc((100% - 1200px)/2))}
+.lux-header,.lux-hero-copy,.lux-categories,.lux-section,.lux-footer{padding-inline:var(--lux-gutter)}
+.lux-hero-bottom{left:var(--lux-gutter);right:var(--lux-gutter)}
+.lux-section{padding-block:clamp(56px,4.5vw,72px)}
+.lux-section-heading{grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:32px}
+.lux-section-heading h2{font-size:clamp(32px,3.5vw,54px);overflow-wrap:break-word}
+.lux-steps{gap:32px;margin-top:56px}
+.lux-resources{gap:40px 32px;margin-top:56px}
+.lux-craft{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.lux-craft-copy{padding-left:clamp(40px,5vw,72px);padding-right:max(40px,calc(100% - 600px));padding-block:72px;min-width:0}
+.lux-craft-copy h2{font-size:clamp(32px,3.5vw,54px)}
+.lux-questions{max-width:none;margin-left:calc((100% - 32px)/3 + 32px);margin-right:0}
+.lux-final{padding-block:104px}
+}
+@media(min-width:701px) and (max-width:1000px){
+.lux-section-heading{grid-template-columns:1fr;gap:8px}
+.lux-questions{margin-left:0}
+}

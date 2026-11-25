@@ -19,17 +19,40 @@ export const CATEGORIES = [
   { slug: "professor", label: "Aulas", icon: GraduationCap },
   { slug: "mecanico", label: "Mecânico", icon: Wrench },
   { slug: "montador", label: "Montador", icon: Sofa },
+  { slug: "producao_eventos", label: "Produção de eventos", icon: Briefcase },
+  { slug: "tecnico_som", label: "Técnico de som", icon: Briefcase },
+  { slug: "iluminacao", label: "Iluminação de shows", icon: Briefcase },
+  { slug: "montagem_palco", label: "Montador de palco", icon: Briefcase },
+  { slug: "roadie", label: "Roadie", icon: Briefcase },
+  { slug: "dj", label: "DJ", icon: Briefcase },
+  { slug: "musico", label: "Músico / Banda", icon: Briefcase },
+  { slug: "seguranca_eventos", label: "Segurança de eventos", icon: Briefcase },
+  { slug: "recepcao_eventos", label: "Recepção e credenciamento", icon: Briefcase },
+  { slug: "garcom", label: "Garçom / Garçonete", icon: Briefcase },
+  { slug: "tecnico_led", label: "Técnico de LED e vídeo", icon: Briefcase },
+  { slug: "carregador_eventos", label: "Carga e descarga de eventos", icon: Briefcase },
+  { slug: "cantor", label: "Cantor / Cantora", icon: Briefcase },
+  { slug: "auxiliar_cozinha", label: "Auxiliar de cozinha", icon: Briefcase },
+  { slug: "cozinheiro", label: "Cozinheiro / Cozinheira", icon: Briefcase },
+  { slug: "churrasqueiro", label: "Churrasqueiro", icon: Briefcase },
+  { slug: "confeiteiro", label: "Confeiteiro / Confeiteira", icon: Briefcase },
+  { slug: "copeiro", label: "Copeiro / Copeira", icon: Briefcase },
+  { slug: "bartender", label: "Bartender / Barman", icon: Briefcase },
+  { slug: "promotor_eventos", label: "Promotor de eventos", icon: Briefcase },
+  { slug: "operador_camera", label: "Operador de câmera", icon: Briefcase },
   { slug: "outros", label: "Outros", icon: Briefcase },
 ];
 
 export const catOf = (slug) => CATEGORIES.find((c) => c.slug === slug) || CATEGORIES[CATEGORIES.length - 1];
 
 export const STATUS = {
-  pendente: { label: "Pendente", cls: "bg-amber-100 text-amber-800 border-amber-300" },
-  aceito: { label: "Aceito", cls: "bg-blue-100 text-blue-800 border-blue-300" },
-  em_andamento: { label: "Em andamento", cls: "bg-muted text-foreground border-foreground" },
-  concluido: { label: "Concluído", cls: "bg-teal-100 text-teal-800 border-teal-300" },
-  cancelado: { label: "Cancelado", cls: "bg-rose-100 text-rose-800 border-rose-300" },
+  excluido: { label: "Excluída", cls: "bg-muted text-foreground border-border" },
+  preenchido: { label: "Preenchida", cls: "bg-muted text-foreground border-border" },
+  pendente: { label: "Pendente", cls: "bg-muted text-muted-foreground border-border" },
+  aceito: { label: "Aceito", cls: "bg-secondary text-secondary-foreground border-primary" },
+  em_andamento: { label: "Em andamento", cls: "bg-primary text-primary-foreground border-primary" },
+  concluido: { label: "Concluído", cls: "bg-muted text-foreground border-border" },
+  cancelado: { label: "Cancelado", cls: "bg-destructive/10 text-destructive border-destructive/30" },
 };
 
 export const RADIUS_OPTIONS = [

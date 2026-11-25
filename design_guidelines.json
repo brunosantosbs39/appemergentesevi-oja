@@ -1,67 +1,85 @@
 {
-  "project_name": "ServiçoJá - Plataforma de Mão de Obra Qualificada e Feed Social",
-  "archetype": "The Performance Pro & Tactical Craft Marketplace",
+  "project_name": "Chama aê — Marketplace de serviços e mão de obra local",
+  "archetype": "The Local Service Connector",
   "theme_strategy": {
     "default_mode": "light",
     "toggle_supported": true,
-    "vibe": "Energetic, trustworthy, modern, tactile Brazilian freelance marketplace with Instagram-style discovery and Uber-style instant dispatch"
+    "vibe": "Fast, reliable neighborhood services with warm yellow actions, clear black typography and helpful AI guidance."
   },
   "typography": {
     "font_imports": [
-      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
     ],
     "headings": {
       "family": "'Plus Jakarta Sans', sans-serif",
-      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
-      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
-      "h3": "text-xl sm:text-2xl font-bold tracking-tight",
-      "h4": "text-lg sm:text-xl font-semibold tracking-tight"
+      "h1": "26px / 1.15 · 800",
+      "h2": "22px / 1.2 · 800",
+      "h3": "16px / 1.3 · 800",
+      "h4": "15px / 1.3 · 700"
     },
     "body": {
-      "family": "'Inter', sans-serif",
-      "size": "text-sm sm:text-base leading-relaxed"
+      "family": "'Plus Jakarta Sans', sans-serif",
+      "size": "14px / 1.4 · 500"
     },
     "mono_labels": {
       "family": "'JetBrains Mono', monospace",
       "size": "text-xs uppercase tracking-widest font-medium"
+    },
+    "scale": {
+      "display": "26px / 1.15 · 800",
+      "title": "22px / 1.2 · 800",
+      "heading": "16px / 1.3 · 800",
+      "subtitle": "15px / 1.3 · 700",
+      "body": "14px / 1.4 · 500",
+      "body-sm": "13px / 1.4 · 500",
+      "caption": "12px / 1.4 · 500",
+      "micro": "11px / 1.3 · 700"
     }
   },
   "color_palette": {
     "primary": {
-      "main": "#059669",
-      "foreground": "#FFFFFF",
-      "hover": "#047857",
-      "light": "#D1FAE5",
-      "dark": "#064E3B",
-      "label": "Emerald Work Green (Confiança, Aceito, Ação)"
+      "main": "#FFC400",
+      "foreground": "#111111",
+      "hover": "#EAB400",
+      "light": "#FFF3B8",
+      "dark": "#A77F00",
+      "label": "Amarelo Chama — ação principal e foco"
     },
     "secondary": {
-      "main": "#0F172A",
-      "foreground": "#F8FAFC",
-      "hover": "#1E293B",
-      "label": "Deep Slate Obsidian (Estrutura, Elegância)"
+      "main": "#FFF3B8",
+      "foreground": "#111111",
+      "hover": "#FFE477",
+      "label": "Amarelo Claro — superfícies de apoio e IA"
     },
     "accent": {
-      "main": "#F59E0B",
-      "foreground": "#000000",
-      "hover": "#D97706",
-      "light": "#FEF3C7",
-      "label": "Amber Gold (Avaliações, Alerta Uber, Destaque)"
+      "main": "#111111",
+      "foreground": "#FFFFFF",
+      "hover": "#2A2A2A",
+      "light": "#F5F5F5",
+      "label": "Preto Tinta — texto e contraste"
     },
     "status_colors": {
-      "pendente": "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
-      "aceito": "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
-      "em_andamento": "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
-      "concluido": "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800",
-      "cancelado": "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
+      "pendente": "bg-muted text-muted-foreground border-border",
+      "aceito": "bg-secondary text-secondary-foreground border-primary",
+      "em_andamento": "bg-primary text-primary-foreground border-primary",
+      "concluido": "bg-muted text-foreground border-border",
+      "cancelado": "bg-destructive/10 text-destructive border-destructive/30"
     },
     "neutrals": {
-      "light_bg": "#F8FAFC",
+      "light_bg": "#FFFFFF",
       "light_card": "#FFFFFF",
-      "light_border": "#E2E8F0",
-      "dark_bg": "#0B0F17",
-      "dark_card": "#111827",
-      "dark_border": "#1F2937"
+      "light_border": "#E6E6E6",
+      "dark_bg": "#111111",
+      "dark_card": "#1A1A1A",
+      "dark_border": "#333333",
+      "gray_600": "#5F5F5F",
+      "gray_400": "#8A8A8A",
+      "gray_200": "#E6E6E6",
+      "gray_150": "#EEEEEE",
+      "gray_100": "#F0F0F0"
+    },
+    "feedback": {
+      "danger": "#D92D20"
     }
   },
   "spacing_and_layout": {
@@ -71,13 +89,42 @@
     "container_padding": "p-4 sm:p-6 lg:p-8",
     "card_padding": "p-4 sm:p-5",
     "grid_gap": "gap-4 sm:gap-6",
-    "border_radius": "rounded-2xl"
+    "border_radius": "20px",
+    "control_border_radius": "999px",
+    "spacing_tokens_px": {
+      "space.1": 4,
+      "space.2": 8,
+      "space.3": 12,
+      "space.4": 16,
+      "space.5": 20,
+      "space.6": 24
+    },
+    "radius_tokens_px": {
+      "radius.sm": 8,
+      "radius.md": 12,
+      "radius.lg": 14,
+      "radius.xl": 16,
+      "radius.2xl": 20,
+      "radius.control": 999
+    },
+    "control_height": {
+      "touch_min": 44,
+      "standard": 48,
+      "header": 68,
+      "bottom_nav": 76
+    },
+    "border_tokens_px": {
+      "thin": 1,
+      "strong": 2
+    }
   },
   "visual_enhancers": {
-    "glassmorphism": "backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60",
-    "card_hover": "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-emerald-500/40",
+    "glassmorphism": "Blur 20px; saturate 180%; clear rgba(255,255,255,.72); yellow rgba(255,196,0,.82); dark rgba(17,17,17,.66); AI rgba(255,243,184,.74); sheen white 50%; edge inset 0 1px 0 white 95%; ring inset 0 0 0 1px white 45%; shadow 0 8px 24px ink 16%. Glass appears over content; use solid equivalents with reduced transparency.",
+    "card_hover": "Only on mouse/trackpad: animate transform and opacity with 200ms cubic-bezier(.23,1,.32,1); respect prefers-reduced-motion.",
     "map_container": "rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm relative h-[420px] sm:h-[520px] w-full",
-    "avatar_badge": "relative inline-block border-2 border-emerald-500 rounded-full"
+    "avatar_badge": "relative inline-block border-2 border-[#FFC400] rounded-full",
+    "control_height": "48px minimum",
+    "motion": "Fast 120ms, base 200ms, slow 300ms; ease-out cubic-bezier(.23,1,.32,1); ease-in-out cubic-bezier(.77,0,.175,1); press scale .97; entrances start scale(.96) and opacity 0; animate transform and opacity only; never transition all; respect prefers-reduced-motion."
   },
   "image_urls": {
     "professionals": [
@@ -118,7 +165,10 @@
   "key_features_and_flows": {
     "auth_flow": {
       "type": "JWT com escolha de papel",
-      "roles": ["Profissional", "Contratante"],
+      "roles": [
+        "Profissional",
+        "Contratante"
+      ],
       "test_ids": {
         "email_input": "auth-email-input",
         "password_input": "auth-password-input",

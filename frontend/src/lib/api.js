@@ -26,6 +26,10 @@ export const imgUrl = (v) => {
 };
 
 export const errMsg = (e) => {
+  if (!e?.response) return "Não foi possível conectar. Verifique sua internet e tente novamente. Se enviou uma solicitação, confira o resultado antes de repeti-la.";
+  if (e.response.status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
+  if (e.response.status === 429) return "Muitas tentativas em pouco tempo. Aguarde um momento antes de tentar novamente.";
+  if (e.response.status >= 500 && typeof e.response.data?.detail !== "string") return "O serviço está temporariamente indisponível. Tente novamente em instantes.";
   const d = e?.response?.data?.detail;
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return "Verifique os campos preenchidos.";

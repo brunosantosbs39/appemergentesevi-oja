@@ -64,7 +64,7 @@ async def local_database(monkeypatch):
 def test_nearby_search_does_not_drop_the_1001st_professional(monkeypatch):
     async def run():
         async with local_database(monkeypatch) as (server, db):
-            await db.users.insert_many([{"user_id": f"far-{n}", "role": "profissional", "name": "Far", "lat": 0, "lng": 0} for n in range(1500)] + [{"user_id": "near", "role": "profissional", "name": "Near", "lat": -16.6, "lng": -49.2, "private_field": "must-not-leak"}])
+            await db.users.insert_many([{"user_id": f"far-{n}", "role": "profissional", "categories": ["eletricista"], "name": "Far", "lat": 0, "lng": 0} for n in range(1500)] + [{"user_id": "near", "role": "profissional", "categories": ["eletricista"], "name": "Near", "lat": -16.6, "lng": -49.2, "private_field": "must-not-leak"}])
             found = await server.professionals(-16.6, -49.2, 25, None, None, "distance", 10, 0, {"user_id": "viewer"})
             assert [p["user_id"] for p in found] == ["near"]
             assert found[0]["distance_km"] < .001
@@ -82,13 +82,13 @@ def test_nearby_search_does_not_drop_the_1001st_professional(monkeypatch):
 def test_search_handles_dateline_poles_and_direct_invites(monkeypatch):
     async def run():
         async with local_database(monkeypatch) as (server, db):
-            await db.users.insert_many([{"user_id": "dateline", "role": "profissional", "lat": 0, "lng": -179.95}, {"user_id": "pole", "role": "profissional", "lat": 89.99, "lng": 100}])
+            await db.users.insert_many([{"user_id": "dateline", "role": "profissional", "categories": ["eletricista"], "lat": 0, "lng": -179.95}, {"user_id": "pole", "role": "profissional", "categories": ["eletricista"], "lat": 89.99, "lng": 100}])
             found = await server.professionals(0, 179.95, 20, None, None, "distance", 10, 0, {"user_id": "viewer"})
             assert [p["user_id"] for p in found] == ["dateline"]
             found = await server.professionals(89.99, 0, 20, None, None, "distance", 10, 0, {"user_id": "viewer"})
             assert [p["user_id"] for p in found] == ["pole"]
             await db.requests.insert_many([{"id": "direct", "client_id": "owner", "target_pro_id": "viewer", "status": "pendente", "lat": None, "lng": None}, {"id": "near", "client_id": "owner", "target_pro_id": None, "status": "pendente", "lat": 0, "lng": 179.95}])
-            found = await server.available_requests(0, 179.95, 20, None, 50, 0, {"user_id": "viewer"})
+            found = await server.available_requests(lat=0, lng=179.95, radius_km=20, category=None, my_categories=False, limit=50, offset=0, me={"user_id": "viewer"})
             assert [r["id"] for r in found] == ["direct", "near"]
     asyncio.run(run())
 
@@ -162,7 +162,8 @@ def test_push_persists_before_background_delivery_and_context_is_reset(monkeypat
         await anext(context)
         monkeypatch.setenv("VAPID_PRIVATE_KEY", "test-key")
         deliver = AsyncMock()
-        monkeypatch.setattr(notices, "deliver_notice", deliver)
+        from backend import jobs
+        monkeypatch.setattr(jobs, "safe_drain", deliver)
         db = SimpleNamespace(notifications=SimpleNamespace(insert_one=AsyncMock()))
         await notices.send_notice(db, "recipient", "Title", "Body", "/chat/one")
         db.notifications.insert_one.assert_awaited_once()
@@ -196,7 +197,7 @@ def test_http_sync_keeps_auth_and_authorization_and_returns_retry_on_db_failure(
         import httpx
         from pymongo.errors import WaitQueueTimeoutError
         async with local_database(monkeypatch) as (server, db):
-            await db.users.insert_one({"user_id": "me", "role": "profissional"})
+            await db.users.insert_one({"user_id": "me", "role": "profissional", "registration_completed_at": "2026-01-01", "address": {"city": "Test"}, "email": "me@example.com"})
             await db.conversations.insert_one({"id": "chat", "participants": ["me", "other"], "last_at": server.now_iso(), "unread": {}})
             monkeypatch.setenv("CLERK_SECRET_KEY", "unit-test-placeholder")
             transport = httpx.ASGITransport(app=server.app)

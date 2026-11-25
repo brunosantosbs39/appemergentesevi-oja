@@ -16,7 +16,7 @@ export const ThemeToggle = ({ compact = false }) => {
 export const ThemeChrome = () => {
   const { resolvedTheme } = useTheme();
   useEffect(() => {
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "light" ? "#f5f7fa" : "#000000");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "light" ? "#FFFFFF" : "#111111");
   }, [resolvedTheme]);
   return null;
 };
