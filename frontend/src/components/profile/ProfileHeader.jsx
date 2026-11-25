@@ -9,7 +9,7 @@ import { Stars } from "@/components/common/StarRating";
 
 const Stat = ({ icon: Icon, value, label, testid }) => (
   <div className="rounded-2xl border border-border bg-card px-4 py-3" data-testid={testid}>
-    <p className="flex items-center gap-1.5 font-heading text-xl font-extrabold text-foreground"><Icon className="h-4 w-4 text-foreground" />{value}</p>
+    <p className="flex flex-wrap items-center gap-1.5 break-words font-heading text-xl font-extrabold text-foreground"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-foreground" />{value}</p>
     <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
   </div>
 );
@@ -43,14 +43,16 @@ export const ProfileHeader = ({ user, isMe, canHire, onEdit, onHire }) => {
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span
-              className="inline-flex items-center"
+              className="inline-flex flex-wrap items-center gap-1.5"
               data-testid="profile-rating-stars"
               role="img"
               aria-label={user.rating_count ? `Avaliação média ${Number(user.rating_avg || 0).toFixed(1).replace(".", ",")} de 5` : "Sem avaliações"}
               title={user.rating_count ? "Média das avaliações recentes" : "Sem avaliações"}
             >
               <Stars value={user.rating_avg || 0} size={18} />
+              <span aria-hidden="true" className="font-semibold text-foreground">{user.rating_count ? Number(user.rating_avg || 0).toFixed(1).replace(".", ",") : "Sem avaliações"}</span>
             </span>
+            {!!user.rating_count && <span>{user.rating_count} {user.rating_count === 1 ? "avaliação" : "avaliações"}</span>}
             {user.headline && <span className="font-medium text-foreground">{user.headline}</span>}
             <PresenceBadge user={user} />
             {user.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{user.city}</span>}

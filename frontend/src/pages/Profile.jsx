@@ -1,10 +1,10 @@
 import { mergeItems } from "@/lib/pagination";
 import { CreatePostDialog } from "@/components/feed/CreatePostDialog";
 import { Button } from "@/components/ui/button";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Grid3x3, Heart, Loader2, Star, UserX } from "lucide-react";
-import { imgUrl, useApi } from "@/lib/api";
+import { errMsg, imgUrl, useApi } from "@/lib/api";
 import { ago, catOf } from "@/lib/constants";
 import { useMe } from "@/context/MeContext";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -57,22 +57,36 @@ const ReviewsList = ({ reviews }) =>
 export default function Profile() {
   const { id } = useParams();
   const { me } = useMe();
-  const api = useApi();
   const uid = id === "me" ? me.user_id : id;
   const isMe = uid === me.user_id;
+  return <ProfileContent key={uid} uid={uid} isMe={isMe} />;
+}
+
+function ProfileContent({ uid, isMe }) {
+  const api = useApi();
   const [user, setUser] = useState(null);
+  const [profileError, setProfileError] = useState("");
+  const [contentError, setContentError] = useState("");
+  const [contentLoading, setContentLoading] = useState(true);
   const [posts, setPosts] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [postCursors, setPostCursors] = useState({});
   const [loadingPage, setLoadingPage] = useState(null);
+  const [pageErrors, setPageErrors] = useState({});
+  const pageRequest = useRef(false);
+  const revision = useRef(0);
   const loadPostPage = async (kind) => {
-    if (loadingPage || !postCursors[kind]) return;
+    if (pageRequest.current || !postCursors[kind]) return;
+    pageRequest.current = true;
     setLoadingPage(kind);
+    setPageErrors((old) => ({ ...old, [kind]: "" }));
     try {
       const { data, headers } = await api.get("/posts", { params: { user_id: uid, kind, before: postCursors[kind] } });
       (kind === "portfolio" ? setPortfolio : setPosts)((old) => mergeItems(old, data));
       setPostCursors((old) => ({ ...old, [kind]: headers["x-next-cursor"] || null }));
-    } finally { setLoadingPage(null); }
+    } catch (error) {
+      setPageErrors((old) => ({ ...old, [kind]: errMsg(error) }));
+    } finally { pageRequest.current = false; setLoadingPage(null); }
   };
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [reviews, setReviews] = useState([]);
@@ -81,41 +95,65 @@ export default function Profile() {
   const [viewPost, setViewPost] = useState(null);
 
   const load = useCallback(async () => {
-    const [u, p, r, works] = await Promise.all([api.get(`/users/${uid}`), api.get("/posts", { params: { user_id: uid } }), api.get(`/users/${uid}/reviews`), api.get("/posts", { params: { user_id: uid, kind: "portfolio" } })]);
-    setUser(u.data);
-    setPosts(p.data);
-    setPortfolio(works.data);
-    setPostCursors({ publication: p.headers["x-next-cursor"], portfolio: works.headers["x-next-cursor"] });
-    setReviews(r.data);
+    const current = ++revision.current;
+    setProfileError("");
+    setContentError("");
+    setContentLoading(true);
+    try {
+      const u = await api.get(`/users/${uid}`);
+      if (current !== revision.current) return;
+      setUser(u.data);
+    } catch (error) {
+      if (current !== revision.current) return;
+      if (error.response?.status === 404) setUser(false);
+      else setProfileError(errMsg(error));
+      setContentLoading(false);
+      return;
+    }
+    try {
+      const [p, r, works] = await Promise.all([api.get("/posts", { params: { user_id: uid } }), api.get(`/users/${uid}/reviews`), api.get("/posts", { params: { user_id: uid, kind: "portfolio" } })]);
+      if (current !== revision.current) return;
+      setPosts(p.data);
+      setPortfolio(works.data);
+      setPostCursors({ publication: p.headers["x-next-cursor"], portfolio: works.headers["x-next-cursor"] });
+      setReviews(r.data);
+    } catch (error) {
+      if (current === revision.current) setContentError(errMsg(error));
+    } finally {
+      if (current === revision.current) setContentLoading(false);
+    }
   }, [api, uid]);
 
   useEffect(() => {
-    setUser(null);
-    load().catch(() => setUser(false));
+    load();
+    return () => { revision.current += 1; };
   }, [load]);
 
   useEffect(() => {
     const timer = setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      api.get(`/users/${uid}`).then(({ data }) => setUser(data)).catch(() => {});
+      const current = revision.current;
+      api.get(`/users/${uid}`).then(({ data }) => { if (current === revision.current) setUser(data); }).catch(() => {});
     }, 15000);
     return () => clearInterval(timer);
   }, [api, uid]);
 
   if (user === false) return <EmptyState icon={UserX} title="Perfil não encontrado" testid="profile-not-found" />;
+  if (!user && profileError) return <div role="alert"><EmptyState icon={UserX} title="Não foi possível carregar o perfil" text={profileError} testid="profile-load-error" action={<Button onClick={load}>Tentar novamente</Button>} /></div>;
   if (!user) return <div role="status" className="sj-loading"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /><span>Carregando perfil…</span></div>;
   const isPro = !!user.role;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="profile-page">
       <ProfileHeader user={user} isMe={isMe} canHire={isPro && !isMe} onEdit={() => setEditOpen(true)} onHire={() => setHireOpen(true)} />
+      {profileError && <div role="alert" className="space-y-3 rounded-2xl border border-border bg-card p-5"><p>{profileError}</p><Button variant="outline" onClick={load}>Tentar novamente</Button></div>}
       {user.bio && (
         <section className="rounded-none border border-border bg-card p-6" data-testid="profile-bio">
           <p className="font-mono text-[10px] uppercase tracking-widest text-foreground">Sobre</p>
           <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground">{user.bio}</p>
         </section>
       )}
-      <Tabs defaultValue={isPro ? "portfolio" : "posts"}>
+      {contentLoading ? <div role="status" className="sj-loading"><Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /><span>Carregando portfólio, publicações e avaliações…</span></div> : contentError ? <div role="alert" className="space-y-3 rounded-2xl border border-border bg-card p-5" data-testid="profile-content-error"><p>Não foi possível carregar as publicações e avaliações. {contentError}</p><Button variant="outline" onClick={load}>Tentar novamente</Button></div> : <Tabs defaultValue={isPro ? "portfolio" : "posts"}>
         <TabsList className="h-auto flex-wrap rounded-none bg-muted/70 p-1">
           {isPro && <TabsTrigger value="portfolio" className="rounded-none px-4">Portfólio ({portfolio.length})</TabsTrigger>}
           <TabsTrigger value="posts" className="rounded-none px-5" data-testid="profile-tab-posts">Publicações</TabsTrigger>
@@ -125,11 +163,12 @@ export default function Profile() {
           <p className="text-sm text-muted-foreground">Trabalhos realizados para conhecer a qualidade do serviço.</p>
           {isMe && <Button type="button" onClick={() => setPortfolioOpen(true)}>Adicionar trabalho ao portfólio</Button>}
           <PostsGrid posts={portfolio} onOpen={setViewPost} />
-          {postCursors.portfolio && <Button variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("portfolio").catch(() => {})}>Carregar mais trabalhos</Button>}
+          {pageErrors.portfolio && <p role="alert">{pageErrors.portfolio}</p>}
+          {postCursors.portfolio && <Button variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("portfolio")}>{loadingPage === "portfolio" ? "Carregando trabalhos…" : pageErrors.portfolio ? "Tentar carregar mais trabalhos" : "Carregar mais trabalhos"}</Button>}
         </TabsContent>}
-        <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} />{postCursors.publication && <Button className="mt-4" variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("publication").catch(() => {})}>Carregar mais publicações</Button>}</TabsContent>
+        <TabsContent value="posts" className="mt-5"><PostsGrid posts={posts} onOpen={setViewPost} />{pageErrors.publication && <p role="alert">{pageErrors.publication}</p>}{postCursors.publication && <Button className="mt-4" variant="outline" disabled={!!loadingPage} onClick={() => loadPostPage("publication")}>{loadingPage === "publication" ? "Carregando publicações…" : pageErrors.publication ? "Tentar carregar mais publicações" : "Carregar mais publicações"}</Button>}</TabsContent>
         <TabsContent value="reviews" className="mt-5"><ReviewsList reviews={reviews} /></TabsContent>
-      </Tabs>
+      </Tabs>}
       <Dialog open={!!viewPost} onOpenChange={(o) => !o && setViewPost(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto border-0 bg-transparent p-0 shadow-none sm:max-w-lg" data-testid="profile-post-dialog">
           <DialogTitle className="sr-only">Postagem</DialogTitle>
@@ -137,7 +176,7 @@ export default function Profile() {
         </DialogContent>
       </Dialog>
       <CreatePostDialog kind="portfolio" open={portfolioOpen} onOpenChange={setPortfolioOpen} onCreated={(post) => setPortfolio((previous) => [post, ...previous])} />
-      <EditProfileDialog open={editOpen} onOpenChange={setEditOpen} onSaved={() => load().catch(() => {})} />
+      <EditProfileDialog open={editOpen} onOpenChange={setEditOpen} onSaved={load} />
       <CreateRequestDialog open={hireOpen} onOpenChange={setHireOpen} targetPro={user} />
     </div>
   );
