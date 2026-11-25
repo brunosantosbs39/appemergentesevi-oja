@@ -7,7 +7,7 @@ import { ImagePlus, Loader2 } from "lucide-react";
 import { useApi } from "@/lib/api";
 import { useMe } from "@/context/MeContext";
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader } from "@/components/common/Misc";
+import { EmptyState } from "@/components/common/Misc";
 import { CategoryChips } from "@/components/common/CategoryChips";
 import { PostCard } from "@/components/feed/PostCard";
 import { CreatePostDialog } from "@/components/feed/CreatePostDialog";
@@ -32,12 +32,13 @@ export default function Feed() {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(190px,28%)]">
       <section className="min-w-0">
-        <PageHeader eyebrow={`Olá, ${me.name?.split(" ")[0] || ""}`} title="Feed" subtitle="Vagas e publicações a até 25 km.">
+        <div className="mb-4 flex justify-end">
           <Button onClick={() => setOpen(true)} className="rounded-none" data-testid="create-post-trigger-button">
             <ImagePlus className="h-4 w-4" /> Nova postagem
           </Button>
-        </PageHeader>
-        <CategoryChips searchOnly value={cat} onChange={setCat} testid="feed-category-chip" />
+        </div>
+        <h1 className="sr-only">Feed</h1>
+        <CategoryChips searchOnly animatedPrompt value={cat} onChange={setCat} testid="feed-category-chip" />
         <div data-testid="instagram-feed-container" className="mt-6 space-y-6">
           {timeline.isLoading && <Loader2 aria-label="Carregando feed" className="animate-spin" />}
           {timeline.isError && <div role="alert" className="space-y-3 border border-border p-4"><p>Não foi possível atualizar o feed.{items.length > 0 && " As publicações anteriores continuam visíveis."}</p><Button variant="outline" disabled={timeline.isFetching} onClick={() => timeline.refetch()}>{timeline.isFetching ? "Tentando novamente…" : "Tentar novamente"}</Button></div>}

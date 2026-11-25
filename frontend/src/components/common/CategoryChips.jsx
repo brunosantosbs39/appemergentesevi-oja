@@ -1,12 +1,30 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { LayoutGrid, Search, X } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import { matchesCategory } from "@/lib/categorySearch.mjs";
 import { cn } from "@/lib/utils";
 
-export const CategoryChips = ({ value, onChange, includeAll = true, multiple = false, searchOnly = false, testid = "category-chip" }) => {
+export const CategoryChips = ({ value, onChange, includeAll = true, multiple = false, searchOnly = false, animatedPrompt = false, testid = "category-chip" }) => {
   const [query, setQuery] = useState("");
   const searchId = useId();
+  const prompt = "Pesquise aqui seu profissional ou sua vaga";
+  const [hint, setHint] = useState(prompt);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!animatedPrompt || focused || query) return;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let timer;
+    let index = 0;
+    const type = () => {
+      if (motion.matches) { setHint(prompt); return; }
+      setHint(prompt.slice(0, index));
+      if (index < prompt.length) { index += 1; timer = setTimeout(type, 75); }
+    };
+    const restart = () => { clearTimeout(timer); index = 0; type(); };
+    restart();
+    motion.addEventListener("change", restart);
+    return () => { clearTimeout(timer); motion.removeEventListener("change", restart); };
+  }, [animatedPrompt, focused, query]);
   const matches = CATEGORIES.filter(category => matchesCategory(category, query));
   const items = includeAll ? [{ slug: "todos", label: "Todos", icon: LayoutGrid }, ...matches] : matches;
   const isOn = slug => multiple ? (value || []).includes(slug) : value === slug;
@@ -18,11 +36,12 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
   };
   return (
     <div className="min-w-0 space-y-3">
-      <label htmlFor={searchId} className="block text-sm font-medium">Pesquisar categorias e áreas de atuação</label>
+      <label htmlFor={searchId} className={animatedPrompt ? "sr-only" : "block text-sm font-medium"}>{animatedPrompt ? prompt : "Pesquisar categorias e áreas de atuação"}</label>
       <div className="relative max-w-xl">
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
         <input id={searchId} type="search" value={query} onChange={event => { setQuery(event.target.value); if (searchOnly && !event.target.value) onChange("todos"); }}
-          placeholder="Ex.: eletricista, limpeza, shows..."
+          placeholder={animatedPrompt ? (focused ? prompt : hint) : "Ex.: eletricista, limpeza, shows..."}
+          onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           autoComplete="off" maxLength={100} data-testid={testid + "-search"}
           className="min-h-11 w-full rounded-none border border-border bg-card py-2 pl-10 pr-12 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" />
         {query && <button type="button" onClick={() => { setQuery(""); if (searchOnly) onChange("todos"); }} aria-label="Limpar pesquisa de categorias"
