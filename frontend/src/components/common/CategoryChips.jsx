@@ -15,12 +15,22 @@ export const CategoryChips = ({ value, onChange, includeAll = true, multiple = f
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer;
     let index = 0;
+    let deleting = false;
     const type = () => {
       if (motion.matches) { setHint(prompt); return; }
       setHint(prompt.slice(0, index));
-      if (index < prompt.length) { index += 1; timer = setTimeout(type, 75); }
+      if (!deleting && index === prompt.length) {
+        deleting = true;
+        timer = setTimeout(type, 1100);
+      } else if (deleting && index === 0) {
+        deleting = false;
+        timer = setTimeout(type, 250);
+      } else {
+        index += deleting ? -1 : 1;
+        timer = setTimeout(type, deleting ? 18 : 32);
+      }
     };
-    const restart = () => { clearTimeout(timer); index = 0; type(); };
+    const restart = () => { clearTimeout(timer); index = 0; deleting = false; type(); };
     restart();
     motion.addEventListener("change", restart);
     return () => { clearTimeout(timer); motion.removeEventListener("change", restart); };
